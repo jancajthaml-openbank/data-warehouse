@@ -3,6 +3,9 @@ import time
 
 
 def get_tenants(root):
+  # example:
+  # /data
+
   result = list()
   path = root
   if not os.path.isdir(path):
@@ -17,6 +20,9 @@ def get_tenants(root):
 
 
 def get_account_names(root, tenant):
+  # example:
+  # /data/t_demo/account
+
   path = root + '/t_' + tenant + '/account'
   if not os.path.isdir(path):
     return []
@@ -30,6 +36,9 @@ def get_account_names(root, tenant):
 
 
 def get_account_snapshots(root, tenant, account):
+  # example:
+  # /data/t_demo/account/NOSTRO/snapshot
+
   path = root + '/t_' + tenant + '/account/' + account + '/snapshot'
   if not os.path.isdir(path):
     return []
@@ -45,6 +54,9 @@ def get_account_snapshots(root, tenant, account):
 
 
 def get_account_events(root, tenant, account, snapshot):
+  # example:
+  # /data/t_demo/account/NOSTRO/events/0000000000
+
   path = root + '/t_' + tenant + '/account/' + account + '/events/' + snapshot
   if not os.path.isdir(path):
     return []
@@ -59,6 +71,9 @@ def get_account_events(root, tenant, account, snapshot):
 
 
 def get_transaction_ids(root, tenant, account, snapshot):
+  # example:
+  # /data/t_demo/account/NOSTRO/events/0000000000
+
   path = root + '/t_' + tenant + '/account/' + account + '/events/' + snapshot
   if not os.path.isdir(path):
     return []
@@ -73,8 +88,10 @@ def get_transaction_ids(root, tenant, account, snapshot):
 
 
 def parse_transfer(data):
-  chunks = data.split(' ')
+  # format:
+  # "id credit_tenant credit_account debit_tenant debit_account valueDate amount currency"
 
+  chunks = data.split(' ')
   return {
     "id": chunks[0],
     "credit": {
@@ -85,17 +102,19 @@ def parse_transfer(data):
       "tenant": chunks[3],
       "account": chunks[4]
     },
+    "valueDate": chunks[5],
     "amount": chunks[6],
-    "currency": chunks[7],
-    "valueDate": chunks[5]
+    "currency": chunks[7]
   }
 
 
 def get_transaction_data(root, tenant, transaction):
+  # example:
+  # /data/t_demo/transaction/xxx-yyy-zzz
+
   path = root + '/t_' + tenant + '/transaction/' + transaction
   if not os.path.isfile(path):
     return {}
-
   with open(path, "r") as fd:
     content = fd.read().splitlines()
     return {
@@ -103,7 +122,6 @@ def get_transaction_data(root, tenant, transaction):
       "status": content[0],
       "transfers": [parse_transfer(line) for line in content[1:]]
     }
-
   return {}
 
 
