@@ -72,6 +72,41 @@ def get_transaction_ids(root, tenant, account, snapshot):
   return list(result)
 
 
+def parse_transfer(data):
+  chunks = data.split(' ')
+
+  return {
+    "id": chunks[0],
+    "credit": {
+      "tenant": chunks[1],
+      "account": chunks[2]
+    },
+    "debit": {
+      "tenant": chunks[3],
+      "account": chunks[4]
+    },
+    "amount": chunks[6],
+    "currency": chunks[7],
+    "valueDate": chunks[5]
+  }
+
+
+def get_transaction_data(root, tenant, transaction):
+  path = root + '/t_' + tenant + '/transaction/' + transaction
+  if not os.path.isfile(path):
+    return {}
+
+  with open(path, "r") as fd:
+    content = fd.read().splitlines()
+    return {
+      "id": transaction,
+      "status": content[0],
+      "transfers": [parse_transfer(line) for line in content[1:]]
+    }
+
+  return {}
+
+
 tenants = get_tenants('data')
 
 for tenant in tenants:
@@ -80,4 +115,6 @@ for tenant in tenants:
     snapshots = get_account_snapshots('data', tenant, account)
     for snapshot in snapshots:
       events = get_account_events('data', tenant, account, snapshot)
-      transactions = get_transaction_ids('data', tenant, account, snapshot)
+      transactions_ids = get_transaction_ids('data', tenant, account, snapshot)
+      for transaction_id in transactions_ids:
+        transaction_data = get_transaction_data('data', tenant, transaction_id)
