@@ -2,6 +2,7 @@ import os
 import time
 import json
 import decimal
+import datetime
 
 decimal.getcontext().prec = 35
 
@@ -72,6 +73,7 @@ def get_account_events(root, tenant, account, snapshot):
     kind, amount, transaction = x.split('_', 2)
     result.append((kind, amount, transaction, time.ctime(os.path.getctime(path+'/'+x))))
   return sorted(result, key=lambda event: event[3])
+  #return
 
 
 def get_transaction_ids(root, tenant, account, snapshot):
@@ -129,38 +131,51 @@ def get_transaction_data(root, tenant, transaction):
   return {}
 
 
+################################################################################
+
+
 all_data = {
   "accounts": {},
   "transfers": {},
 }
 
 
-tenants = get_tenants('data')
+root_storage = 'openbank'
 
+tenants = get_tenants(root_storage)
 
 for tenant in tenants:
-  accounts = get_account_names('data', tenant)
+  accounts = get_account_names(root_storage, tenant)
   for account in accounts:
+
     all_data["accounts"][account] = {
       "balances": {}
     }
-    snapshots = get_account_snapshots('data', tenant, account)
+    snapshots = get_account_snapshots(root_storage, tenant, account)
+    balance_changes = []
     # fixme missing initial balance when account was created
-    balance = decimal.Decimal(0)
+
     for snapshot in snapshots:
-      events = get_account_events('data', tenant, account, snapshot)
+      events = get_account_events(root_storage, tenant, account, snapshot)
 
       for event in events:
         if event[0] == '1':
-          transfers = get_transaction_data('data', tenant, event[2])["transfers"]
+          transfers = get_transaction_data(root_storage, tenant, event[2])["transfers"]
+          amount = decimal.Decimal(event[1])
 
-          next_balance = balance + decimal.Decimal(event[1])
-          amount = "0" if next_balance.is_zero() else '{0:f}'.format(next_balance)
+          # fixme obtain proper valueDate
+          valueDate = transfers[0]["valueDate"]
+          valueDate = datetime.datetime.strptime(valueDate, "%Y-%m-%dT%H:%M:%SZ")
+          balance_changes.append((amount, valueDate))
 
-          if next_balance != balance:
-            all_data["accounts"][account]["balances"][transfers[0]["valueDate"]] = amount
-            balance = next_balance
+    balance = decimal.Decimal(0)
+    for change in sorted(balance_changes, key=lambda event: event[1]):
 
+      next_balance = balance + change[0]
+      if next_balance != balance:
+        amount = "0" if next_balance.is_zero() else '{0:f}'.format(next_balance)
+        all_data["accounts"][account]["balances"][change[1].isoformat()] = amount
+        balance = next_balance
 
 with open('out.json', 'w') as fd:
     json.dump(all_data, fd, indent=2, sort_keys=True)
