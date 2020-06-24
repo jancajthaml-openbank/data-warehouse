@@ -134,11 +134,81 @@ def get_transaction_data(root, tenant, transaction):
 ################################################################################
 
 
+def get_account_meta_data(tenant, account):
+  path = root_storage + '/t_' + tenant + '/account/' + account + '/snapshot/0000000000'
+  if not os.path.isfile(path):
+    return {}
+
+  #print('yes')
+
+  with open(path, 'r') as fd:
+    #print()
+    line = fd.readline().rstrip().split(' ')
+    return {
+      "currency": line[0],
+      "format": line[1][:-2]
+      #"isBal"
+    }
+    #print(data)
+
+  #result = list()
+  #for x in os.listdir(path):
+   # if not x:
+    #  continue
+    #result.append(x)
+  #if result:
+   # result.sort()
+  #return result
+
+  return {}
+
+
+def get_account_balance_changes(tenant, account):
+  result = {}
+
+  snapshots = get_account_snapshots(root_storage, tenant, account)
+  balance_changes_set = {}
+  # fixme missing initial balance when account was created
+
+  for snapshot in snapshots:
+    events = get_account_events(root_storage, tenant, account, snapshot)
+    for event in events:
+      if event[0] == '1':
+        transfers = get_transaction_data(root_storage, tenant, event[2])["transfers"]
+        for transfer in filter(lambda x: (x["debit"]["account"] == account and x["debit"]["tenant"] == tenant) or (x["credit"]["account"] == account and x["debit"]["tenant"] == tenant), transfers):
+          if transfer["debit"]["account"] == account:
+            amount = decimal.Decimal(transfer["amount"]).copy_negate()
+          else:
+            amount = decimal.Decimal(transfer["amount"])
+          valueDate = datetime.datetime.strptime(transfer["valueDate"], "%Y-%m-%dT%H:%M:%SZ")
+          if valueDate in balance_changes_set:
+            balance_changes_set[valueDate] += amount
+          else:
+            balance_changes_set[valueDate] = amount
+
+  balance_changes = []
+  for valueDate, amount in balance_changes_set.items():
+    balance_changes.append((amount, valueDate))
+
+  balance = None
+  for change in sorted(balance_changes, key=lambda event: event[1]):
+    if balance:
+      next_balance = balance + change[0]
+    else:
+      next_balance = change[0]
+    if next_balance != balance:
+      amount = "0" if next_balance.is_zero() else '{0:f}'.format(next_balance)
+      result[change[1].isoformat()] = amount
+      balance = next_balance
+
+  return result
+
+################################################################################
+
 all_data = {
   "accounts": {},
   "transfers": {},
 }
-
 
 root_storage = 'openbank'
 
@@ -147,35 +217,10 @@ tenants = get_tenants(root_storage)
 for tenant in tenants:
   accounts = get_account_names(root_storage, tenant)
   for account in accounts:
-
     all_data["accounts"][account] = {
-      "balances": {}
+      **get_account_meta_data(tenant, account),
+      "balances": get_account_balance_changes(tenant, account),
     }
-    snapshots = get_account_snapshots(root_storage, tenant, account)
-    balance_changes = []
-    # fixme missing initial balance when account was created
-
-    for snapshot in snapshots:
-      events = get_account_events(root_storage, tenant, account, snapshot)
-
-      for event in events:
-        if event[0] == '1':
-          transfers = get_transaction_data(root_storage, tenant, event[2])["transfers"]
-          amount = decimal.Decimal(event[1])
-
-          # fixme obtain proper valueDate
-          valueDate = transfers[0]["valueDate"]
-          valueDate = datetime.datetime.strptime(valueDate, "%Y-%m-%dT%H:%M:%SZ")
-          balance_changes.append((amount, valueDate))
-
-    balance = decimal.Decimal(0)
-    for change in sorted(balance_changes, key=lambda event: event[1]):
-
-      next_balance = balance + change[0]
-      if next_balance != balance:
-        amount = "0" if next_balance.is_zero() else '{0:f}'.format(next_balance)
-        all_data["accounts"][account]["balances"][change[1].isoformat()] = amount
-        balance = next_balance
 
 with open('out.json', 'w') as fd:
     json.dump(all_data, fd, indent=2, sort_keys=True)
