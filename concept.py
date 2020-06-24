@@ -1,5 +1,9 @@
 import os
 import time
+import json
+import decimal
+
+decimal.getcontext().prec = 35
 
 
 def get_tenants(root):
@@ -67,7 +71,7 @@ def get_account_events(root, tenant, account, snapshot):
       continue
     kind, amount, transaction = x.split('_', 2)
     result.append((kind, amount, transaction, time.ctime(os.path.getctime(path+'/'+x))))
-  return result
+  return sorted(result, key=lambda event: event[3])
 
 
 def get_transaction_ids(root, tenant, account, snapshot):
@@ -125,14 +129,38 @@ def get_transaction_data(root, tenant, transaction):
   return {}
 
 
+all_data = {
+  "accounts": {},
+  "transfers": {},
+}
+
+
 tenants = get_tenants('data')
+
 
 for tenant in tenants:
   accounts = get_account_names('data', tenant)
   for account in accounts:
+    all_data["accounts"][account] = {
+      "balances": {}
+    }
     snapshots = get_account_snapshots('data', tenant, account)
+    # fixme missing initial balance when account was created
+    balance = decimal.Decimal(0)
     for snapshot in snapshots:
       events = get_account_events('data', tenant, account, snapshot)
-      transactions_ids = get_transaction_ids('data', tenant, account, snapshot)
-      for transaction_id in transactions_ids:
-        transaction_data = get_transaction_data('data', tenant, transaction_id)
+
+      for event in events:
+        if event[0] == '1':
+          transfers = get_transaction_data('data', tenant, event[2])["transfers"]
+
+          next_balance = balance + decimal.Decimal(event[1])
+          amount = "0" if next_balance.is_zero() else '{0:f}'.format(next_balance)
+
+          if next_balance != balance:
+            all_data["accounts"][account]["balances"][transfers[0]["valueDate"]] = amount
+            balance = next_balance
+
+
+with open('out.json', 'w') as fd:
+    json.dump(all_data, fd, indent=2, sort_keys=True)
