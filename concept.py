@@ -114,6 +114,24 @@ def parse_transfer(data):
   }
 
 
+def get_account_meta_data(root, tenant, account):
+  # example:
+  # /data/t_demo/account/NOSTRO/snapshot/0000000000
+
+  path = root + '/t_' + tenant + '/account/' + account + '/snapshot/0000000000'
+  if not os.path.isfile(path):
+    return {}
+
+  with open(path, 'r') as fd:
+    line = fd.readline().rstrip().split(' ')
+    return {
+      "currency": line[0],
+      "format": line[1][:-2]
+    }
+
+  return {}
+
+
 def get_transaction_data(root, tenant, transaction):
   # example:
   # /data/t_demo/transaction/xxx-yyy-zzz
@@ -134,33 +152,7 @@ def get_transaction_data(root, tenant, transaction):
 ################################################################################
 
 
-def get_account_meta_data(tenant, account):
-  path = root_storage + '/t_' + tenant + '/account/' + account + '/snapshot/0000000000'
-  if not os.path.isfile(path):
-    return {}
 
-  #print('yes')
-
-  with open(path, 'r') as fd:
-    #print()
-    line = fd.readline().rstrip().split(' ')
-    return {
-      "currency": line[0],
-      "format": line[1][:-2]
-      #"isBal"
-    }
-    #print(data)
-
-  #result = list()
-  #for x in os.listdir(path):
-   # if not x:
-    #  continue
-    #result.append(x)
-  #if result:
-   # result.sort()
-  #return result
-
-  return {}
 
 
 def get_account_balance_changes(tenant, account):
@@ -190,20 +182,25 @@ def get_account_balance_changes(tenant, account):
   for valueDate, amount in balance_changes_set.items():
     balance_changes.append((amount, valueDate))
 
-  balance = None
+  #balance = None
   for change in sorted(balance_changes, key=lambda event: event[1]):
-    if balance:
-      next_balance = balance + change[0]
-    else:
-      next_balance = change[0]
-    if next_balance != balance:
-      amount = "0" if next_balance.is_zero() else '{0:f}'.format(next_balance)
-      result[change[1].isoformat()] = amount
-      balance = next_balance
+    #if balance:
+     # next_balance = balance + change[0]
+    #else:
+     # next_balance = change[0]
+    #if next_balance != balance:
+    amount = "0" if change[0].is_zero() else '{0:f}'.format(change[0])
+    if not change[1].isoformat() in result:
+      result[change[1].isoformat()] = []
+    result[change[1].isoformat()].append(amount)
+      #amount
+      #balance = next_balance
 
   return result
 
+
 ################################################################################
+
 
 all_data = {
   "accounts": {},
@@ -218,9 +215,9 @@ for tenant in tenants:
   accounts = get_account_names(root_storage, tenant)
   for account in accounts:
     all_data["accounts"][account] = {
-      **get_account_meta_data(tenant, account),
-      "balances": get_account_balance_changes(tenant, account),
+      **get_account_meta_data(root_storage, tenant, account),
+      "balance_changes": get_account_balance_changes(tenant, account),
     }
 
-with open('out.json', 'w') as fd:
+with open('database.json', 'w') as fd:
     json.dump(all_data, fd, indent=2, sort_keys=True)
