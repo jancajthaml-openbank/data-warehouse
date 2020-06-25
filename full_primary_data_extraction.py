@@ -152,9 +152,6 @@ def get_transaction_data(root, tenant, transaction):
 ################################################################################
 
 
-
-
-
 def get_account_balance_changes(tenant, account):
   result = {}
 
@@ -182,19 +179,13 @@ def get_account_balance_changes(tenant, account):
   for valueDate, amount in balance_changes_set.items():
     balance_changes.append((amount, valueDate))
 
-  #balance = None
   for change in sorted(balance_changes, key=lambda event: event[1]):
-    #if balance:
-     # next_balance = balance + change[0]
-    #else:
-     # next_balance = change[0]
-    #if next_balance != balance:
-    amount = "0" if change[0].is_zero() else '{0:f}'.format(change[0])
+    if change[0].is_zero():
+      continue
+
     if not change[1].isoformat() in result:
       result[change[1].isoformat()] = []
-    result[change[1].isoformat()].append(amount)
-      #amount
-      #balance = next_balance
+    result[change[1].isoformat()].append('{0:f}'.format(change[0]))
 
   return result
 
@@ -203,6 +194,7 @@ def get_account_balance_changes(tenant, account):
 
 
 all_data = {
+  "tenants": [],
   "accounts": {},
   "transfers": {},
 }
@@ -211,10 +203,15 @@ root_storage = 'openbank'
 
 tenants = get_tenants(root_storage)
 
+all_data["tenants"] = tenants
+
 for tenant in tenants:
   accounts = get_account_names(root_storage, tenant)
+  all_data["accounts"][tenant] = {}
+  all_data["transfers"][tenant] = {}
+
   for account in accounts:
-    all_data["accounts"][account] = {
+    all_data["accounts"][tenant][account] = {
       **get_account_meta_data(root_storage, tenant, account),
       "balance_changes": get_account_balance_changes(tenant, account),
     }
