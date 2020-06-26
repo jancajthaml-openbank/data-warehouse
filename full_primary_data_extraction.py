@@ -122,10 +122,10 @@ def get_account_meta_data(root, tenant, account):
     return {}
 
   with open(path, 'r') as fd:
-    line = fd.readline().rstrip().split(' ')
+    line = fd.readline().rstrip()
     return {
-      "currency": line[0],
-      "format": line[1][:-2]
+      "currency": line[0:3],
+      "format": line[4:-2]
     }
 
   return {}
@@ -199,7 +199,7 @@ all_data = {
   "transfers": {},
 }
 
-root_storage = 'openbank'
+root_storage = 'data'
 
 tenants = get_tenants(root_storage)
 
