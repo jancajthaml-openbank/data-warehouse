@@ -73,7 +73,6 @@ def get_account_events(root, tenant, account, snapshot):
     kind, amount, transaction = x.split('_', 2)
     result.append((kind, amount, transaction, time.ctime(os.path.getctime(path+'/'+x))))
   return sorted(result, key=lambda event: event[3])
-  #return
 
 
 def get_transaction_ids(root, tenant, account, snapshot):
@@ -183,9 +182,10 @@ def get_account_balance_changes(tenant, account):
     if change[0].is_zero():
       continue
 
-    if not change[1].isoformat() in result:
-      result[change[1].isoformat()] = []
-    result[change[1].isoformat()].append('{0:f}'.format(change[0]))
+    key = change[1].isoformat() + "Z"
+    if not key in result:
+      result[key] = []
+    result[key].append('{0:f}'.format(change[0]))
 
   return result
 
