@@ -1,10 +1,5 @@
-import os
-import time
-import json
 import decimal
 import datetime
-
-#decimal.getcontext().prec = 35
 
 from secondary_storage import SecondaryPersistence
 from primary_storage import PrimaryPersistence
@@ -40,7 +35,6 @@ class Account():
 
     snapshots = persistence.get_account_snapshots(self.__tenant, self.__name)
     balance_changes_set = dict()
-    # fixme missing initial balance when account was created
 
     for snapshot in snapshots:
       events = persistence.get_account_events(self.__tenant, self.__name, snapshot)

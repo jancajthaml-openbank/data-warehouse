@@ -1,4 +1,3 @@
-import os
 import json
 import decimal
 import datetime
@@ -6,39 +5,30 @@ import datetime
 from secondary_storage import SecondaryPersistence
 
 
-
 def get_tenants(database):
-  data = database.data
-
-
-  if not "tenants" in data:
+  if not "tenants" in database.data:
     return list()
-
-  return list(data["tenants"])
+  return list(database.data["tenants"])
 
 
 def get_accounts(database, tenant):
-  data = database.data
-
-  if not "accounts" in data:
+  if not "accounts" in database.data:
     return list()
-  if not tenant in data['accounts']:
+  if not tenant in database.data['accounts']:
     return list()
-  return list(data["accounts"][tenant].keys())
+  return list(database.data["accounts"][tenant].keys())
 
 
 def get_current_account_state(database, tenant, account):
-  data = database.data
-
-  if not "accounts" in data:
+  if not "accounts" in database.data:
     return dict()
-  if not tenant in data['accounts']:
+  if not tenant in database.data['accounts']:
     return dict()
-  if not account in data['accounts'][tenant]:
+  if not account in database.data['accounts'][tenant]:
     return dict()
 
   balance = decimal.Decimal(0)
-  chunk = data['accounts'][tenant][account]
+  chunk = database.data['accounts'][tenant][account]
 
   changes = [y for x in chunk["balance_changes"].values() for y in x]
 
@@ -55,15 +45,13 @@ def get_current_account_state(database, tenant, account):
 
 
 def get_accounts_by_currency(database, tenant, currency):
-  data = database.data
-
-  if not "accounts" in data:
+  if not "accounts" in database.data:
     return list()
-  if not tenant in data['accounts']:
+  if not tenant in database.data['accounts']:
     return list()
 
   result = list()
-  for account, chunk in data['accounts'][tenant].items():
+  for account, chunk in database.data['accounts'][tenant].items():
     if chunk["currency"] != currency:
       continue
     result.append(account)
@@ -72,15 +60,13 @@ def get_accounts_by_currency(database, tenant, currency):
 
 
 def get_accounts_by_format(database, tenant, format):
-  data = database.data
-
-  if not "accounts" in data:
+  if not "accounts" in database.data:
     return list()
-  if not tenant in data['accounts']:
+  if not tenant in database.data['accounts']:
     return list()
 
   result = list()
-  for account, chunk in data['accounts'][tenant].items():
+  for account, chunk in database.data['accounts'][tenant].items():
     if chunk["format"] != format:
       continue
     result.append(account)
@@ -89,18 +75,16 @@ def get_accounts_by_format(database, tenant, format):
 
 
 def get_account_balance_in_time(database, tenant, account):
-  data = database.data
-
-  if not "accounts" in data:
+  if not "accounts" in database.data:
     return dict()
-  if not tenant in data['accounts']:
+  if not tenant in database.data['accounts']:
     return dict()
-  if not account in data['accounts'][tenant]:
+  if not account in database.data['accounts'][tenant]:
     return dict()
 
-  chunk = data['accounts'][tenant][account]
+  chunk = database.data['accounts'][tenant][account]
 
-  changes = []
+  changes = list()
 
   for valueDate, subset in chunk["balance_changes"].items():
     amount = sum([decimal.Decimal(x) for x in subset])
@@ -110,7 +94,7 @@ def get_account_balance_in_time(database, tenant, account):
 
   balance = decimal.Decimal(0)
 
-  result = {}
+  result = dict()
 
   for change in changes:
     key = change[0].isoformat() + "Z"
@@ -123,17 +107,15 @@ def get_account_balance_in_time(database, tenant, account):
 
 
 def get_accounts_participated_in_transactions_larger_than_amount(database, tenant, amount):
-  data = database.data
-
-  if not "accounts" in data:
+  if not "accounts" in database.data:
     return list()
-  if not tenant in data['accounts']:
+  if not tenant in database.data['accounts']:
     return list()
 
   amount = decimal.Decimal(amount)
 
   result = list()
-  for account, chunk in data['accounts'][tenant].items():
+  for account, chunk in database.data['accounts'][tenant].items():
     changes = [decimal.Decimal(y).copy_abs() for x in chunk["balance_changes"].values() for y in x]
 
     for change in changes:
