@@ -34,6 +34,15 @@ class SecondaryPersistence():
       "last_syn_event": "???"
     }
 
+  def get_account(self, tenant, account):
+    if not "accounts" in self.__data:
+      return None
+    if not tenant in self.__data["accounts"]:
+      return None
+    if not account in self.__data["accounts"][tenant]:
+      return None
+    return self.__data["accounts"][tenant][account]
+
   def update_tenant(self, tenant):
     if not "tenants" in self.__data:
       self.__data["tenants"] = list()
@@ -214,7 +223,11 @@ class Account():
     return self.__name
 
   def hydrate(self, secondary_persistence):
-    pass
+    data = secondary_persistence.get_account(self.__tenant, self.__name)
+    if not data:
+      return
+    # fixme actually implement
+    #print(data['last_syn_snapshot'], data['last_syn_event'])
 
   def explore(self, primary_persistence):
     pass
@@ -270,7 +283,6 @@ if __name__ == '__main__':
   tenants = secondary_persistence.get_tenants(primary_persistence)
 
   for tenant in tenants:
-    # fixme get only new accounts
     for account in [Account(tenant, name) for name in primary_persistence.get_account_names(tenant)]:
       account.hydrate(secondary_persistence)
       account.explore(primary_persistence)
