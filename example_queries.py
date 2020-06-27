@@ -30,7 +30,6 @@ def get_current_account_state(database, tenant, account):
     return {}
 
   balance = decimal.Decimal(0)
-
   data = database['accounts'][tenant][account]
 
   changes = [y for x in data["balance_changes"].values() for y in x]

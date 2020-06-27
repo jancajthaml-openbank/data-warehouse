@@ -6,215 +6,277 @@ import datetime
 
 decimal.getcontext().prec = 35
 
+class SecondaryPersistence():
 
-def get_tenants(root):
-  # example:
-  # /data
+  # represents stub implementation of secondary partitioned data
 
-  result = list()
-  path = root
-  if not os.path.isdir(path):
-    return []
-  for x in os.listdir(root):
-    if not x:
-      continue
-    if not x.startswith('t_'):
-      continue
-    result.append(x[2:])
-  return result
+  def __init__(self, filename):
+    self.__filename = filename
+    self.__data = dict()
 
+  def hydrate(self):
+    try:
+      with open(self.__filename, 'r') as fd:
+        self.__data = json.loads(fd.read())
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
+      self.__data = dict()
 
-def get_account_names(root, tenant):
-  # example:
-  # /data/t_demo/account
+  def update_account(self, account, primary_persistence):
+    if not "accounts" in self.__data:
+      self.__data["accounts"] = dict()
+    if not account.tenant in self.__data["accounts"]:
+      self.__data["accounts"][account.tenant] = dict()
 
-  path = root + '/t_' + tenant + '/account'
-  if not os.path.isdir(path):
-    return []
-
-  result = list()
-  for x in os.listdir(path):
-    if not x:
-      continue
-    result.append(x)
-  return result
-
-
-def get_account_snapshots(root, tenant, account):
-  # example:
-  # /data/t_demo/account/NOSTRO/snapshot
-
-  path = root + '/t_' + tenant + '/account/' + account + '/snapshot'
-  if not os.path.isdir(path):
-    return []
-
-  result = list()
-  for x in os.listdir(path):
-    if not x:
-      continue
-    result.append(x)
-  if result:
-    result.sort()
-  return result
-
-
-def get_account_events(root, tenant, account, snapshot):
-  # example:
-  # /data/t_demo/account/NOSTRO/events/0000000000
-
-  path = root + '/t_' + tenant + '/account/' + account + '/events/' + snapshot
-  if not os.path.isdir(path):
-    return []
-
-  result = list()
-  for x in os.listdir(path):
-    if not x:
-      continue
-    kind, amount, transaction = x.split('_', 2)
-    result.append((kind, amount, transaction, time.ctime(os.path.getctime(path+'/'+x))))
-  return sorted(result, key=lambda event: event[3])
-
-
-def get_transaction_ids(root, tenant, account, snapshot):
-  # example:
-  # /data/t_demo/account/NOSTRO/events/0000000000
-
-  path = root + '/t_' + tenant + '/account/' + account + '/events/' + snapshot
-  if not os.path.isdir(path):
-    return []
-
-  result = set()
-  for x in os.listdir(path):
-    if not x:
-      continue
-    _, _, transaction = x.split('_', 2)
-    result.add(transaction)
-  return list(result)
-
-
-def parse_transfer(data):
-  # format:
-  # "id credit_tenant credit_account debit_tenant debit_account valueDate amount currency"
-
-  chunks = data.split(' ')
-  return {
-    "id": chunks[0],
-    "credit": {
-      "tenant": chunks[1],
-      "account": chunks[2]
-    },
-    "debit": {
-      "tenant": chunks[3],
-      "account": chunks[4]
-    },
-    "valueDate": chunks[5],
-    "amount": chunks[6],
-    "currency": chunks[7]
-  }
-
-
-def get_account_meta_data(root, tenant, account):
-  # example:
-  # /data/t_demo/account/NOSTRO/snapshot/0000000000
-
-  path = root + '/t_' + tenant + '/account/' + account + '/snapshot/0000000000'
-  if not os.path.isfile(path):
-    return {}
-
-  with open(path, 'r') as fd:
-    line = fd.readline().rstrip()
-    return {
-      "currency": line[0:3],
-      "format": line[4:-2]
+    self.__data["accounts"][account.tenant][account.name] = {
+      **primary_persistence.get_account_meta_data(account.tenant, account.name),
+      "balance_changes": account.get_account_balance_changes(primary_persistence),
+      "last_syn_snapshot": 0,
+      "last_syn_event": "???"
     }
 
-  return {}
+  def update_tenant(self, tenant):
+    if not "tenants" in self.__data:
+      self.__data["tenants"] = list()
+
+    if tenant in self.__data["tenants"]:
+      return
+
+    self.__data["tenants"].append(tenant)
+
+  def persist(self):
+    with open(self.__filename, 'w') as fd:
+      json.dump(self.__data, fd, indent=2, sort_keys=True)
+
+  def get_tenants(self, primary_persistence):
+    for tenant in primary_persistence.get_tenants():
+      self.update_tenant(tenant)
+    return self.__data["tenants"]
 
 
-def get_transaction_data(root, tenant, transaction):
-  # example:
-  # /data/t_demo/transaction/xxx-yyy-zzz
+class PrimaryPersistence():
 
-  path = root + '/t_' + tenant + '/transaction/' + transaction
-  if not os.path.isfile(path):
-    return {}
-  with open(path, "r") as fd:
-    content = fd.read().splitlines()
-    return {
-      "id": transaction,
-      "status": content[0],
-      "transfers": [parse_transfer(line) for line in content[1:]]
-    }
-  return {}
+  # represents fascade over primary data
+
+  def __init__(self, root):
+    self.__root = root
+
+  def get_tenants(self):
+    # example:
+    # /data
+
+    result = list()
+    if not os.path.isdir(self.__root):
+      return []
+    for x in os.listdir(self.__root):
+      if not x:
+        continue
+      if not x.startswith('t_'):
+        continue
+      result.append(x[2:])
+    return result
+
+  def get_account_names(self, tenant):
+    # example:
+    # /data/t_demo/account
+
+    result = list()
+
+    path = self.__root + '/t_' + tenant + '/account'
+    if not os.path.isdir(path):
+      return result
+
+    for x in os.listdir(path):
+      if not x:
+        continue
+      result.append(x)
+    return result
+
+  def get_account_snapshots(self, tenant, account):
+    # example:
+    # /data/t_demo/account/NOSTRO/snapshot
+
+    result = list()
+
+    path = self.__root + '/t_' + tenant + '/account/' + account + '/snapshot'
+    if not os.path.isdir(path):
+      return result
+
+    for x in os.listdir(path):
+      if not x:
+        continue
+      result.append(x)
+    if result:
+      result.sort()
+    return result
+
+  def get_account_events(self, tenant, account, snapshot):
+    # example:
+    # /data/t_demo/account/NOSTRO/events/0000000000
+
+    result = list()
+
+    path = self.__root + '/t_' + tenant + '/account/' + account + '/events/' + snapshot
+
+    if not os.path.isdir(path):
+      return result
+
+    for x in os.listdir(path):
+      if not x:
+        continue
+      kind, amount, transaction = x.split('_', 2)
+      result.append((kind, amount, transaction, time.ctime(os.path.getctime(path+'/'+x))))
+    return sorted(result, key=lambda event: event[3])
+
+  def get_transaction_ids(self, tenant, account, snapshot):
+    # example:
+    # /data/t_demo/account/NOSTRO/events/0000000000
+
+    path = self.__root + '/t_' + tenant + '/account/' + account + '/events/' + snapshot
+    if not os.path.isdir(path):
+      return list()
+
+    result = set()
+    for x in os.listdir(path):
+      if not x:
+        continue
+      _, _, transaction = x.split('_', 2)
+      result.add(transaction)
+    return list(result)
+
+  def get_transaction_data(self, tenant, transaction):
+    # example:
+    # /data/t_demo/transaction/xxx-yyy-zzz
+
+    path = self.__root + '/t_' + tenant + '/transaction/' + transaction
+
+    if not os.path.isfile(path):
+      return dict()
+
+    with open(path, "r") as fd:
+      content = fd.read().splitlines()
+
+      transfers = list()
+      for transfer in content[1:]:
+        # format:
+        # "id credit_tenant credit_account debit_tenant debit_account valueDate amount currency"
+
+        chunks = transfer.split(' ')
+        transfers.append({
+          "id": chunks[0],
+          "credit": {
+            "tenant": chunks[1],
+            "account": chunks[2]
+          },
+          "debit": {
+            "tenant": chunks[3],
+            "account": chunks[4]
+          },
+          "valueDate": chunks[5],
+          "amount": chunks[6],
+          "currency": chunks[7]
+        })
+
+      return {
+        "id": transaction,
+        "status": content[0],
+        "transfers": transfers
+      }
+
+  def get_account_meta_data(self, tenant, account):
+    # example:
+    # /data/t_demo/account/NOSTRO/snapshot/0000000000
+
+    path = self.__root + '/t_' + tenant + '/account/' + account + '/snapshot/0000000000'
+    if not os.path.isfile(path):
+      return dict()
+
+    with open(path, 'r') as fd:
+      line = fd.readline().rstrip()
+      return {
+        "currency": line[0:3],
+        "format": line[4:-2]
+      }
+
+
+class Account():
+
+  def __init__(self, tenant, name):
+    self.__tenant = tenant
+    self.__name = name
+    pass
+
+  @property
+  def tenant(self):
+    return self.__tenant
+
+  @property
+  def name(self):
+    return self.__name
+
+  def hydrate(self, secondary_persistence):
+    pass
+
+  def explore(self, primary_persistence):
+    pass
+
+  def get_account_balance_changes(self, persistence):
+    result = dict()
+
+    snapshots = persistence.get_account_snapshots(self.__tenant, self.__name)
+    balance_changes_set = dict()
+    # fixme missing initial balance when account was created
+
+    for snapshot in snapshots:
+      events = persistence.get_account_events(self.__tenant, self.__name, snapshot)
+      for event in events:
+        if event[0] == '1':
+          transfers = persistence.get_transaction_data(self.__tenant, event[2])["transfers"]
+          for transfer in filter(lambda x: (x["debit"]["account"] == self.__name and x["debit"]["tenant"] == self.__tenant) or (x["credit"]["account"] == self.__name and x["debit"]["tenant"] == self.__tenant), transfers):
+            if transfer["debit"]["account"] == account:
+              amount = decimal.Decimal(transfer["amount"]).copy_negate()
+            else:
+              amount = decimal.Decimal(transfer["amount"])
+            valueDate = datetime.datetime.strptime(transfer["valueDate"], "%Y-%m-%dT%H:%M:%SZ")
+            if valueDate in balance_changes_set:
+              balance_changes_set[valueDate] += amount
+            else:
+              balance_changes_set[valueDate] = amount
+
+    balance_changes = list()
+    for valueDate, amount in balance_changes_set.items():
+      balance_changes.append((amount, valueDate))
+
+    for change in sorted(balance_changes, key=lambda event: event[1]):
+      if change[0].is_zero():
+        continue
+
+      key = change[1].isoformat() + "Z"
+      if not key in result:
+        result[key] = list()
+      result[key].append('{0:f}'.format(change[0]))
+
+    return result
 
 
 ################################################################################
 
 
-def get_account_balance_changes(tenant, account):
-  result = {}
+if __name__ == '__main__':
 
-  snapshots = get_account_snapshots(root_storage, tenant, account)
-  balance_changes_set = {}
-  # fixme missing initial balance when account was created
+  primary_persistence = PrimaryPersistence('./data')
+  secondary_persistence = SecondaryPersistence('./database.json')
+  secondary_persistence.hydrate()
 
-  for snapshot in snapshots:
-    events = get_account_events(root_storage, tenant, account, snapshot)
-    for event in events:
-      if event[0] == '1':
-        transfers = get_transaction_data(root_storage, tenant, event[2])["transfers"]
-        for transfer in filter(lambda x: (x["debit"]["account"] == account and x["debit"]["tenant"] == tenant) or (x["credit"]["account"] == account and x["debit"]["tenant"] == tenant), transfers):
-          if transfer["debit"]["account"] == account:
-            amount = decimal.Decimal(transfer["amount"]).copy_negate()
-          else:
-            amount = decimal.Decimal(transfer["amount"])
-          valueDate = datetime.datetime.strptime(transfer["valueDate"], "%Y-%m-%dT%H:%M:%SZ")
-          if valueDate in balance_changes_set:
-            balance_changes_set[valueDate] += amount
-          else:
-            balance_changes_set[valueDate] = amount
+  tenants = secondary_persistence.get_tenants(primary_persistence)
 
-  balance_changes = []
-  for valueDate, amount in balance_changes_set.items():
-    balance_changes.append((amount, valueDate))
+  for tenant in tenants:
+    # fixme get only new accounts
+    for account in [Account(tenant, name) for name in primary_persistence.get_account_names(tenant)]:
+      account.hydrate(secondary_persistence)
+      account.explore(primary_persistence)
+      secondary_persistence.update_account(account, primary_persistence)
 
-  for change in sorted(balance_changes, key=lambda event: event[1]):
-    if change[0].is_zero():
-      continue
+    #for transaction_id in get_transaction_ids(root_storage, tenant):
+    #  print(transaction_id)
 
-    key = change[1].isoformat() + "Z"
-    if not key in result:
-      result[key] = []
-    result[key].append('{0:f}'.format(change[0]))
-
-  return result
-
-
-################################################################################
-
-
-all_data = {
-  "tenants": [],
-  "accounts": {},
-  "transfers": {},
-}
-
-root_storage = 'data'
-
-tenants = get_tenants(root_storage)
-
-all_data["tenants"] = tenants
-
-for tenant in tenants:
-  accounts = get_account_names(root_storage, tenant)
-  all_data["accounts"][tenant] = {}
-  all_data["transfers"][tenant] = {}
-
-  for account in accounts:
-    all_data["accounts"][tenant][account] = {
-      **get_account_meta_data(root_storage, tenant, account),
-      "balance_changes": get_account_balance_changes(tenant, account),
-    }
-
-with open('database.json', 'w') as fd:
-    json.dump(all_data, fd, indent=2, sort_keys=True)
+  secondary_persistence.persist()
