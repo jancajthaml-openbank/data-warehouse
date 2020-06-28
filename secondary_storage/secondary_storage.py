@@ -22,14 +22,7 @@ class SecondaryPersistence():
     if not account.tenant in self.__data["accounts"]:
       self.__data["accounts"][account.tenant] = dict()
 
-    # fixme account.serialize
-
-    self.__data["accounts"][account.tenant][account.name] = {
-      **primary_persistence.get_account_meta_data(account.tenant, account.name),
-      "balance_changes": account.get_account_balance_changes(primary_persistence),
-      "last_syn_snapshot": 0,
-      "last_syn_event": "???"
-    }
+    self.__data["accounts"][account.tenant][account.name] = account.serialize()
 
   def get_account(self, tenant, account):
     if not "accounts" in self.__data:

@@ -97,6 +97,7 @@ def get_account_balance_in_time(database, tenant, account):
   result = dict()
 
   for change in changes:
+    # fixme do not use isoformat helper be explicit in formating
     key = change[0].isoformat() + "Z"
     next_balance = decimal.Decimal(change[1]) + balance
     if balance != next_balance:
@@ -147,6 +148,6 @@ if __name__ == '__main__':
   print_and_run('get_tenants', database)
   print_and_run('get_accounts', database, 'demo')
   print_and_run('get_accounts_by_currency', database, 'demo', 'CZK')
-  print_and_run('get_accounts_by_format', database, 'demo', 'IBAN')
-  print_and_run('get_accounts_participated_in_transactions_larger_than_amount', database, 'demo', '100000')
+  print_and_run('get_accounts_by_format', database, 'demo', 'BONDSTER_ORIGINATOR')
+  print_and_run('get_accounts_participated_in_transactions_larger_than_amount', database, 'demo', '10000')
   print_and_run('get_account_balance_in_time', database, 'demo', 'CZK_TYPE_INVESTOR_DEPOSIT')

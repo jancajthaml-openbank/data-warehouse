@@ -1,5 +1,6 @@
 import os
 import time
+import datetime
 
 
 class PrimaryPersistence():
@@ -40,7 +41,7 @@ class PrimaryPersistence():
       result.append(x)
     return result
 
-  def get_account_snapshots(self, tenant, account):
+  def get_account_snapshots(self, tenant, account, last_snapshot):
     # example:
     # /data/t_demo/account/NOSTRO/snapshot
 
@@ -53,27 +54,36 @@ class PrimaryPersistence():
     for x in os.listdir(path):
       if not x:
         continue
+      x = int(x)
+      if x < last_snapshot:
+        continue
       result.append(x)
-    if result:
-      result.sort()
-    return result
+    return sorted(result)
 
-  def get_account_events(self, tenant, account, snapshot):
+  def get_account_events(self, tenant, account, snapshot, last_event):
     # example:
     # /data/t_demo/account/NOSTRO/events/0000000000
 
+    last_event = -1 if last_event is None else last_event
+
     result = list()
 
-    path = self.__root + '/t_' + tenant + '/account/' + account + '/events/' + snapshot
+    path = self.__root + '/t_' + tenant + '/account/' + account + '/events/' + "0000000000"[0:-len(str(snapshot))] + str(snapshot)
 
     if not os.path.isdir(path):
       return result
 
-    for x in os.listdir(path):
-      if not x:
-        continue
-      kind, amount, transaction = x.split('_', 2)
-      result.append((kind, amount, transaction, time.ctime(os.path.getctime(path+'/'+x))))
+    events = os.listdir(path)
+    if len(events) == last_event:
+      return result
+
+    for event in events:
+      kind, amount, transaction = event.split('_', 2)
+      with open(path+'/'+event) as fd:
+        event_id = int(fd.read())
+        if event_id > last_event:
+          result.append((kind, amount, transaction, event_id))
+
     return sorted(result, key=lambda event: event[3])
 
   def get_transaction_ids(self, tenant, account, snapshot):

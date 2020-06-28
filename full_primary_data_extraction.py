@@ -10,7 +10,11 @@ class Account():
   def __init__(self, tenant, name):
     self.__tenant = tenant
     self.__name = name
-    pass
+    self.__format = "???"
+    self.__currency = "???"
+    self.__last_syn_snapshot = 0
+    self.__last_syn_event = None
+    self.__balance_changes = dict()
 
   @property
   def tenant(self):
@@ -24,33 +28,65 @@ class Account():
     data = secondary_persistence.get_account(self.__tenant, self.__name)
     if not data:
       return
-    # fixme actually implement
-    #print(data['last_syn_snapshot'], data['last_syn_event'])
+    self.__format = data["format"]
+    self.__currency = data["currency"]
+    self.__last_syn_event = data["last_syn_event"]
+    self.__last_syn_snapshot = data["last_syn_snapshot"]
+    self.__balance_changes = data["balance_changes"]
 
   def explore(self, primary_persistence):
-    pass
+    meta_data = primary_persistence.get_account_meta_data(self.__tenant, self.__name)
+    if not meta_data:
+      return
+    self.__format = meta_data["format"]
+    self.__currency = meta_data["currency"]
 
-  def get_account_balance_changes(self, persistence):
-    result = dict()
+    events = self.get_new_events(primary_persistence)
+    if events:
+      self.__last_syn_snapshot = events[-1][0]
+      self.__last_syn_event = events[-1][4]
+      self.__balance_changes = self.get_account_balance_changes(primary_persistence, events)
 
-    snapshots = persistence.get_account_snapshots(self.__tenant, self.__name)
-    balance_changes_set = dict()
+  def serialize(self):
+    return {
+      "format": self.__format,
+      "currency": self.__currency,
+      "balance_changes": self.__balance_changes,
+      "last_syn_snapshot": self.__last_syn_snapshot,
+      "last_syn_event": self.__last_syn_event
+    }
+    return dict()
+
+  def get_new_events(self, persistence):
+    result = list()
+
+    snapshots = persistence.get_account_snapshots(self.__tenant, self.__name, self.__last_syn_snapshot)
 
     for snapshot in snapshots:
-      events = persistence.get_account_events(self.__tenant, self.__name, snapshot)
+      events = persistence.get_account_events(self.__tenant, self.__name, snapshot, self.__last_syn_event)
       for event in events:
-        if event[0] == '1':
-          transfers = persistence.get_transaction_data(self.__tenant, event[2])["transfers"]
-          for transfer in filter(lambda x: (x["debit"]["account"] == self.__name and x["debit"]["tenant"] == self.__tenant) or (x["credit"]["account"] == self.__name and x["debit"]["tenant"] == self.__tenant), transfers):
-            if transfer["debit"]["account"] == account:
-              amount = decimal.Decimal(transfer["amount"]).copy_negate()
-            else:
-              amount = decimal.Decimal(transfer["amount"])
-            valueDate = datetime.datetime.strptime(transfer["valueDate"], "%Y-%m-%dT%H:%M:%SZ")
-            if valueDate in balance_changes_set:
-              balance_changes_set[valueDate] += amount
-            else:
-              balance_changes_set[valueDate] = amount
+        result.append((snapshot, *event))
+
+    return result
+
+  def get_account_balance_changes(self, persistence, events):
+    result = dict()
+
+    balance_changes_set = dict()
+
+    for event in events:
+      if event[1] == '1':
+        transfers = persistence.get_transaction_data(self.__tenant, event[3])["transfers"]
+        for transfer in filter(lambda x: (x["debit"]["account"] == self.__name and x["debit"]["tenant"] == self.__tenant) or (x["credit"]["account"] == self.__name and x["debit"]["tenant"] == self.__tenant), transfers):
+          if transfer["debit"]["account"] == account:
+            amount = decimal.Decimal(transfer["amount"]).copy_negate()
+          else:
+            amount = decimal.Decimal(transfer["amount"])
+          valueDate = datetime.datetime.strptime(transfer["valueDate"], "%Y-%m-%dT%H:%M:%SZ")
+          if valueDate in balance_changes_set:
+            balance_changes_set[valueDate] += amount
+          else:
+            balance_changes_set[valueDate] = amount
 
     balance_changes = list()
     for valueDate, amount in balance_changes_set.items():
@@ -60,7 +96,7 @@ class Account():
       if change[0].is_zero():
         continue
 
-      key = change[1].isoformat() + "Z"
+      key = change[1].strftime("%Y-%m-%dT%H:%M:%SZ")
       if not key in result:
         result[key] = list()
       result[key].append('{0:f}'.format(change[0]))
