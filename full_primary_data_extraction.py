@@ -10,21 +10,38 @@ class Transaction():
   def __init__(self, tenant, transaction_id):
     self.__tenant = tenant
     self.__id = transaction_id
+    self.__status = "new"
     self.__transfers = list()
 
   @property
   def transfers(self):
     return self.__transfers
 
+  @property
+  def tenant(self):
+    return self.__tenant
+
+  @property
+  def id(self):
+    return self.__id
+
+  @property
+  def status(self):
+    return self.__status
+
   def hydrate(self, secondary_persistence):
-    pass
+    data = secondary_persistence.get_transaction(self.__tenant, self.__id)
+    if not data:
+      return
+    self.__status = data["status"]
+    self.__transfers = data["transfers"]
 
   def explore(self, primary_persistence):
-    #print('exploring transaction {}'.format(self.__id))
     data = primary_persistence.get_transaction_data(self.__tenant, self.__id)
     if not data:
       return
     self.__transfers = data["transfers"]
+    self.__status = data["status"]
 
 
 class Account():
@@ -144,7 +161,6 @@ if __name__ == '__main__':
   tenants = secondary_persistence.get_tenants(primary_persistence)
 
   for tenant in tenants:
-
     transactions = set()
 
     for name in primary_persistence.get_account_names(tenant):

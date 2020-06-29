@@ -10,7 +10,6 @@ def get_tenants(database):
     return list()
   return list(database.data["tenants"])
 
-
 def get_accounts(database, tenant):
   if not "accounts" in database.data:
     return list()
@@ -151,3 +150,7 @@ if __name__ == '__main__':
   print_and_run('get_accounts_by_format', database, 'demo', 'BONDSTER_ORIGINATOR')
   print_and_run('get_accounts_participated_in_transactions_larger_than_amount', database, 'demo', '10000')
   print_and_run('get_account_balance_in_time', database, 'demo', 'CZK_TYPE_INVESTOR_DEPOSIT')
+
+  #x = database.get_transaction('demo', 'INSTR_EX-fffe6258-234a-4df6-be3f-4b52f4e9e15b')
+
+  #print(x)
