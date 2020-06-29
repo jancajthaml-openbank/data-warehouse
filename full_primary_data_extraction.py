@@ -5,6 +5,28 @@ from secondary_storage import SecondaryPersistence
 from primary_storage import PrimaryPersistence
 
 
+class Transaction():
+
+  def __init__(self, tenant, transaction_id):
+    self.__tenant = tenant
+    self.__id = transaction_id
+    self.__transfers = list()
+
+  @property
+  def transfers(self):
+    return self.__transfers
+
+  def hydrate(self, secondary_persistence):
+    pass
+
+  def explore(self, primary_persistence):
+    #print('exploring transaction {}'.format(self.__id))
+    data = primary_persistence.get_transaction_data(self.__tenant, self.__id)
+    if not data:
+      return
+    self.__transfers = data["transfers"]
+
+
 class Account():
 
   def __init__(self, tenant, name):
@@ -34,7 +56,7 @@ class Account():
     self.__last_syn_snapshot = data["last_syn_snapshot"]
     self.__balance_changes = data["balance_changes"]
 
-  def explore(self, primary_persistence):
+  def explore(self, primary_persistence, on_new_transaction_id):
     meta_data = primary_persistence.get_account_meta_data(self.__tenant, self.__name)
     if not meta_data:
       return
@@ -47,6 +69,9 @@ class Account():
       self.__last_syn_event = events[-1][4]
       self.__balance_changes = self.get_account_balance_changes(primary_persistence, events)
 
+      for transaction in self.get_new_transaction_ids(events, primary_persistence):
+        on_new_transaction_id(transaction)
+
   def serialize(self):
     return {
       "format": self.__format,
@@ -57,16 +82,19 @@ class Account():
     }
     return dict()
 
+  def get_new_transaction_ids(self, events, persistence):
+    result = set()
+    for event in events:
+      result.add(event[3])
+    return list(result)
+
   def get_new_events(self, persistence):
     result = list()
-
     snapshots = persistence.get_account_snapshots(self.__tenant, self.__name, self.__last_syn_snapshot)
-
     for snapshot in snapshots:
       events = persistence.get_account_events(self.__tenant, self.__name, snapshot, self.__last_syn_event)
       for event in events:
         result.append((snapshot, *event))
-
     return result
 
   def get_account_balance_changes(self, persistence, events):
@@ -116,12 +144,19 @@ if __name__ == '__main__':
   tenants = secondary_persistence.get_tenants(primary_persistence)
 
   for tenant in tenants:
-    for account in [Account(tenant, name) for name in primary_persistence.get_account_names(tenant)]:
-      account.hydrate(secondary_persistence)
-      account.explore(primary_persistence)
-      secondary_persistence.update_account(account, primary_persistence)
 
-    #for transaction_id in get_transaction_ids(root_storage, tenant):
-    #  print(transaction_id)
+    transactions = set()
+
+    for name in primary_persistence.get_account_names(tenant):
+      account = Account(tenant, name)
+      account.hydrate(secondary_persistence)
+      account.explore(primary_persistence, transactions.add)
+      secondary_persistence.update_account(account)
+
+    for trn in transactions:
+      transaction = Transaction(tenant, trn)
+      transaction.hydrate(secondary_persistence)
+      transaction.explore(primary_persistence)
+      secondary_persistence.update_transaction(transaction)
 
   secondary_persistence.persist()

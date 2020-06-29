@@ -16,7 +16,10 @@ class SecondaryPersistence():
     except (FileNotFoundError, json.decoder.JSONDecodeError):
       self.__data = dict()
 
-  def update_account(self, account, primary_persistence):
+  def update_transaction(self, transaction):
+    print('update transaction secondary data {}'.format(transaction))
+
+  def update_account(self, account):
     if not "accounts" in self.__data:
       self.__data["accounts"] = dict()
     if not account.tenant in self.__data["accounts"]:

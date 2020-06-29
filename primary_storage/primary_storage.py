@@ -55,6 +55,7 @@ class PrimaryPersistence():
       if not x:
         continue
       x = int(x)
+      # skip snapshots that are older that what we already processed
       if x < last_snapshot:
         continue
       result.append(x)
@@ -74,6 +75,9 @@ class PrimaryPersistence():
       return result
 
     events = os.listdir(path)
+
+    # we can assume that we have all events in given snapshot if last event id
+    # is equal to number of events without reading the files
     if len(events) == last_event:
       return result
 
@@ -81,6 +85,7 @@ class PrimaryPersistence():
       kind, amount, transaction = event.split('_', 2)
       with open(path+'/'+event) as fd:
         event_id = int(fd.read())
+        # skip events that are before what we already processed
         if event_id > last_event:
           result.append((kind, amount, transaction, event_id))
 
