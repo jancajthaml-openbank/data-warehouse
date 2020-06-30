@@ -468,9 +468,13 @@ jobs:
             IMAGE_VERSION=$(cat /home/circleci/project/DOCKER_VERSION)
             UNIT_VERSION=$(cat /home/circleci/project/DEBIAN_VERSION)
 
+            docker build -f /home/circleci/project/bbtest/postgres/Dockerfile -t dwh_postgres /home/circleci/project/bbtest/postgres
+            docker run -d --name=dwh_postgres dwh_postgres &> /dev/null
+
             docker exec -it $(\
               docker run -d -t \
                 --cpuset-cpus=1 \
+                --link=dwh_postgres:postgres \
                 -e IMAGE_VERSION="${IMAGE_VERSION}" \
                 -e UNIT_VERSION="${UNIT_VERSION}" \
                 -e UNIT_ARCH=amd64 \
