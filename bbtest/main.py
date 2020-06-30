@@ -3,6 +3,8 @@
 
 import os
 import sys
+import json
+import behave2cucumber
 
 if __name__ == "__main__":
 
@@ -28,13 +30,12 @@ if __name__ == "__main__":
   os.system('mkdir -p /tmp/reports/blackbox-tests /tmp/reports/blackbox-tests/behave /tmp/reports/blackbox-tests/cucumber')
 
   from behave import __main__ as behave_executable
-  behave_executable.main(args=' '.join(args))
-
-  import json
-  import behave2cucumber
+  exit_code = behave_executable.main(args=' '.join(args))
 
   with open('/tmp/reports/blackbox-tests/behave/results.json', 'r') as fd_behave:
     with open('/tmp/reports/blackbox-tests/cucumber/results.json', 'w') as fd_cucumber:
       behave_data = json.loads(fd_behave.read())
       cucumber_data = json.dumps(behave2cucumber.convert(behave_data))
       fd_cucumber.write(cucumber_data)
+
+  sys.exit(exit_code)
