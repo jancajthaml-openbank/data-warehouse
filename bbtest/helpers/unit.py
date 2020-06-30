@@ -56,7 +56,7 @@ class UnitHelper(object):
 
     scratch_docker_cmd = ['FROM alpine']
 
-    image = 'openbank/dwh:{}'.format(self.image_version)
+    image = 'openbank/data-warehouse:{}'.format(self.image_version)
     package = 'dwh_{}_{}'.format(self.debian_version, self.arch)
     scratch_docker_cmd.append('COPY --from={} /opt/artifacts/{}.deb /tmp/packages/dwh.deb'.format(image, package))
 

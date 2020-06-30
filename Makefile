@@ -34,7 +34,7 @@ bundle-debian-%: %
 
 .PHONY: bundle-docker
 bundle-docker:
-	@docker build -t openbank/dwh:$(VERSION)-$(META) .
+	@docker build -t openbank/data-warehouse:$(VERSION)-$(META) .
 
 .PHONY: bootstrap
 bootstrap:
