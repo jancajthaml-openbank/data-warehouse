@@ -1,0 +1,12 @@
+[Unit]
+Description=openbank data warehouse namespace
+After=inetd.service
+ConditionPathExists=/etc/init/dwh.conf
+
+[Service]
+Type=oneshot
+ExecStart=/bin/echo start dwh namespace
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

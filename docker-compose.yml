@@ -1,0 +1,75 @@
+version: '3.7'
+
+# ---------------------------------------------------------------------------- #
+
+services:
+
+  # -------------------------------------------------------------------------- #
+
+  scala: &scala
+    image: jancajthaml/scala:amd64
+    volumes:
+      - type: bind
+        source: .
+        target: /project
+    working_dir: /project
+    entrypoint: ["sbt"]
+    privileged: true
+
+  # -------------------------------------------------------------------------- #
+
+  sync:
+    <<: *scala
+    entrypoint: ["/project/dev/lifecycle/sync"]
+
+  # -------------------------------------------------------------------------- #
+
+  update:
+    <<: *scala
+    entrypoint: ["/project/dev/lifecycle/update"]
+
+  # -------------------------------------------------------------------------- #
+
+  lint:
+    <<: *scala
+    entrypoint: ["/project/dev/lifecycle/lint"]
+
+  # -------------------------------------------------------------------------- #
+
+  sec:
+    <<: *scala
+    entrypoint: ["/project/dev/lifecycle/sec"]
+
+  # -------------------------------------------------------------------------- #
+
+  package:
+    <<: *scala
+    entrypoint: ["/project/dev/lifecycle/package"]
+
+  # -------------------------------------------------------------------------- #
+
+  release:
+    <<: *scala
+    entrypoint: ["/project/dev/lifecycle/release"]
+
+  # -------------------------------------------------------------------------- #
+
+  debian:
+    <<: *scala
+    entrypoint: ["/project/dev/lifecycle/debian"]
+
+  # -------------------------------------------------------------------------- #
+
+  test:
+    <<: *scala
+    entrypoint: ["/project/dev/lifecycle/test"]
+
+  # -------------------------------------------------------------------------- #
+
+  artifacts:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    image: openbank/dwh
+
+# ---------------------------------------------------------------------------- #

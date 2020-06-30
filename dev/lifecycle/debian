@@ -1,0 +1,204 @@
+#!/bin/bash
+
+set -eu
+trap exit INT TERM
+
+VERSION=""
+SOURCE=""
+TARGET_ARCHITECTURE=""
+
+while [ $# -gt 0 ] ; do
+key="$1"
+
+case $key in
+
+  --source)
+    SOURCE="$2"
+    shift
+    shift
+  ;;
+
+  --arch)
+    TARGET_ARCHITECTURE="$2"
+    shift
+    shift
+  ;;
+
+  --version)
+    VERSION="$2"
+    shift
+    shift
+  ;;
+
+  *)
+    shift
+  ;;
+
+esac
+done
+
+if [ -z "${VERSION}" ] ; then
+  (>&2 echo "version not provided")
+  exit 1
+fi
+
+if [ -z "${SOURCE}" ] ; then
+  (>&2 echo "source not provided")
+  exit 1
+fi
+
+if [ -z "${TARGET_ARCHITECTURE}" ] ; then
+  (>&2 echo "target architecture not provided (use e.g. --arch amd64)")
+  exit 1
+fi
+
+DEB_SOURCES="${SOURCE}/debian_${TARGET_ARCHITECTURE}"
+BIN_SOURCES="${SOURCE}/bin"
+
+if [ ! -d "${DEB_SOURCES}" ] ; then
+  (>&2 echo "packaging for ${TARGET_ARCHITECTURE} is not supported")
+  exit 1
+fi
+
+if [ ! -d "${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}" ] ; then
+  (>&2 echo "did not found bundle to package at ${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}")
+  exit 1
+fi
+
+mkdir -p ${DEB_SOURCES}/usr/share/openbank
+if [ -d "${DEB_SOURCES}/usr/share/openbank/dwh" ] ; then
+  rm -rf ${DEB_SOURCES}/usr/share/openbank/dwh/*
+else
+  mkdir -p ${DEB_SOURCES}/usr/share/openbank/dwh
+fi
+
+generate_manpage() {
+  mkdir -p ${DEB_SOURCES}/usr/share/man/man8
+
+  target="${DEB_SOURCES}/usr/share/man/man8/dwh.8"
+
+  if [ -f ${target} ] ; then
+    rm -f ${target}
+  fi
+
+  if [ -f ${target}.gz ] ; then
+    rm -f ${target}.gz
+  fi
+
+cat > ${target} <<EOL
+.TH DWH 8 2019 "Data Warehouse" "OpenBank Data Warehouse"
+.SH NAME
+dwh \- starts openbank dwh service
+.SH DESCRIPTION
+The data warehouse provides secondary data mirror for analytics
+.EE
+EOL
+
+  cat ${target} | gzip -n -9 > ${target}.gz
+  rm ${target}
+}
+
+generate_changelog() {
+  mkdir -p ${DEB_SOURCES}/usr/share/doc/dwh
+
+  target="${DEB_SOURCES}/usr/share/doc/dwh/changelog"
+
+  if [ -f ${target} ] ; then
+    rm -f ${target}
+  fi
+
+  if [ -f ${target}.gz ] ; then
+    rm -f ${target}.gz
+  fi
+
+  if [ -f ${target}.Debian.gz ] ; then
+    rm -f ${target}.Debian.gz
+  fi
+
+  touch ${target}
+
+  VER="${VERSION}"
+  tag=HEAD
+  ADDS=$(echo ${VER} | sed -e 's/~.*//' | cut -s -d- -f2 | sed '/^[[:space:]]*$/d')
+
+  if [[ -z "${ADDS// }" ]] ; then
+    DATE=$(date '+%a, %-d %b %Y %H:%M:%S %z')
+    echo "dwh (${VER}) unstable; urgency=low" >> ${target}
+    echo "" >> ${target}
+    echo "  * includes non-released commits" >> ${target}
+    echo "" >> ${target}
+    echo " -- Jan Cajthaml <jan.cajthaml@gmail.com>  ${DATE}" >> ${target}
+    echo "" >> ${target}
+  fi
+
+  PAIRS=()
+  prev_tag=HEAD
+  for tag in $(git tag --sort=-v:refname | awk '{arr[i++]=$0} END {while (i>0) print arr[--i] }') ; do
+    PAIRS+=("${prev_tag} ${tag}")
+    prev_tag=${tag}
+  done
+
+  idx=( ${!PAIRS[@]} )
+  for ((i=${#idx[@]} - 1; i >= 0; i--)) ; do
+    tag_from=${PAIRS[idx[i]]%% *}
+    tag_to=${PAIRS[idx[i]]#* }
+
+    DATE=$(git log -1 --format=%cD ${tag_to})
+
+    commits=$(echo "$(git log --no-merges --pretty=oneline --pretty=format:%s ^${tag_from} ${tag_to})" | sed '/^[[:space:]]*$/d' | uniq)
+
+    if [[ -n "${commits// }" ]] ; then
+
+      echo "dwh (${tag_to#v}) stable; urgency=low" >> ${target}
+      echo "" >> ${target}
+
+      echo "${commits}" | \
+      while read note ; do
+        echo "  * $(tr '[:lower:]' '[:upper:]' <<< ${note:0:1})${note:1}" >> ${target}
+      done
+
+      echo "" >> ${target}
+
+      echo " -- Jan Cajthaml <jan.cajthaml@gmail.com>  ${DATE}" >> ${target}
+      echo "" >> ${target}
+    fi
+  done
+
+  case "${VERSION}" in
+    *+*)
+      cat ${target} | gzip -n -9 > ${target}.Debian.gz
+      ;;
+    *)
+      cat ${target} | gzip -n -9 > ${target}.gz
+      ;;
+  esac
+
+  rm ${target}
+}
+
+check_files() {
+  chmod 0755 "${DEB_SOURCES}/DEBIAN/control"
+  chmod 0755 "${DEB_SOURCES}/DEBIAN/postinst"
+  chmod 0755 "${DEB_SOURCES}/DEBIAN/postrm"
+  chmod 0755 "${DEB_SOURCES}/DEBIAN/preinst"
+}
+
+################################################################################
+
+cp -R "${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}/lib/." "${DEB_SOURCES}/usr/share/openbank/dwh/"
+
+generate_changelog
+generate_manpage
+
+sed -i 's/Version.*/Version: '${VERSION#v}'/' "${DEB_SOURCES}/DEBIAN/control"
+
+find "${BIN_SOURCES}" -name "dwh_*_${TARGET_ARCHITECTURE}.deb" -exec rm -f {} \;
+
+check_files
+
+dpkg-deb --build "${DEB_SOURCES}" "${BIN_SOURCES}"
+
+find "${BIN_SOURCES}" -name "dwh_*_${TARGET_ARCHITECTURE}.deb" -exec fakeroot lintian --pedantic {} \;
+find "${BIN_SOURCES}" -name "dwh_*_${TARGET_ARCHITECTURE}.deb" -exec du -hs {} \;
+
+exit 0

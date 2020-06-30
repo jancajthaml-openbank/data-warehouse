@@ -1,0 +1,7 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: reporting
+Source: https://github.com/jancajthaml-openbank/reporting
+
+Files: *
+Copyright: 2019 Jan Cajthaml <jan.cajthaml@gmail.com>
+License: Apache

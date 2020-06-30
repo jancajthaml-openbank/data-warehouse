@@ -1,0 +1,43 @@
+#!/bin/bash
+
+set -eu
+trap exit INT TERM
+
+TARGET_PACKAGE=""
+
+while [ $# -gt 0 ] ; do
+key="$1"
+
+case $key in
+
+  --pkg)
+    TARGET_PACKAGE="$2"
+    shift
+    shift
+  ;;
+
+  *)
+    shift
+  ;;
+
+esac
+done
+
+if [ -z "${TARGET_PACKAGE}" ] ; then
+  (>&2 echo "[error] target package not provided")
+  exit 1
+fi
+
+cd /project/services/${TARGET_PACKAGE}
+
+sbt \
+    -Dsbt.ivy.home=/project/services/${TARGET_PACKAGE}/.ivy \
+    clean
+
+sbt \
+    -Dsbt.ivy.home=/project/services/${TARGET_PACKAGE}/.ivy \
+    update
+
+sbt \
+    -Dsbt.ivy.home=/project/services/${TARGET_PACKAGE}/.ivy \
+    evicted

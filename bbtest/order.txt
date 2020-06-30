@@ -1,0 +1,3 @@
+features/install.feature
+features/management.feature
+features/uninstall.feature
