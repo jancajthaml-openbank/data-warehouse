@@ -2,5 +2,10 @@
 __pycache__
 *.pyc
 data
-openbank
 database.json
+**/*/project/project
+**/*/target
+reports
+coverage
+*.pyc
+*.ivy

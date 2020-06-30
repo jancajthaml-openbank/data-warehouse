@@ -1,0 +1,12 @@
+[Unit]
+Description=openbank data warehouse namespace
+PartOf=dwh.service
+ConditionPathExists=/etc/init/dwh.conf
+
+[Path]
+PathChanged=/etc/init/dwh.conf
+PathModified=/etc/init/dwh.conf
+Unit=dwh.service
+
+[Install]
+WantedBy=dwh.service
