@@ -220,6 +220,8 @@ jobs:
       - run:
           name: Sync dependencies
           command: |
+            cd /home/circleci/project/services/dwh
+
             sbt \
               -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
               clean
@@ -251,6 +253,8 @@ jobs:
       - run:
           name: compile sources
           command: |
+            cd /home/circleci/project/services/dwh
+
             sbt \
               -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
               compile
