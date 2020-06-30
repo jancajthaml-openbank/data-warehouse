@@ -228,6 +228,10 @@ jobs:
 
             sbt \
               -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              evicted
+
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
               update
 
       - save_cache:
