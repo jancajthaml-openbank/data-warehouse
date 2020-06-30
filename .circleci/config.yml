@@ -268,8 +268,8 @@ jobs:
               pack
 
             mkdir -p \
-              /home/circleci/project/packaging/bin/dwh-linux-amd64
-              /home/circleci/project/packaging/bin/dwh-linux-arm64
+              /home/circleci/project/packaging/bin/dwh-linux-amd64 \
+              /home/circleci/project/packaging/bin/dwh-linux-arm64 \
               /home/circleci/project/packaging/bin/dwh-linux-armhf
 
             cp -R \
