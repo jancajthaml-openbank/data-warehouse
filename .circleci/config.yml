@@ -318,7 +318,6 @@ jobs:
       - run:
           name: Package for debian
           command: |
-            ls -la /home/circleci/project/packaging/bin
             VERSION=$(cat /home/circleci/project/DEBIAN_VERSION)
             /home/circleci/project/dev/lifecycle/debian \
               --arch amd64 \
