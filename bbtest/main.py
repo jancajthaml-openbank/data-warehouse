@@ -10,8 +10,6 @@ if __name__ == "__main__":
 
   cwd = os.path.dirname(os.path.abspath(__file__))
 
-  __TTY = sys.stdout.isatty() and (int(os.environ.get('NO_TTY', 0)) == 0)
-
   args = [
     "--color",
     "--no-capture",
@@ -19,7 +17,7 @@ if __name__ == "__main__":
     "-f json -o /tmp/reports/blackbox-tests/behave/results.json",
   ]
 
-  if __TTY:
+  if sys.stdout.isatty() and (int(os.environ.get('NO_TTY', 0)) == 0):
     args.append("-f pretty")
   else:
     args.append("-f progress3")
