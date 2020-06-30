@@ -267,10 +267,10 @@ jobs:
               -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
               pack
 
-            mkdir \
-              -p /home/circleci/project/packaging/bin/dwh-linux-amd64
-              -p /home/circleci/project/packaging/bin/dwh-linux-arm64
-              -p /home/circleci/project/packaging/bin/dwh-linux-armhf
+            mkdir -p \
+              /home/circleci/project/packaging/bin/dwh-linux-amd64
+              /home/circleci/project/packaging/bin/dwh-linux-arm64
+              /home/circleci/project/packaging/bin/dwh-linux-armhf
 
             cp -R \
               /home/circleci/project/services/dwh/target/pack/bin \
