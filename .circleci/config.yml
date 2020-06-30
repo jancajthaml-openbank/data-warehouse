@@ -409,9 +409,12 @@ jobs:
       - run:
           name: Unit test data-warehouse
           command: |
-            /home/circleci/project/dev/lifecycle/test \
-              --pkg dwh \
-              --output /home/circleci/project/reports
+            cd /home/circleci/project/services/dwh
+
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              test
+
           no_output_timeout: 5m
       - store_test_results:
           path: /home/circleci/project/reports/unit-tests
