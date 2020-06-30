@@ -221,15 +221,15 @@ jobs:
           name: Sync dependencies
           command: |
             sbt \
-              -Dsbt.ivy.home=/project/services/dwh/.ivy \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
               clean
 
             sbt \
-              -Dsbt.ivy.home=/project/services/dwh/.ivy \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
               update
 
             sbt \
-              -Dsbt.ivy.home=/project/services/dwh/.ivy \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
               evicted
 
       - save_cache:
@@ -257,10 +257,18 @@ jobs:
       - run:
           name: compile sources
           command: |
-            /home/circleci/project/dev/lifecycle/package \
-              --arch linux/amd64 \
-              --pkg dwh \
-              --output /home/circleci/project/packaging/bin
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              compile
+
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              pack
+
+            mkdir -p /home/circleci/project/packaging/bin
+            cp -R /home/circleci/project/services/dwh/target/pack/bin /home/circleci/project/packaging/bin
+            cp -R /home/circleci/project/services/dwh/target/pack/lib /home/circleci/project/packaging/bin
+
           no_output_timeout: 5m
       - save_cache:
           key: bundle-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
