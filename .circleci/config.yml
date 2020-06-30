@@ -267,9 +267,34 @@ jobs:
               -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
               pack
 
-            mkdir -p /home/circleci/project/packaging/bin/dwn-linux-amd64
-            cp -R /home/circleci/project/services/dwh/target/pack/bin /home/circleci/project/packaging/bin/dwn-linux-amd64
-            cp -R /home/circleci/project/services/dwh/target/pack/lib /home/circleci/project/packaging/bin/dwn-linux-amd64
+            mkdir \
+              -p /home/circleci/project/packaging/bin/dwh-linux-amd64
+              -p /home/circleci/project/packaging/bin/dwh-linux-arm64
+              -p /home/circleci/project/packaging/bin/dwh-linux-armhf
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/bin \
+              /home/circleci/project/packaging/bin/dwh-linux-amd64
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/lib \
+              /home/circleci/project/packaging/bin/dwh-linux-amd64
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/bin \
+              /home/circleci/project/packaging/bin/dwh-linux-arm64
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/lib \
+              /home/circleci/project/packaging/bin/dwh-linux-arm64
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/bin \
+              /home/circleci/project/packaging/bin/dwh-linux-armhf
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/lib \
+              /home/circleci/project/packaging/bin/dwh-linux-armhf
 
           no_output_timeout: 5m
       - save_cache:
