@@ -3,9 +3,9 @@ Feature: Properly behaving units
   Scenario: lifecycle
     Given systemctl contains following active units
       | name    | type    |
-      | dwh-app | service |
       | dwh     | path    |
       | dwh     | service |
+      | dwh-app | service |
     And unit "dwh-app.service" is running
 
     When stop unit "dwh-app.service"

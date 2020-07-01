@@ -1,0 +1,540 @@
+version: 2
+
+# ---------------------------------------------------------------------------- #
+
+workflows:
+
+  version: 2
+
+  tag:
+    jobs:
+      - checkout:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - versions:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - deps:
+          requires:
+            - checkout
+          filters:
+            branches:
+              only: master
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - test:
+          requires:
+            - deps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - compile:
+          requires:
+            - deps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - debian-amd64:
+          requires:
+            - compile
+            - versions
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - debian-armhf:
+          requires:
+            - compile
+            - versions
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - debian-arm64:
+          requires:
+            - compile
+            - versions
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - publish:
+          requires:
+            - test
+            - debian-amd64
+            - debian-armhf
+            - debian-arm64
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - bbtest-amd64:
+          requires:
+            - publish
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - release:
+          requires:
+            - bbtest-amd64
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+
+  commit:
+    jobs:
+      - checkout
+      - versions
+      - deps:
+          requires:
+            - checkout
+      - test:
+          requires:
+            - deps
+      - compile:
+          requires:
+            - deps
+      - debian-amd64:
+          requires:
+            - compile
+            - versions
+      - debian-armhf:
+          requires:
+            - compile
+            - versions
+      - debian-arm64:
+          requires:
+            - compile
+            - versions
+      - publish:
+          requires:
+            - test
+            - debian-amd64
+            - debian-armhf
+            - debian-arm64
+      - bbtest-amd64:
+          requires:
+            - publish
+
+  rolling_bbtest:
+    triggers:
+      - schedule:
+          cron: "0 0,6,12,18 * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - checkout
+      - versions
+      - bbtest-amd64:
+          requires:
+            - checkout
+            - versions
+
+# ---------------------------------------------------------------------------- #
+
+jobs:
+
+  # -------------------------------------------------------------------------- #
+
+  checkout:
+    docker:
+      - image: docker:18.06.0-ce-git
+        environment:
+          - LANG: C.UTF-8
+    working_directory: /home/circleci/project
+    steps:
+      - checkout
+      - save_cache:
+          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - /home/circleci/project
+
+  # -------------------------------------------------------------------------- #
+
+  versions:
+    docker:
+      - image: docker:18.06.0-ce-git
+        environment:
+          - LANG: C.UTF-8
+    working_directory: /home/circleci/project
+    steps:
+      - checkout
+      - run:
+          name: Update DOCKER_VERSION + DEBIAN_VERSION
+          command: |
+            if [ -z ${CIRCLE_TAG} ] ; then
+              tags=$(git tag --sort=-v:refname | head -1)
+              if [ -z ${tags} ] ; then
+                VERSION=v0.0.0
+              else
+                VERSION=${tags}
+              fi
+              META=$(echo -e ${CIRCLE_BRANCH} | sed 's:.*/::')
+              echo -e "${VERSION#v}" > /home/circleci/project/TAG_VERSION
+              echo -e "${VERSION}+${META}" > /home/circleci/project/DEBIAN_VERSION
+              echo -e "${VERSION}-${META}" > /home/circleci/project/DOCKER_VERSION
+            else
+              echo -e "${CIRCLE_TAG#v}" > /home/circleci/project/TAG_VERSION
+              echo -e "${CIRCLE_TAG}" > /home/circleci/project/DEBIAN_VERSION
+              echo -e "${CIRCLE_TAG}" > /home/circleci/project/DOCKER_VERSION
+            fi
+
+            cat /home/circleci/project/TAG_VERSION
+            cat /home/circleci/project/DEBIAN_VERSION
+            cat /home/circleci/project/DOCKER_VERSION
+      - save_cache:
+          key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - /home/circleci/project/TAG_VERSION
+            - /home/circleci/project/DEBIAN_VERSION
+            - /home/circleci/project/DOCKER_VERSION
+
+  # -------------------------------------------------------------------------- #
+
+  deps:
+    docker:
+      - image: jancajthaml/scala:amd64
+    working_directory: /home/circleci/project
+    steps:
+      - checkout
+      - run:
+          name: Sync dependencies
+          command: |
+            cd /home/circleci/project/services/dwh
+
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              clean
+
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              evicted
+
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              update
+
+      - save_cache:
+          key: dependencies-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - /home/circleci/project/packaging
+            - /home/circleci/project/services/dwh/.ivy
+            - /home/circleci/project/services/dwh/target
+            - /home/circleci/project/services/dwh/project/project
+            - /home/circleci/project/services/dwh/project/target
+
+  # -------------------------------------------------------------------------- #
+
+  compile:
+    docker:
+      - image: jancajthaml/scala:amd64
+    working_directory: /home/circleci/project
+    steps:
+      - restore_cache:
+          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: dependencies-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: compile sources
+          command: |
+            cd /home/circleci/project/services/dwh
+
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              compile
+
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              pack
+
+            mkdir -p \
+              /home/circleci/project/packaging/bin/dwh-linux-amd64 \
+              /home/circleci/project/packaging/bin/dwh-linux-arm64 \
+              /home/circleci/project/packaging/bin/dwh-linux-armhf
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/bin \
+              /home/circleci/project/packaging/bin/dwh-linux-amd64
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/lib \
+              /home/circleci/project/packaging/bin/dwh-linux-amd64
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/bin \
+              /home/circleci/project/packaging/bin/dwh-linux-arm64
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/lib \
+              /home/circleci/project/packaging/bin/dwh-linux-arm64
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/bin \
+              /home/circleci/project/packaging/bin/dwh-linux-armhf
+
+            cp -R \
+              /home/circleci/project/services/dwh/target/pack/lib \
+              /home/circleci/project/packaging/bin/dwh-linux-armhf
+
+          no_output_timeout: 5m
+      - save_cache:
+          key: bundle-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - /home/circleci/project/packaging/bin
+
+  # -------------------------------------------------------------------------- #
+
+  debian-amd64:
+    docker:
+      - image: jancajthaml/scala:amd64
+    working_directory: /home/circleci/project
+    steps:
+      - restore_cache:
+          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: bundle-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Package for debian
+          command: |
+            VERSION=$(cat /home/circleci/project/DEBIAN_VERSION)
+            /home/circleci/project/dev/lifecycle/debian \
+              --arch amd64 \
+              --version ${VERSION} \
+              --source /home/circleci/project/packaging
+          no_output_timeout: 5m
+      - save_cache:
+          key: debian-amd64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - /home/circleci/project/packaging/bin
+
+  # -------------------------------------------------------------------------- #
+
+  debian-armhf:
+    docker:
+      - image: jancajthaml/scala:amd64
+    working_directory: /home/circleci/project
+    steps:
+      - setup_remote_docker:
+          version: 18.06.0-ce
+      - restore_cache:
+          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: bundle-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Package for debian
+          command: |
+            ls -la /home/circleci/project/packaging/bin
+            VERSION=$(cat /home/circleci/project/DEBIAN_VERSION)
+            /home/circleci/project/dev/lifecycle/debian \
+              --arch armhf \
+              --version ${VERSION} \
+              --source /home/circleci/project/packaging
+          no_output_timeout: 5m
+      - save_cache:
+          key: debian-armhf-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - /home/circleci/project/packaging/bin
+
+  # -------------------------------------------------------------------------- #
+
+  debian-arm64:
+    docker:
+      - image: jancajthaml/scala:amd64
+    working_directory: /home/circleci/project
+    steps:
+      - setup_remote_docker:
+          version: 18.06.0-ce
+      - restore_cache:
+          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: bundle-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Package for debian
+          command: |
+            ls -la /home/circleci/project/packaging/bin
+            VERSION=$(cat /home/circleci/project/DEBIAN_VERSION)
+            /home/circleci/project/dev/lifecycle/debian \
+              --arch arm64 \
+              --version ${VERSION} \
+              --source /home/circleci/project/packaging
+          no_output_timeout: 5m
+      - save_cache:
+          key: debian-arm64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - /home/circleci/project/packaging/bin
+
+  # -------------------------------------------------------------------------- #
+
+  publish:
+    docker:
+      - image: docker:18.06.0-ce
+    working_directory: /home/circleci/project
+    steps:
+      - setup_remote_docker:
+          version: 18.06.0-ce
+      - restore_cache:
+          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: debian-amd64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: debian-armhf-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: debian-arm64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Package for docker
+          command: |
+            DOCKER_VERSION=$(cat /home/circleci/project/DOCKER_VERSION)
+            TAG_VERSION=$(cat /home/circleci/project/TAG_VERSION)
+
+            docker build -t openbank/data-warehouse:${DOCKER_VERSION} .
+
+            docker tag openbank/data-warehouse:${DOCKER_VERSION} \
+              docker.pkg.github.com/jancajthaml-openbank/data-warehouse/data-warehouse:${TAG_VERSION}
+
+            docker tag openbank/data-warehouse:${DOCKER_VERSION} \
+              docker.io/openbank/data-warehouse:${DOCKER_VERSION}
+
+            docker login docker.pkg.github.com -u jancajthaml -p ${GITHUB_RELEASE_TOKEN}
+            docker push docker.pkg.github.com/jancajthaml-openbank/data-warehouse/data-warehouse:${TAG_VERSION}
+
+            docker login -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+            docker push docker.io/openbank/data-warehouse:${DOCKER_VERSION}
+
+  # -------------------------------------------------------------------------- #
+
+  test:
+    docker:
+      - image: jancajthaml/scala:amd64
+    working_directory: /home/circleci/project
+    steps:
+      - restore_cache:
+          key: dependencies-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Unit test data-warehouse
+          command: |
+            cd /home/circleci/project/services/dwh
+
+            sbt \
+              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              test
+
+          no_output_timeout: 5m
+      - store_test_results:
+          path: /home/circleci/project/reports/unit-tests
+
+  # -------------------------------------------------------------------------- #
+
+  bbtest-amd64:
+    machine: true
+    working_directory: /home/circleci/project
+    steps:
+      - restore_cache:
+          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run: docker pull jancajthaml/bbtest:amd64
+      - run:
+          name: Run blackbox tests
+          command: |
+            IMAGE_VERSION=$(cat /home/circleci/project/DOCKER_VERSION)
+            UNIT_VERSION=$(cat /home/circleci/project/DEBIAN_VERSION)
+
+            docker build -f /home/circleci/project/bbtest/postgres/Dockerfile -t dwh_postgres /home/circleci/project/bbtest/postgres
+            docker run -d --name=dwh_postgres dwh_postgres &> /dev/null
+
+            docker exec -it $(\
+              docker run -d -t \
+                --cpuset-cpus=1 \
+                --link=dwh_postgres:postgres \
+                -e IMAGE_VERSION="${IMAGE_VERSION}" \
+                -e UNIT_VERSION="${UNIT_VERSION}" \
+                -e UNIT_ARCH=amd64 \
+                -e NO_TTY=1 \
+                -v /tmp/reports:/reports/bbtest \
+                -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                -v /var/lib/docker/containers:/var/lib/docker/containers \
+                -v /home/circleci/project/bbtest:/opt/app \
+                -v /home/circleci/project/reports:/tmp/reports \
+                -w /opt/app \
+              jancajthaml/bbtest:amd64 \
+            ) python3 /opt/app/main.py
+          no_output_timeout: 5m
+      - store_test_results:
+          path: /home/circleci/project/reports/blackbox-tests/cucumber
+      - store_artifacts:
+          path: /home/circleci/project/reports/blackbox-tests
+          destination: reports
+
+  # -------------------------------------------------------------------------- #
+
+  release:
+    docker:
+      - image: jancajthaml/scala:amd64
+    working_directory: /home/circleci/project
+    steps:
+      - restore_cache:
+          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          key: debian-amd64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          command: |
+            if [ ! -f ./packaging/bin/dwh_${CIRCLE_TAG#v}_amd64.deb ] ; then
+              echo "dwh_${CIRCLE_TAG#v}_amd64.deb not found at"
+              ls -la ./packaging/bin
+              exit 1
+            fi
+      - restore_cache:
+          key: debian-armhf-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          command: |
+            if [ ! -f ./packaging/bin/dwh_${CIRCLE_TAG#v}_armhf.deb ] ; then
+              echo "dwh_${CIRCLE_TAG#v}_armhf.deb not found at"
+              ls -la ./packaging/bin
+              exit 1
+            fi
+      - restore_cache:
+          key: debian-arm64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          command: |
+            if [ ! -f ./packaging/bin/dwh_${CIRCLE_TAG#v}_arm64.deb ] ; then
+              echo "dwh_${CIRCLE_TAG#v}_arm64.deb not found at"
+              ls -la ./packaging/bin
+              exit 1
+            fi
+      - deploy:
+          name: Release artifacts to github
+          command: |
+            /home/circleci/project/dev/lifecycle/release \
+              -v ${CIRCLE_TAG} \
+              -t ${GITHUB_RELEASE_TOKEN}
+
+# ---------------------------------------------------------------------------- #
