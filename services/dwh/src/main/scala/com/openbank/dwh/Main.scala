@@ -1,26 +1,27 @@
 package com.openbank.dwh
 
-import java.util.concurrent.TimeUnit
+import akka.Done
 import com.openbank.dwh.boot._
-import com.typesafe.scalalogging.{LazyLogging, StrictLogging}
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import com.typesafe.scalalogging.LazyLogging
+import scala.concurrent.{Future, Await}
+import scala.concurrent.duration._
 import scala.sys
 
-object Main extends App with LazyLogging {
+object Main extends App {
 
   object Program
     extends ProgramLifecycle
-    with ServiceLifecycle
+    with ModulesLifecycle
     with GlobalConfigModule
-    with AkkaModule
+    with TypedActorModule
+    with ServiceModule
     with PersistenceModule
     with RouterModule
-    with ServiceModule
-    with StrictLogging
+    with AkkaModule
+    with LazyLogging
 
   try {
-    Await.result(Program.start(), Duration(1, TimeUnit.MINUTES))
+    Await.result(Program.start(), 10.minutes)
     sys.addShutdownHook { Program.shutdown() }
   } catch {
     case e: Exception =>

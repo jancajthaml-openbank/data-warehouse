@@ -4,14 +4,14 @@ import akka.Done
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 import com.openbank.dwh.routers._
-import com.typesafe.scalalogging.StrictLogging
+import com.typesafe.scalalogging.LazyLogging
 import akka.http.scaladsl.server.Directives._
 import scala.concurrent.Future
 import scala.util.Success
 
 
 trait RouterModule extends Lifecycle {
-  self: AkkaModule with ConfigModule with ServiceModule with StrictLogging =>
+  self: AkkaModule with ConfigModule with ServiceModule with LazyLogging =>
 
   private lazy val healthCheck = new HealthCheckRouter(healthCheckService).route
 

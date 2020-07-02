@@ -1,6 +1,6 @@
 package com.openbank.dwh.boot
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, Scheduler}
 import akka.stream.{ActorMaterializer, Materializer}
 import scala.concurrent.ExecutionContext
 
@@ -10,6 +10,7 @@ trait AkkaModule {
 
   implicit lazy val system: ActorSystem = ActorSystem("dwh", config)
   implicit lazy val materializer: Materializer = ActorMaterializer()
+  implicit lazy val scheduler: Scheduler = system.scheduler
   implicit lazy val executionContext: ExecutionContext = system.dispatcher
 }
 

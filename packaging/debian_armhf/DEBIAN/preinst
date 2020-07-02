@@ -12,6 +12,7 @@ case "$1" in
       echo "DWH_LOG_LEVEL=INFO" >> /etc/init/dwh.conf
       echo "DWH_HTTP_PORT=8443" >> /etc/init/dwh.conf
       echo "DWH_POSTGRES_URL=jdbc:postgresql://127.0.0.1:5432/openbank" >> /etc/init/dwh.conf
+      echo "DWH_PRIMARY_STORAGE_PATH=/data" >> /etc/init/dwh.conf
     fi
 
     secrets=$(sed -n -e 's/^.*DWH_SECRETS=//p' /etc/init/dwh.conf 2>/dev/null | awk '{gsub(/^ +| +$/,"")} {print $0}')

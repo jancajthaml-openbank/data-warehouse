@@ -7,10 +7,12 @@ import org.postgresql.PGConnection
 import scala.util.Try
 import org.postgresql.core.BaseConnection
 
+
 trait ConnectionProvider {
   def acquire(): Try[PGConnection]
   def release(exOpt: Option[Throwable]): Unit
 }
+
 
 trait Persistence extends AutoCloseable {
 
@@ -20,6 +22,7 @@ trait Persistence extends AutoCloseable {
 
   override def close(): Unit = database.close()
 }
+
 
 object Persistence {
 
@@ -31,6 +34,7 @@ object Persistence {
     new Postgres(db)
   }
 }
+
 
 class Postgres(val database: Database) extends Persistence {
 
