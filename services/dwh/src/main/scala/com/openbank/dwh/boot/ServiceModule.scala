@@ -8,5 +8,6 @@ trait ServiceModule {
 
   lazy val healthCheckService: HealthCheckService = new HealthCheckService(secondaryStorage)
   lazy val primaryDataExplorationService: PrimaryDataExplorationService = new PrimaryDataExplorationService(primaryStorage)
+
 }
 

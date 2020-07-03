@@ -44,6 +44,8 @@ trait PersistenceModule extends Lifecycle {
   }
 
   lazy val secondaryStorage: Persistence = Persistence.forConfig(config)
+
+  // FIXME convert to class and introduce helpers to define primary storage persistence api
   lazy val primaryStorage: String = config.getString("persistence-primary.storage")
 
 }

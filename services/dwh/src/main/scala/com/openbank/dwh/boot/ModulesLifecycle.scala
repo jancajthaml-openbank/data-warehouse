@@ -15,7 +15,7 @@ trait ModulesLifecycle extends Lifecycle {
   abstract override def start(): Future[Done] = {
     super.start().flatMap { _ =>
       CoordinatedShutdown(system)
-        .addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "service-cleanup") { () =>
+        .addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "graceful-stop") { () =>
           stop()
         }
       Future.successful(Done)

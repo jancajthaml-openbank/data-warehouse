@@ -1,17 +1,17 @@
 package com.openbank.dwh.service
 
-import java.nio.file.{Paths, Path}
+import java.nio.file.{Paths, Files, Path}
 import akka.Done
+import akka.util.ByteString
 import com.typesafe.scalalogging.LazyLogging
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.mutable.Builder
 import scala.collection.generic.CanBuildFrom
 import language.higherKinds
-import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.stream.scaladsl.{Framing, FileIO, Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
+import com.openbank.dwh.model.{Account, Tenant}
 
-// https://doc.akka.io/docs/akka/current/stream/stream-dynamic.html
-// https://algd.github.io/akka/2018/08/05/parallel-stream-processing.html
 
 class PrimaryDataExplorationService(primaryStorage: String)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 
@@ -20,19 +20,20 @@ class PrimaryDataExplorationService(primaryStorage: String)(implicit ec: Executi
   case class AccountDiscovery(tenant: String, name: String) extends Discovery
 
   def runExploration: Future[Done] = {
+    //.buffer(1, OverflowStrategy.backpressure)
+
     Source
       .fromFuture(exploreTenants())
-      .foldAsync(Seq.empty[AccountDiscovery])((current, item) => {
+      .mapConcat(_.to[collection.immutable.Seq])
+      .foldAsync(Seq.empty[Account])((current, item) => {
         exploreAccountNames(item.name).map(_ ++ current)
       })
       .runWith(Sink.seq)
       .map(_ => Done)
-
-      //.mapConcat(_.to[collection.immutable.Seq])  // FIXME try delete casting
   }
 
   // FIXME convert to graph stage and not future
-  def exploreTenants(): Future[Seq[TenantDiscovery]] = {
+  def exploreTenants(): Future[Seq[Tenant]] = {
     Source
       .single(Paths.get(primaryStorage))
       .via {
@@ -43,25 +44,25 @@ class PrimaryDataExplorationService(primaryStorage: String)(implicit ec: Executi
               .listFiles(_.getName.matches("t_.+"))
               .map(_.getName.stripPrefix("t_"))
               .map { tenant => TenantDiscovery(tenant) }
-              .toSeq  // FIXME try delete casting
           }
-          .fold(Seq.empty[TenantDiscovery])(_ ++ _)
+          .fold(List.empty[TenantDiscovery])(_ ++ _)
       }
-      .mapConcat(_.to[collection.immutable.Seq])  // FIXME try delete casting
-      .buffer(1, OverflowStrategy.backpressure)
+      .mapConcat(_.to[collection.immutable.Seq])
       .via {
         Flow[TenantDiscovery]
-          .mapAsync(1) { item =>
-            onTenantDiscovery(item).map(_ => item)
-          }
+          .mapAsync(1)(onTenantDiscovery)
       }
+      .recover {
+        case e: Exception => None
+      }
+      .collect { case Some(tenant) => tenant }
       .runWith(Sink.seq)
   }
 
   // FIXME convert to graph stage and not future
-  def exploreAccountNames(tenant: String): Future[Seq[AccountDiscovery]] = {
+  def exploreAccountNames(tenant: String): Future[Seq[Account]] = {
     Source
-      .single(Paths.get(s"${primaryStorage}/t_${tenant}"))
+      .single(Paths.get(s"${primaryStorage}/t_${tenant}/account"))
       .via {
         Flow[Path]
           .map { file =>
@@ -70,38 +71,75 @@ class PrimaryDataExplorationService(primaryStorage: String)(implicit ec: Executi
               .listFiles()
               .map(_.getName)
               .map { name => AccountDiscovery(tenant, name) }
-              .toSeq  // FIXME try delete casting
           }
-          .fold(Seq.empty[AccountDiscovery])(_ ++ _)
+          .fold(List.empty[AccountDiscovery])(_ ++ _)
       }
-      .mapConcat(_.to[collection.immutable.Seq])  // FIXME try delete casting
-      .buffer(1, OverflowStrategy.backpressure)
+      .mapConcat(_.to[collection.immutable.Seq])
       .via {
         Flow[AccountDiscovery]
-          .mapAsync(1) { item =>
-            onAccountDiscovery(item).map(_ => item)
-          }
+          .mapAsync(1)(onAccountDiscovery)
       }
+      .recover {
+        case e: Exception => None
+      }
+      .collect { case Some(account) => account }
       .runWith(Sink.seq)
   }
 
   // FIXME should not return Done but Tenant instead
   // FIXME rename to "acknowledge" something...
-  private def onTenantDiscovery(item: TenantDiscovery): Future[Done] = {
-    logger.info(s"explored tenant ${item}")
-    // FIXME here notify SecondaryDataPersistorActor about this tenant
-    // no questions asked
-    Future.successful(Done)
+  private def onTenantDiscovery(item: TenantDiscovery): Future[Option[Tenant]] = {
+    // FIXME now ask (call) secondary storage for Tenant entity, if it returns
+    // None tell SecondaryDataPersistorActor about this tenant existence
+
+    val result = Some(Tenant(item.name))
+
+    result.map { data =>
+      logger.info(s"explored tenant ${item} as ${result}")
+    }
+
+    Future.successful(result)
   }
 
   // FIXME should not return Done but Account instead
   // FIXME rename to "acknowledge" something...
-  private def onAccountDiscovery(item: AccountDiscovery): Future[Done] = {
-    logger.info(s"explored account name ${item}")
-    // FIXME there we need to load existing account from secondary data
-    // to know if we need to gather meta data (if not found) and to obain
-    // event pivot that we can then search from
-    Future.successful(Done)
+  private def onAccountDiscovery(item: AccountDiscovery): Future[Option[Account]] = {
+
+    // FIXME now ask (call) secondary storage for Account entity, if it returns
+    // None get it from primary storage
+
+    val result = getAccountFromPrimaryStorage(item.tenant, item.name)
+
+    // FIXME if whatever we end up with is different than what we obtained from
+    // primary storage (if necessary) tell SecondaryDataPersistorActor about this
+    // account existence
+
+    result.map { data =>
+      data.map { account =>
+        logger.info(s"explored account name ${item} as ${account}")
+      }
+      data
+    }
   }
 
+  // FIXME move to primary storage peristence
+  private def getAccountFromPrimaryStorage(tenant: String, name: String): Future[Option[Account]] = {
+    val file = Paths.get(s"${primaryStorage}/t_${tenant}/account/${name}/snapshot/0000000000")
+    if (!Files.exists(file)) {
+      return Future.successful(None)
+    }
+
+    FileIO.fromPath(file)
+      .via(Framing.delimiter(ByteString("\n"), 256, true).map(_.utf8String))
+      .take(1)
+      .map { line =>
+        Some(Account(tenant, name, line.substring(0, 3), line.substring(4, line.size - 2)))
+      }
+      .recover {
+        case e: Exception =>
+          logger.warn(s"error reading account meta data of tenant: ${tenant} name: ${name} exception: ${e}")
+          None
+      }
+      .runWith(Sink.reduce[Option[Account]]((_, last) => last))
+  }
 }
