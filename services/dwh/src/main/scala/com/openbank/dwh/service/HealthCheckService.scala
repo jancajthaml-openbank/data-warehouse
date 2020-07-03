@@ -7,12 +7,12 @@ import scala.util.control.NonFatal
 import com.openbank.dwh.persistence.Persistence
 
 
-class HealthCheckService(secondaryStorage: Persistence)(implicit ec: ExecutionContext) extends LazyLogging {
+class HealthCheckService(postgres: Persistence)(implicit ec: ExecutionContext) extends LazyLogging {
 
-  import secondaryStorage.profile.api._
+  import postgres.profile.api._
 
   def isHealthy: Future[Boolean] = {
-    Future.fromTry(Try(secondaryStorage.database))
+    Future.fromTry(Try(postgres.database))
       .flatMap {
         _.run(sql"SELECT 1".as[Int]).map(_.contains(1))
       }

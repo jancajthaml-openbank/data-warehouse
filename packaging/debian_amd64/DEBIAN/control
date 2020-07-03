@@ -1,5 +1,5 @@
 Package: dwh
-Version: 0.0.0+actors-outline
+Version: 0.0.0+primary-database-persistence-fascade
 Section: misc
 Priority: extra
 Architecture: amd64
