@@ -10,9 +10,9 @@ import scala.util.{Try, Success, Failure}
 import scala.collection.immutable.Seq
 import com.openbank.dwh.persistence.ConnectionProvider
 import org.postgresql.PGConnection
-import slick.jdbc.JdbcBackend.DatabaseDef
+import slick.jdbc.JdbcBackend.{DatabaseDef, Database}
 import slick.jdbc.JdbcBackend
-import com.openbank.dwh.persistence.Persistence
+import com.openbank.dwh.persistence._
 import scala.util.control.NonFatal
 
 
@@ -21,7 +21,7 @@ trait PersistenceModule extends Lifecycle {
 
   abstract override def stop(): Future[Done] = {
     Future.fromTry(Try {
-      secondaryStorage.close()
+      postgres.close()
       Done
     }).recover {
       case NonFatal(e) =>
@@ -34,7 +34,7 @@ trait PersistenceModule extends Lifecycle {
   abstract override def start(): Future[Done] = {
     logger.info("Starting Persistence Module")
     super.start().flatMap { _ =>
-      val provider = secondaryStorage.provider
+      val provider = postgres.provider
       Future.fromTry(provider.acquire())
         .flatMap { _ =>
           provider.release(None)
@@ -43,9 +43,12 @@ trait PersistenceModule extends Lifecycle {
     }
   }
 
-  lazy val secondaryStorage: Persistence = Persistence.forConfig(config)
+  lazy val postgres: Persistence =
+    new Postgres(Database.forConfig("persistence-secondary.postgresql", config))
 
-  // FIXME convert to class and introduce helpers to define primary storage persistence api
-  lazy val primaryStorage: String = config.getString("persistence-primary.storage")
+  // FIXME also vertica and elastic
+
+  lazy val primaryStorage: PrimaryPersistence =
+    new PrimaryPersistence(config.getString("persistence-primary.storage"))
 
 }

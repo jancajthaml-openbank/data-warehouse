@@ -24,18 +24,6 @@ trait Persistence extends AutoCloseable {
 }
 
 
-object Persistence {
-
-  def forConfig(config: Config): Persistence = {
-    val db = Database.forConfig("persistence-secondary.postgresql", config)
-
-    // FIXME multiple persistence backends (postgres, vertica, elastic)
-
-    new Postgres(db)
-  }
-}
-
-
 class Postgres(val database: Database) extends Persistence {
 
   object PGProfile extends JdbcProfile
