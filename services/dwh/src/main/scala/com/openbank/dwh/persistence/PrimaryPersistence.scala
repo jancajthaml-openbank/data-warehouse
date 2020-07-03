@@ -44,7 +44,6 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
   def getAccountMetaData(tenant: String, name: String): Future[Option[Account]] = {
     val file = getAccountSnapshotPath(tenant, name, 0)
     if (!Files.exists(file)) {
-      logger.info(s"snapshot ${file} does not exists")
       return Future.successful(None)
     }
 
