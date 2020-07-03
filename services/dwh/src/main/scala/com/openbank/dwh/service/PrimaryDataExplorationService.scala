@@ -55,7 +55,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
               .map { name => AccountDiscovery(tenant.name, name) }
           }
           .mapConcat(_.to[collection.immutable.Seq])
-          .mapAsync(1)(onAccountDiscovery)
+          .mapAsync(100)(onAccountDiscovery)
           .recover { case e: Exception => None }
           .collect { case Some(account) => account }
       }
