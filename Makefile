@@ -78,6 +78,7 @@ bbtest:
 			-v /var/lib/docker/containers:/var/lib/docker/containers:rw \
 			-v /sys/fs/cgroup:/sys/fs/cgroup:ro \
 			-v $$(pwd)/bbtest:/opt/app \
+			-v $$(pwd)/data-extraction-concept/data:/data \
 			-v $$(pwd)/reports:/tmp/reports \
 			-w /opt/app \
 		jancajthaml/bbtest:amd64 \

@@ -1,7 +1,7 @@
 package com.openbank.dwh.boot
 
 import akka.{Done, NotUsed}
-import com.typesafe.scalalogging.StrictLogging
+import com.typesafe.scalalogging.LazyLogging
 import scala.concurrent.Future
 import akka.stream._
 import akka.stream.scaladsl._
@@ -17,11 +17,11 @@ import scala.util.control.NonFatal
 
 
 trait PersistenceModule extends Lifecycle {
-  self: AkkaModule with ConfigModule with StrictLogging =>
+  self: AkkaModule with ConfigModule with LazyLogging =>
 
   abstract override def stop(): Future[Done] = {
     Future.fromTry(Try {
-      persistence.close()
+      secondaryStorage.close()
       Done
     }).recover {
       case NonFatal(e) =>
@@ -32,9 +32,9 @@ trait PersistenceModule extends Lifecycle {
   }
 
   abstract override def start(): Future[Done] = {
-    println("Starting Persistence Module")
+    logger.info("Starting Persistence Module")
     super.start().flatMap { _ =>
-      val provider = persistence.provider
+      val provider = secondaryStorage.provider
       Future.fromTry(provider.acquire())
         .flatMap { _ =>
           provider.release(None)
@@ -43,6 +43,9 @@ trait PersistenceModule extends Lifecycle {
     }
   }
 
-  lazy val persistence: Persistence = Persistence.forConfig(config)
+  lazy val secondaryStorage: Persistence = Persistence.forConfig(config)
+
+  // FIXME convert to class and introduce helpers to define primary storage persistence api
+  lazy val primaryStorage: String = config.getString("persistence-primary.storage")
 
 }

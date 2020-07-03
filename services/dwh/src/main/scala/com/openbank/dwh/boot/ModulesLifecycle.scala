@@ -4,18 +4,18 @@ import akka.Done
 import akka.actor.CoordinatedShutdown
 import akka.actor.CoordinatedShutdown.Reason
 import ch.qos.logback.classic.LoggerContext
-import com.typesafe.scalalogging.StrictLogging
+import com.typesafe.scalalogging.LazyLogging
 import org.slf4j.LoggerFactory
 import scala.concurrent.Future
 
 
-trait ServiceLifecycle extends Lifecycle {
-  self: AkkaModule with StrictLogging =>
+trait ModulesLifecycle extends Lifecycle {
+  self: AkkaModule with LazyLogging =>
 
   abstract override def start(): Future[Done] = {
     super.start().flatMap { _ =>
       CoordinatedShutdown(system)
-        .addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "service-cleanup") { () =>
+        .addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "graceful-stop") { () =>
           stop()
         }
       Future.successful(Done)
