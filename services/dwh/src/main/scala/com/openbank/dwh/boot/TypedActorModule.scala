@@ -10,6 +10,8 @@ import com.openbank.dwh.actor
 trait TypedActorModule extends Lifecycle {
   self: AkkaModule with ServiceModule with LazyLogging =>
 
+  // FIXME needs separate execution context
+
   abstract override def start(): Future[Done] = {
     super.start().flatMap { _ =>
       val typedSystem = ActorSystem(

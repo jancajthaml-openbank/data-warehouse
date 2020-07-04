@@ -18,7 +18,7 @@ trait RouterModule extends Lifecycle {
   def routes: Route = new RootRouter(healthCheck).route
 
   abstract override def start(): Future[Done] = {
-    logger.info("starting Router Module")
+    logger.info("Starting Router Module")
 
     super.start().flatMap { _ =>
       Http()

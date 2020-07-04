@@ -7,7 +7,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.mutable.Builder
 import scala.collection.generic.CanBuildFrom
 import language.higherKinds
-import akka.stream.scaladsl.{Framing, FileIO, Flow, Keep, Sink, Source}
+import akka.stream.scaladsl._
 import akka.stream.{Materializer, OverflowStrategy}
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
@@ -20,6 +20,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
   case class TenantDiscovery(name: String) extends Discovery
   case class AccountDiscovery(tenant: String, name: String) extends Discovery
   case class AccountSnapshotDiscovery(tenant: String, account: String, version: Int) extends Discovery
+  case class AccountEventDiscovery(tenant: String, account: String, version: Int, event: String) extends Discovery
 
   def runExploration: Future[Done] = {
     //.buffer(1, OverflowStrategy.backpressure)
@@ -35,7 +36,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
               .map(_.getName.stripPrefix("t_"))
               .map { name => TenantDiscovery(name) }
           }
-          .mapConcat(_.to[collection.immutable.Seq])
+          .mapConcat(_.to[Seq])
           .mapAsync(10)(onTenantDiscovery)
           .recover { case e: Exception => None }
           .collect { case Some(tenant) => tenant }
@@ -55,7 +56,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
               .map(_.getName)
               .map { name => (tenant, AccountDiscovery(tenant.name, name)) }
           }
-          .mapConcat(_.to[collection.immutable.Seq])
+          .mapConcat(_.to[Seq])
           .mapAsyncUnordered(100) { case (tenant, discovery) =>
             onAccountDiscovery(discovery)
               .map(_.map { account => (tenant, account) })
@@ -80,7 +81,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
               .sortWith(_ < _)
               .map { version => (tenant, account, AccountSnapshotDiscovery(account.tenant, account.name, version)) }
           }
-          .mapConcat(_.to[collection.immutable.Seq])
+          .mapConcat(_.to[Seq])
           .mapAsync(10) { case (tenant, account, discovery) =>
             onAccountSnapshotDiscovery(discovery)
               .map(_.map { snapshot => (tenant, account, snapshot) })
@@ -91,11 +92,57 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       .via {
         Flow[Tuple3[Tenant, Account, AccountSnapshot]]
           .map { case (tenant, account, snapshot) =>
-            (tenant, account, snapshot)
+            (tenant, account, snapshot, primaryStorage.getAccountEventsPath(account.tenant, account.name, snapshot.version))
           }
       }
-      .runWith(Sink.seq)
+      .via {
+        Flow[Tuple4[Tenant, Account, AccountSnapshot, Path]]
+          .map {
+            case (tenant, account, snapshot, path) =>
+              path
+                .toFile
+                .listFiles()
+                .map(_.getName)
+                .map { file => (tenant, account, snapshot, AccountEventDiscovery(account.tenant, account.name, snapshot.version, file)) }
+          }
+          .filterNot { events =>
+            events.isEmpty ||
+            (
+              events.last._2.lastSynchronizedSnapshot == events.last._3.version &&
+              events.size <= events.last._3.lastSynchronizedEvent
+            )
+          }
+          .mapConcat(_.to[Seq])
+          .mapAsync(10) { case (tenant, account, snapshot, discovery) =>
+            onAccountEventDiscovery(discovery)
+              .map(_.map { event => (tenant, account, snapshot, event) })
+          }
+          .recover { case e: Exception => None }
+          .collect { case Some(data) => data }
+//          .sortWith(_.version < _.version)
+      }
+      .via {
+        Flow[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]]
+          .map {
+            case (tenant, account, snapshot, event) =>
+              (tenant, account, snapshot, event)
+          }
+      }
+      .runWith(Sink.ignore)
       .map(_ => Done)
+
+      // FIXME now parition events,
+      // status == 1 are committed and one is able to discover transactions from that
+      // other statuses are only useful for event version id (in given snapshot)
+      // to update account pivoting
+      /*
+      .via {
+        Partition[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]](2,
+          case data if data._4.status == 1 => 0
+          case data => 1
+        )
+      }
+      */
 
       // custom buffer
       // https://stackoverflow.com/questions/44656618/akka-stream-sort-by-id-in-java
@@ -134,7 +181,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
 
     result.map { data =>
       data.map { account =>
-        logger.info(s"explored account name ${item} as ${account}")
+        logger.info(s"explored account ${account}")
       }
       data
     }
@@ -146,7 +193,18 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
 
     result.map { data =>
       data.map { snapshot =>
-        logger.info(s"explored account snapshot name ${item} as ${snapshot}")
+        logger.info(s"explored account snapshot ${snapshot}")
+      }
+      data
+    }
+  }
+
+  // FIXME rename to "acknowledge" something...
+  private def onAccountEventDiscovery(item: AccountEventDiscovery): Future[Option[AccountEvent]] = {
+    val result = primaryStorage.getAccountEvent(item.tenant, item.account, item.version, item.event)
+    result.map { data =>
+      data.map { event =>
+        logger.info(s"explored account event ${event}")
       }
       data
     }
