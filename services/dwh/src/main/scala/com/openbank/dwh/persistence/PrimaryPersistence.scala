@@ -25,6 +25,9 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
   def getTransactionsPath(tenant: String): Path =
     Paths.get(s"${rootStorage}/t_${tenant}/transaction")
 
+  def getAccountSnapshotsPath(tenant: String, name: String): Path =
+    Paths.get(f"${rootStorage}/t_${tenant}/account/${name}/snapshot")
+
   def getAccountSnapshotPath(tenant: String, name: String, version: Int): Path =
     Paths.get(f"${rootStorage}/t_${tenant}/account/${name}/snapshot/${version}%010d")
 
@@ -41,6 +44,16 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
     return Future.successful(Some(Tenant(tenant)))
   }
 
+  def getAccountSnapshot(tenant: String, account: String, version: Int): Future[Option[AccountSnapshot]] = {
+    if (!Files.exists(getAccountSnapshotPath(tenant, account, version))) {
+      return Future.successful(None)
+    }
+    if (!Files.exists(getAccountSnapshotPath(tenant, account, version+1))) {
+      return Future.successful(Some(AccountSnapshot(tenant, account, version, true)))
+    }
+    return Future.successful(Some(AccountSnapshot(tenant, account, version, false)))
+  }
+
   def getAccountMetaData(tenant: String, name: String): Future[Option[Account]] = {
     val file = getAccountSnapshotPath(tenant, name, 0)
     if (!Files.exists(file)) {
@@ -51,7 +64,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .via(Framing.delimiter(ByteString("\n"), 256, true).map(_.utf8String))
       .take(1)
       .map { line =>
-        Some(Account(tenant, name, line.substring(0, 3), line.substring(4, line.size - 2)))
+        Some(Account(tenant, name, line.substring(0, 3), line.substring(4, line.size - 2), 0))
       }
       .recover {
         case e: Exception =>
