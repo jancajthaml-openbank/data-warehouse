@@ -20,6 +20,7 @@ CREATE TABLE account
   format            VARCHAR(50),
   currency          CHAR(3),
   last_syn_snapshot INTEGER,
+  last_syn_event    INTEGER,
 
   PRIMARY KEY (tenant, name)
 );
