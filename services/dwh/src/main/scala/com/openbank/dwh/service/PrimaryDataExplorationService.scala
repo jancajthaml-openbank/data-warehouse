@@ -9,7 +9,7 @@ import scala.collection.generic.CanBuildFrom
 import language.higherKinds
 import akka.stream.scaladsl.{Framing, FileIO, Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
-import com.openbank.dwh.model.{Account, Tenant}
+import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
 
@@ -19,6 +19,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
   sealed trait Discovery
   case class TenantDiscovery(name: String) extends Discovery
   case class AccountDiscovery(tenant: String, name: String) extends Discovery
+  case class AccountSnapshotDiscovery(tenant: String, account: String, version: Int) extends Discovery
 
   def runExploration: Future[Done] = {
     //.buffer(1, OverflowStrategy.backpressure)
@@ -27,8 +28,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       .single(primaryStorage.getRootPath())
       .via {
         Flow[Path]
-          .map { file =>
-            file
+          .map { path =>
+            path
               .toFile
               .listFiles(_.getName.matches("t_.+"))
               .map(_.getName.stripPrefix("t_"))
@@ -47,22 +48,59 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       }
       .via {
         Flow[Tuple2[Tenant, Path]]
-          .map { case (tenant, file) =>
-            file
+          .map { case (tenant, path) =>
+            path
               .toFile
               .listFiles()
               .map(_.getName)
-              .map { name => AccountDiscovery(tenant.name, name) }
+              .map { name => (tenant, AccountDiscovery(tenant.name, name)) }
           }
           .mapConcat(_.to[collection.immutable.Seq])
-          .mapAsync(100)(onAccountDiscovery)
+          .mapAsyncUnordered(100) { case (tenant, discovery) =>
+            onAccountDiscovery(discovery)
+              .map(_.map { account => (tenant, account) })
+          }
           .recover { case e: Exception => None }
-          .collect { case Some(account) => account }
+          .collect { case Some(data) => data }
+      }
+      .via {
+        Flow[Tuple2[Tenant, Account]]
+          .map { case (tenant, account) =>
+            (tenant, account, primaryStorage.getAccountSnapshotsPath(account.tenant, account.name))
+          }
+      }
+      .via {
+        Flow[Tuple3[Tenant, Account, Path]]
+          .map { case (tenant, account, path) =>
+            path
+              .toFile
+              .listFiles()
+              .map(_.getName.toInt)
+              .filter(_ >= account.lastSynchronizedSnapshot)
+              .sortWith(_ < _)
+              .map { version => (tenant, account, AccountSnapshotDiscovery(account.tenant, account.name, version)) }
+          }
+          .mapConcat(_.to[collection.immutable.Seq])
+          .mapAsync(10) { case (tenant, account, discovery) =>
+            onAccountSnapshotDiscovery(discovery)
+              .map(_.map { snapshot => (tenant, account, snapshot) })
+          }
+          .recover { case e: Exception => None }
+          .collect { case Some(data) => data }
+      }
+      .via {
+        Flow[Tuple3[Tenant, Account, AccountSnapshot]]
+          .map { case (tenant, account, snapshot) =>
+            (tenant, account, snapshot)
+          }
       }
       .runWith(Sink.seq)
       .map(_ => Done)
 
-      // FIXME next step get events for each account
+      // custom buffer
+      // https://stackoverflow.com/questions/44656618/akka-stream-sort-by-id-in-java
+
+      // FIXME next step get events for each account snapshot
   }
 
   // FIXME rename to "acknowledge" something...
@@ -97,6 +135,18 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
     result.map { data =>
       data.map { account =>
         logger.info(s"explored account name ${item} as ${account}")
+      }
+      data
+    }
+  }
+
+  // FIXME rename to "acknowledge" something...
+  private def onAccountSnapshotDiscovery(item: AccountSnapshotDiscovery): Future[Option[AccountSnapshot]] = {
+    val result = primaryStorage.getAccountSnapshot(item.tenant, item.account, item.version)
+
+    result.map { data =>
+      data.map { snapshot =>
+        logger.info(s"explored account snapshot name ${item} as ${snapshot}")
       }
       data
     }

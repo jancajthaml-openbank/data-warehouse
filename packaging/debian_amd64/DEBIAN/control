@@ -1,5 +1,5 @@
 Package: dwh
-Version: 0.0.0+primary-database-persistence-fascade
+Version: 0.0.0+explore-account-events
 Section: misc
 Priority: extra
 Architecture: amd64
