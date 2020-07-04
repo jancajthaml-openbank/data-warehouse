@@ -48,10 +48,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
     if (!Files.exists(getAccountSnapshotPath(tenant, account, version))) {
       return Future.successful(None)
     }
-    if (!Files.exists(getAccountSnapshotPath(tenant, account, version+1))) {
-      return Future.successful(Some(AccountSnapshot(tenant, account, version, true)))
-    }
-    return Future.successful(Some(AccountSnapshot(tenant, account, version, false)))
+    return Future.successful(Some(AccountSnapshot(tenant, account, version, 0)))
   }
 
   def getAccountMetaData(tenant: String, name: String): Future[Option[Account]] = {
@@ -64,7 +61,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .via(Framing.delimiter(ByteString("\n"), 256, true).map(_.utf8String))
       .take(1)
       .map { line =>
-        Some(Account(tenant, name, line.substring(0, 3), line.substring(4, line.size - 2), 0))
+        Some(Account(tenant, name, line.substring(0, 3), line.substring(4, line.size - 2), 0, 0))
       }
       .recover {
         case e: Exception =>

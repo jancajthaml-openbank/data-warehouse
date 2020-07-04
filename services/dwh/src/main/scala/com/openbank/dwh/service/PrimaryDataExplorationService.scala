@@ -28,8 +28,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       .single(primaryStorage.getRootPath())
       .via {
         Flow[Path]
-          .map { file =>
-            file
+          .map { path =>
+            path
               .toFile
               .listFiles(_.getName.matches("t_.+"))
               .map(_.getName.stripPrefix("t_"))
@@ -48,41 +48,57 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       }
       .via {
         Flow[Tuple2[Tenant, Path]]
-          .map { case (tenant, file) =>
-            file
+          .map { case (tenant, path) =>
+            path
               .toFile
               .listFiles()
               .map(_.getName)
-              .map { name => AccountDiscovery(tenant.name, name) }
+              .map { name => (tenant, AccountDiscovery(tenant.name, name)) }
           }
           .mapConcat(_.to[collection.immutable.Seq])
-          .mapAsyncUnordered(100)(onAccountDiscovery)
+          .mapAsyncUnordered(100) { case (tenant, discovery) =>
+            onAccountDiscovery(discovery)
+              .map(_.map { account => (tenant, account) })
+          }
           .recover { case e: Exception => None }
-          .collect { case Some(account) => account }
+          .collect { case Some(data) => data }
       }
       .via {
-        Flow[Account]
-          .map { account =>
-            (account, primaryStorage.getAccountSnapshotsPath(account.tenant, account.name))
+        Flow[Tuple2[Tenant, Account]]
+          .map { case (tenant, account) =>
+            (tenant, account, primaryStorage.getAccountSnapshotsPath(account.tenant, account.name))
           }
       }
       .via {
-        Flow[Tuple2[Account, Path]]
-          .map { case (account, file) =>
-            file
+        Flow[Tuple3[Tenant, Account, Path]]
+          .map { case (tenant, account, path) =>
+            path
               .toFile
               .listFiles()
-              .map(_.getName)
-              .map { version => AccountSnapshotDiscovery(account.tenant, account.name, version.toInt) }
-              .filter { _.version >= account.lastSynchronizedSnapshot }
+              .map(_.getName.toInt)
+              .filter(_ >= account.lastSynchronizedSnapshot)
+              .sortWith(_ < _)
+              .map { version => (tenant, account, AccountSnapshotDiscovery(account.tenant, account.name, version)) }
           }
           .mapConcat(_.to[collection.immutable.Seq])
-          .mapAsync(10)(onAccountSnapshotDiscovery)
+          .mapAsync(10) { case (tenant, account, discovery) =>
+            onAccountSnapshotDiscovery(discovery)
+              .map(_.map { snapshot => (tenant, account, snapshot) })
+          }
           .recover { case e: Exception => None }
-          .collect { case Some(snapshot) => snapshot }
-      } // FIXME now needs a custom buffer that will emit snapshost for accounts in asceding order and flush from buffer all account snapshots if it is last snapshot for that account
+          .collect { case Some(data) => data }
+      }
+      .via {
+        Flow[Tuple3[Tenant, Account, AccountSnapshot]]
+          .map { case (tenant, account, snapshot) =>
+            (tenant, account, snapshot)
+          }
+      }
       .runWith(Sink.seq)
       .map(_ => Done)
+
+      // custom buffer
+      // https://stackoverflow.com/questions/44656618/akka-stream-sort-by-id-in-java
 
       // FIXME next step get events for each account snapshot
   }
@@ -126,7 +142,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
 
   // FIXME rename to "acknowledge" something...
   private def onAccountSnapshotDiscovery(item: AccountSnapshotDiscovery): Future[Option[AccountSnapshot]] = {
-
     val result = primaryStorage.getAccountSnapshot(item.tenant, item.account, item.version)
 
     result.map { data =>
