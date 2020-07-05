@@ -14,6 +14,8 @@ import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
 
+// https://www.youtube.com/watch?v=nncxYGD6m7E
+// https://doc.akka.io/docs/akka/current/stream/stream-composition.html
 // https://github.com/inanna-malick/akka-streams-example
 // https://blog.colinbreck.com/maximizing-throughput-for-akka-streams/
 // https://blog.colinbreck.com/partitioning-akka-streams-to-maximize-throughput/
@@ -135,7 +137,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
   }
 
   def getAccountEventsFlow: Graph[FlowShape[Tuple3[Tenant, Account, AccountSnapshot], Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]], NotUsed] = {
-    Flow[Tuple3[Tenant, Account, AccountSnapshot]]
+
+    val events = Flow[Tuple3[Tenant, Account, AccountSnapshot]]
       .map { case (tenant, account, snapshot) =>
         (tenant, account, snapshot, primaryStorage.getAccountEventsPath(account.tenant, account.name, snapshot.version))
       }
@@ -154,6 +157,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
           events.size <= events.last._3.lastSynchronizedEvent
         )
       }
+
+
       .mapAsync(1) { events =>
         Future.sequence {
           events
