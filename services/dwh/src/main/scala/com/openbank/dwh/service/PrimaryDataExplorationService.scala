@@ -9,7 +9,7 @@ import scala.collection.mutable.Builder
 import scala.collection.generic.CanBuildFrom
 import language.higherKinds
 import akka.stream.scaladsl._
-import akka.stream.{Materializer, OverflowStrategy, FlowShape, Graph}
+import akka.stream.{Materializer, OverflowStrategy, FlowShape, Graph, ClosedShape}
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
@@ -25,48 +25,39 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
   def runExploration: Future[Done] = {
     //.buffer(1, OverflowStrategy.backpressure)
 
-    Source
-      .single(primaryStorage.getRootPath())
-      .via(getTenansFlow)
-      .map { case (tenant) =>
-        logger.info(s"explored tenant ${tenant}")
-        tenant
-      }
-      .via(getAccountsFlow)
-      .map { case (tenant, account) =>
-        logger.info(s"explored account ${account}")
-        (tenant, account)
-      }
-      .via(getAccountSnapshotsFlow)
-      .map { case (tenant, account, snapshot) =>
-        logger.info(s"explored account snapshot ${snapshot}")
-        (tenant, account, snapshot)
-      }
-      .via(getAccountEventsFlow)
-      .map { case (tenant, account, snapshot, event) =>
-        logger.info(s"explored account event ${event}")
-        (tenant, account, snapshot, event)
-      }
-      .runWith(Sink.ignore)
+    val source = Source.single(primaryStorage.getRootPath())
+    val sink = Sink.ignore
+    val tenants = getTenansFlow
+    val accounts = getAccountsFlow
+    val snapshots = getAccountSnapshotsFlow
+    val events = getAccountEventsFlow
+
+    val graph = RunnableGraph.fromGraph(GraphDSL.create(sink) { implicit builder => term =>
+      import GraphDSL.Implicits._
+
+      val partitionEvents = builder.add(Partition[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]](2, _ match {
+        case (tenant, account, snapshot, event) if event.status == 1 => 0
+        case _ => 1
+      }))
+
+      val mergeEvents = builder.add(Merge[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]](2))
+
+      source ~> tenants ~> accounts ~> snapshots ~> events ~> partitionEvents
+
+      // events that needs to be exploded into transactions
+      partitionEvents.out(0) ~> mergeEvents
+
+      partitionEvents.out(1) ~> mergeEvents
+
+      // FIXME after merge events update account snapshot+event
+      mergeEvents ~> term.in
+
+      ClosedShape
+    })
+
+    graph
+      .run()
       .map(_ => Done)
-
-      // FIXME now parition events,
-      // status == 1 are committed and one is able to discover transactions from that
-      // other statuses are only useful for event version id (in given snapshot)
-      // to update account pivoting
-      /*
-      .via {
-        Partition[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]](2,
-          case data if data._4.status == 1 => 0
-          case data => 1
-        )
-      }
-      */
-
-      // custom buffer
-      // https://stackoverflow.com/questions/44656618/akka-stream-sort-by-id-in-java
-
-      // FIXME next step get events for each account snapshot
   }
 
   def getTenansFlow: Graph[FlowShape[Path, Tenant], NotUsed] = {
@@ -84,6 +75,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       .async
       .recover { case e: Exception => None }
       .collect { case Some(tenant) => tenant }
+      .log("tenants")
   }
 
   def getAccountsFlow: Graph[FlowShape[Tenant, Tuple2[Tenant, Account]], NotUsed] = {
@@ -108,6 +100,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       .async
       .recover { case e: Exception => None }
       .collect { case Some(data) => data }
+      .log("accounts")
   }
 
   def getAccountSnapshotsFlow: Graph[FlowShape[Tuple2[Tenant, Account], Tuple3[Tenant, Account, AccountSnapshot]], NotUsed] = {
@@ -134,11 +127,11 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       .async
       .recover { case e: Exception => None }
       .collect { case Some(data) => data }
+      .log("snapshots")
   }
 
   def getAccountEventsFlow: Graph[FlowShape[Tuple3[Tenant, Account, AccountSnapshot], Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]], NotUsed] = {
-
-    val events = Flow[Tuple3[Tenant, Account, AccountSnapshot]]
+    Flow[Tuple3[Tenant, Account, AccountSnapshot]]
       .map { case (tenant, account, snapshot) =>
         (tenant, account, snapshot, primaryStorage.getAccountEventsPath(account.tenant, account.name, snapshot.version))
       }
@@ -157,8 +150,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
           events.size <= events.last._3.lastSynchronizedEvent
         )
       }
-
-
       .mapAsync(1) { events =>
         Future.sequence {
           events
@@ -178,6 +169,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       }
       .async
       .mapConcat(_.to[Seq])
+      .log("events")
   }
 
 }
