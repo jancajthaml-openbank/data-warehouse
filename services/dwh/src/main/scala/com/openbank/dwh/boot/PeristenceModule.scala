@@ -1,17 +1,10 @@
 package com.openbank.dwh.boot
 
-import akka.{Done, NotUsed}
+import akka.Done
 import com.typesafe.scalalogging.LazyLogging
 import scala.concurrent.Future
-import akka.stream._
-import akka.stream.scaladsl._
-import akka.stream.Supervision.Decider
-import scala.util.{Try, Success, Failure}
-import scala.collection.immutable.Seq
-import com.openbank.dwh.persistence.ConnectionProvider
-import org.postgresql.PGConnection
-import slick.jdbc.JdbcBackend.{DatabaseDef, Database}
-import slick.jdbc.JdbcBackend
+import scala.util.Try
+import slick.jdbc.JdbcBackend.Database
 import com.openbank.dwh.persistence._
 import scala.util.control.NonFatal
 
@@ -20,35 +13,24 @@ trait PersistenceModule extends Lifecycle {
   self: AkkaModule with ConfigModule with LazyLogging =>
 
   abstract override def stop(): Future[Done] = {
-    Future.fromTry(Try {
-      postgres.close()
-      Done
-    }).recover {
-      case NonFatal(e) =>
-        logger.error("Error closing persistence", e)
-        Done
-    }
-    .flatMap { _ => super.stop() }
-  }
-
-  abstract override def start(): Future[Done] = {
-    logger.info("Starting Persistence Module")
-    super.start().flatMap { _ =>
-      val provider = postgres.provider
-      Future.fromTry(provider.acquire())
-        .flatMap { _ =>
-          provider.release(None)
-          Future.successful(Done)
-        }
-    }
+    Future
+      .fromTry(Try(postgres.close()))
+      .map(_ => Done)
+      .recover {
+        case NonFatal(e) =>
+          logger.error("Error closing database", e)
+          Done
+      }
+      .flatMap(_ => super.stop())
   }
 
   lazy val postgres: Persistence =
     new Postgres(Database.forConfig("persistence-secondary.postgresql", config))
 
-  // FIXME also vertica and elastic
+  lazy val secondaryStorage: SecondaryPersistence =
+    new SecondaryPersistence(postgres)
 
   lazy val primaryStorage: PrimaryPersistence =
-    new PrimaryPersistence(config.getString("persistence-primary.storage"))
+    new PrimaryPersistence(config.getString("persistence-primary.storage"))(primaryExplorationExecutionContext, materializer)
 
 }

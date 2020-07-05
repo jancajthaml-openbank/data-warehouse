@@ -12,6 +12,10 @@
     <appender-ref ref="STDOUT_SYNC"/>
   </appender>
 
+  <logger name="com.zaxxer.hikari" level="WARN"/>
+  <logger name="slick" level="WARN" />
+  <logger name="slick.jdbc.JdbcBackend.statement" level="WARN" />
+
   <root level="${DWH_LOG_LEVEL:-INFO}">
     <appender-ref ref="STDOUT_SYNC"/>
   </root>

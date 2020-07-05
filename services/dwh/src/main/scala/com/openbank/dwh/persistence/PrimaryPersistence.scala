@@ -11,6 +11,7 @@ import com.typesafe.scalalogging.LazyLogging
 import collection.immutable.Seq
 
 
+// FIXME split into interface and impl for better testing
 class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 
   def getRootPath(): Path =
@@ -25,11 +26,17 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
   def getTransactionsPath(tenant: String): Path =
     Paths.get(s"${rootStorage}/t_${tenant}/transaction")
 
-  def getAccountSnapshotsPath(tenant: String, name: String): Path =
-    Paths.get(f"${rootStorage}/t_${tenant}/account/${name}/snapshot")
+  def getAccountSnapshotsPath(tenant: String, account: String): Path =
+    Paths.get(f"${rootStorage}/t_${tenant}/account/${account}/snapshot")
 
-  def getAccountSnapshotPath(tenant: String, name: String, version: Int): Path =
-    Paths.get(f"${rootStorage}/t_${tenant}/account/${name}/snapshot/${version}%010d")
+  def getAccountSnapshotPath(tenant: String, account: String, version: Int): Path =
+    Paths.get(f"${rootStorage}/t_${tenant}/account/${account}/snapshot/${version}%010d")
+
+  def getAccountEventsPath(tenant: String, account: String, version: Int): Path =
+    Paths.get(f"${rootStorage}/t_${tenant}/account/${account}/events/${version}%010d")
+
+  def getAccountEventPath(tenant: String, account: String, version: Int, event: String): Path =
+    Paths.get(f"${rootStorage}/t_${tenant}/account/${account}/events/${version}%010d/${event}")
 
   def getTenant(tenant: String): Future[Option[Tenant]] = {
     if (!Files.exists(getTenantPath(tenant))) {
@@ -41,18 +48,18 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
     if (!Files.exists(getAccountsPath(tenant))) {
       return Future.successful(None)
     }
-    return Future.successful(Some(Tenant(tenant)))
+    return Future.successful(Some(Tenant(tenant, false)))
   }
 
   def getAccountSnapshot(tenant: String, account: String, version: Int): Future[Option[AccountSnapshot]] = {
     if (!Files.exists(getAccountSnapshotPath(tenant, account, version))) {
       return Future.successful(None)
     }
-    return Future.successful(Some(AccountSnapshot(tenant, account, version, 0)))
+    return Future.successful(Some(AccountSnapshot(tenant, account, version)))
   }
 
-  def getAccountMetaData(tenant: String, name: String): Future[Option[Account]] = {
-    val file = getAccountSnapshotPath(tenant, name, 0)
+  def getAccountEvent(tenant: String, account: String, version: Int, event: String): Future[Option[AccountEvent]] = {
+    val file = getAccountEventPath(tenant, account, version, event)
     if (!Files.exists(file)) {
       return Future.successful(None)
     }
@@ -61,11 +68,32 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .via(Framing.delimiter(ByteString("\n"), 256, true).map(_.utf8String))
       .take(1)
       .map { line =>
-        Some(Account(tenant, name, line.substring(0, 3), line.substring(4, line.size - 2), 0, 0))
+        val parts = event.split("_")
+        Some(AccountEvent(tenant, account, parts(0).toInt, parts(2), version, line.toInt))
       }
       .recover {
         case e: Exception =>
-          logger.warn(s"error reading account meta data of tenant: ${tenant} name: ${name} exception: ${e}")
+          logger.warn(s"error reading account event data of tenant: ${tenant} account: ${account} exception snapshot: ${version} event: ${event}: ${e}")
+          None
+      }
+      .runWith(Sink.reduce[Option[AccountEvent]]((_, last) => last))
+  }
+
+  def getAccount(tenant: String, account: String): Future[Option[Account]] = {
+    val file = getAccountSnapshotPath(tenant, account, 0)
+    if (!Files.exists(file)) {
+      return Future.successful(None)
+    }
+
+    FileIO.fromPath(file)
+      .via(Framing.delimiter(ByteString("\n"), 256, true).map(_.utf8String))
+      .take(1)
+      .map { line =>
+        Some(Account(tenant, account, line.substring(0, 3), line.substring(4, line.size - 2), 0, 0, false))
+      }
+      .recover {
+        case e: Exception =>
+          logger.warn(s"error reading account meta data of tenant: ${tenant} account: ${account} exception: ${e}")
           None
       }
       .runWith(Sink.reduce[Option[Account]]((_, last) => last))

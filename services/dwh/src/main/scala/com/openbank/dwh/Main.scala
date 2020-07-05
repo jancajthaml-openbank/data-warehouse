@@ -3,11 +3,11 @@ package com.openbank.dwh
 import akka.Done
 import com.openbank.dwh.boot._
 import com.typesafe.scalalogging.LazyLogging
-import scala.concurrent.{Future, Await}
+import scala.concurrent.{ExecutionContext, Future, Await}
 import scala.concurrent.duration._
 import scala.sys
 
-object Main extends App {
+object Main extends App with LazyLogging {
 
   object Program
     extends ProgramLifecycle
@@ -21,11 +21,15 @@ object Main extends App {
     with LazyLogging
 
   try {
-    Await.result(Program.start(), 10.minutes)
+    Await.result(Program.setup(), 10.minutes)
     sys.addShutdownHook { Program.shutdown() }
+    Program.start()
   } catch {
     case e: Exception =>
-      e.printStackTrace()
-      Program.stop()
+      implicit val ec = ExecutionContext.global
+      logger.error("Program crashed", e)
+      Program
+        .stop()
+        .onComplete { _ => System.exit(1) }
   }
 }

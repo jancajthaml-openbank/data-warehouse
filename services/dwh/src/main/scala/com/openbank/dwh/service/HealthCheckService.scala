@@ -9,16 +9,20 @@ import com.openbank.dwh.persistence.Persistence
 
 class HealthCheckService(postgres: Persistence)(implicit ec: ExecutionContext) extends LazyLogging {
 
-  import postgres.profile.api._
+  // FIXME add isVerticaHealthy
 
-  def isHealthy: Future[Boolean] = {
+  // FIXME add isElasticHealthy
+
+  def isPostgresHealthy: Future[Boolean] = {
+    import postgres.profile.api._
+
     Future.fromTry(Try(postgres.database))
       .flatMap {
         _.run(sql"SELECT 1".as[Int]).map(_.contains(1))
       }
       .recover {
         case NonFatal(err) =>
-          logger.error("Failed DB health check", err)
+          logger.error("Failed postgres health check", err)
           false
       }
   }

@@ -1,5 +1,3 @@
-CREATE DATABASE openbank;
-
 GRANT ALL PRIVILEGES ON DATABASE openbank TO postgres;
 
 \c openbank;
@@ -22,6 +20,7 @@ CREATE TABLE account
   last_syn_snapshot INTEGER,
   last_syn_event    INTEGER,
 
+  FOREIGN KEY (tenant) REFERENCES tenant(name),
   PRIMARY KEY (tenant, name)
 );
 

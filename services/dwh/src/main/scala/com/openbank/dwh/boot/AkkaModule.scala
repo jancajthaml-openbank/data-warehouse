@@ -11,6 +11,8 @@ trait AkkaModule {
   implicit lazy val system: ActorSystem = ActorSystem("dwh", config)
   implicit lazy val materializer: Materializer = ActorMaterializer()
   implicit lazy val scheduler: Scheduler = system.scheduler
-  implicit lazy val executionContext: ExecutionContext = system.dispatcher
+  implicit lazy val defaultExecutionContext: ExecutionContext = system.dispatcher
+
+  lazy val primaryExplorationExecutionContext: ExecutionContext = system.dispatchers.lookup("dispatchers.primary-exploration")
 }
 

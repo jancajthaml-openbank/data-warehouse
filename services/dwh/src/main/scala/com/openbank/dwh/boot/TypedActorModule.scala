@@ -10,17 +10,22 @@ import com.openbank.dwh.actor
 trait TypedActorModule extends Lifecycle {
   self: AkkaModule with ServiceModule with LazyLogging =>
 
-  abstract override def start(): Future[Done] = {
-    super.start().flatMap { _ =>
-      val typedSystem = ActorSystem(
+  private var typedSystem: ActorSystem[actor.GuardianActor.Command] = null
+
+  abstract override def setup(): Future[Done] = {
+    super.setup().flatMap { _ =>
+      logger.info("Starting Typed Actor Module")
+      typedSystem = ActorSystem(
         actor.GuardianActor(primaryDataExplorationService),
         actor.GuardianActor.namespace
       )
-
-      typedSystem ! actor.GuardianActor.StartActors
-
       Future.successful(Done)
     }
+  }
+
+  abstract override def start(): Future[Done] = {
+    typedSystem ! actor.GuardianActor.StartActors
+    super.start()
   }
 
 }

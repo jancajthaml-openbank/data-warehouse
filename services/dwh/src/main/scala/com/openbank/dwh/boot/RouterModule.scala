@@ -17,10 +17,10 @@ trait RouterModule extends Lifecycle {
 
   def routes: Route = new RootRouter(healthCheck).route
 
-  abstract override def start(): Future[Done] = {
-    logger.info("starting Router Module")
+  abstract override def setup(): Future[Done] = {
+    super.setup().flatMap { _ =>
+      logger.info("Starting Router Module")
 
-    super.start().flatMap { _ =>
       Http()
         .bindAndHandle(routes,
                       config.getString("http.service.bind-to"),
@@ -31,4 +31,5 @@ trait RouterModule extends Lifecycle {
         .map(_ => Done)
     }
   }
+
 }

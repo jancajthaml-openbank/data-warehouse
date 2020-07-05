@@ -12,7 +12,7 @@ class HealthCheckRouter(service: HealthCheckService) extends SprayJsonSupport {
 
   def route: Route = path("health") {
     get {
-      onSuccess(service.isHealthy) { healthy =>
+      onSuccess(service.isPostgresHealthy) { healthy =>
         complete(JsObject("healthy" -> JsBoolean(healthy)))
       }
     }
