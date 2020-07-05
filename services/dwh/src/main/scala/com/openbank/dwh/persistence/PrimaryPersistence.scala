@@ -78,7 +78,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .runWith(Sink.reduce[Option[AccountEvent]]((_, last) => last))
   }
 
-  def getAccountMetaData(tenant: String, account: String): Future[Option[Account]] = {
+  def getAccount(tenant: String, account: String): Future[Option[Account]] = {
     val file = getAccountSnapshotPath(tenant, account, 0)
     if (!Files.exists(file)) {
       return Future.successful(None)

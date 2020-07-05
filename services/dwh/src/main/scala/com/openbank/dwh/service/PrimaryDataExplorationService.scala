@@ -32,24 +32,21 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       val accounts = builder.add(getAccountsFlow)
       val snapshots = builder.add(getAccountSnapshotsFlow)
       val events = builder.add(getAccountEventsFlow)
+      val transactions = builder.add(getTransactionFlow)
 
       val tenantFork = builder.add(Broadcast[Tenant](2))
       val accountFork = builder.add(Broadcast[Tuple2[Tenant, Account]](2))
-      val transaction = builder.add(getTransactionFlow)
       val termFork = builder.add(Broadcast[Account](2))
 
       source ~> tenants ~> tenantFork
 
-      // FIXME differentiate between newly discovered tenants and those hydrated from secondary storage
       tenantFork ~> onTenantFlow
-
-      // FIXME differentiate between newly discovered accounts and those hydrated from secondary storage
       tenantFork ~> accounts ~> accountFork
 
       accountFork ~> Flow[Tuple2[Tenant, Account]].map(_._2) ~> onAccountFlow
-      accountFork ~> snapshots ~> events ~> transaction
+      accountFork ~> snapshots ~> events ~> transactions
 
-      transaction ~> Flow[Tuple5[Tenant, Account, AccountSnapshot, AccountEvent, Option[Transaction]]]
+      transactions ~> Flow[Tuple5[Tenant, Account, AccountSnapshot, AccountEvent, Option[Transaction]]]
         .map { case (tenant, account, snapshot, event, transaction) =>
           account.copy(
             lastSynchronizedSnapshot = snapshot.version,
@@ -73,7 +70,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
     Flow[Tenant]
       .filterNot(_.isPristine)
       .log("tenant")
-      .mapAsyncUnordered(1000)(secondaryStorage.updateTenant)
+      .mapAsyncUnordered(10)(secondaryStorage.updateTenant)
       .async
       .recover { case e: Exception => Done }
       .to(Sink.ignore)
@@ -114,20 +111,18 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   def getAccountsFlow: Graph[FlowShape[Tenant, Tuple2[Tenant, Account]], NotUsed] = {
     Flow[Tenant]
       .map { tenant =>
-        (tenant, primaryStorage.getAccountsPath(tenant.name))
-      }
-      .map { case (tenant, path) =>
-        path
+        primaryStorage
+          .getAccountsPath(tenant.name)
           .toFile
           .listFiles()
           .map { file => (tenant, file.getName) }
       }
       .mapConcat(_.to[Seq])
-      .mapAsyncUnordered(100) { case (tenant, name) => {
+      .mapAsyncUnordered(10) { case (tenant, name) => {
         secondaryStorage
           .getAccount(tenant.name, name)
           .flatMap {
-            case None => primaryStorage.getAccountMetaData(tenant.name, name)
+            case None => primaryStorage.getAccount(tenant.name, name)
             case account => Future.successful(account)
           }
           .map(_.map { account => (tenant, account) })
@@ -140,10 +135,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   def getAccountSnapshotsFlow: Graph[FlowShape[Tuple2[Tenant, Account], Tuple3[Tenant, Account, AccountSnapshot]], NotUsed] = {
     Flow[Tuple2[Tenant, Account]]
       .map { case (tenant, account) =>
-        (tenant, account, primaryStorage.getAccountSnapshotsPath(account.tenant, account.name))
-      }
-      .map { case (tenant, account, path) =>
-        path
+        primaryStorage
+          .getAccountSnapshotsPath(account.tenant, account.name)
           .toFile
           .listFiles()
           .map(_.getName.toInt)
@@ -167,14 +160,11 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   def getAccountEventsFlow: Graph[FlowShape[Tuple3[Tenant, Account, AccountSnapshot], Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]], NotUsed] = {
     Flow[Tuple3[Tenant, Account, AccountSnapshot]]
       .map { case (tenant, account, snapshot) =>
-        (tenant, account, snapshot, primaryStorage.getAccountEventsPath(account.tenant, account.name, snapshot.version))
-      }
-      .map {
-        case (tenant, account, snapshot, path) =>
-          path
-            .toFile
-            .listFiles()
-            .map { file => (tenant, account, snapshot, file.getName) }
+        primaryStorage
+          .getAccountEventsPath(account.tenant, account.name, snapshot.version)
+          .toFile
+          .listFiles()
+          .map { file => (tenant, account, snapshot, file.getName) }
       }
       .filterNot { events =>
         events.isEmpty ||
@@ -183,7 +173,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           events.last._2.lastSynchronizedEvent >= events.size
         )
       }
-      .mapAsync(1) { events =>
+      .mapAsync(100) { events =>
         Future.sequence {
           events
             .toSeq
@@ -193,8 +183,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
                 .map(_.map { event => (tenant, account, snapshot, event) })
             }
         }
-        .map(_.flatten)
-        .map(_.sortWith(_._4.version < _._4.version))
+        .map(_.flatten.sortWith(_._4.version < _._4.version))
         .recover { case e: Exception => Seq.empty[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]] }
         // FIXME not sequence empty onrecover instead filter all non continuous events
         // So for example if my last sync event is 2 and I captured events from 3-10 and then 12-20 I can
@@ -202,6 +191,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       }
       .async
       .mapConcat(_.to[Seq])
+      .buffer(1000, OverflowStrategy.backpressure)
   }
 
   def getTransactionFlow: Graph[FlowShape[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent], Tuple5[Tenant, Account, AccountSnapshot, AccountEvent, Option[Transaction]]], NotUsed] = {
