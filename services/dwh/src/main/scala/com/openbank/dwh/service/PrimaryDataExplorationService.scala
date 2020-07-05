@@ -2,136 +2,48 @@ package com.openbank.dwh.service
 
 import java.nio.file.{Paths, Files, Path}
 import akka.Done
+import akka.NotUsed
 import com.typesafe.scalalogging.LazyLogging
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.mutable.Builder
 import scala.collection.generic.CanBuildFrom
 import language.higherKinds
 import akka.stream.scaladsl._
-import akka.stream.{Materializer, OverflowStrategy}
+import akka.stream.{Materializer, OverflowStrategy, FlowShape, Graph}
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
 
+// https://github.com/inanna-malick/akka-streams-example
 // https://blog.colinbreck.com/maximizing-throughput-for-akka-streams/
 // https://blog.colinbreck.com/partitioning-akka-streams-to-maximize-throughput/
 
 class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
-
-  sealed trait Discovery
-  case class TenantDiscovery(name: String) extends Discovery
-  case class AccountDiscovery(tenant: String, name: String) extends Discovery
-  case class AccountSnapshotDiscovery(tenant: String, account: String, version: Int) extends Discovery
-  case class AccountEventDiscovery(tenant: String, account: String, version: Int, event: String) extends Discovery
 
   def runExploration: Future[Done] = {
     //.buffer(1, OverflowStrategy.backpressure)
 
     Source
       .single(primaryStorage.getRootPath())
-      .via {
-        Flow[Path]
-          .map { path =>
-            path
-              .toFile
-              .listFiles(_.getName.matches("t_.+"))
-              .map(_.getName.stripPrefix("t_"))
-              .map { name => TenantDiscovery(name) }
-          }
-          .mapConcat(_.to[Seq])
-          .mapAsync(10)(onTenantDiscovery)
-          .async
-          .recover { case e: Exception => None }
-          .collect { case Some(tenant) => tenant }
+      .via(getTenansFlow)
+      .map { case (tenant) =>
+        logger.info(s"explored tenant ${tenant}")
+        tenant
       }
-      .via {
-        Flow[Tenant]
-          .map { tenant =>
-            (tenant, primaryStorage.getAccountsPath(tenant.name))
-          }
+      .via(getAccountsFlow)
+      .map { case (tenant, account) =>
+        logger.info(s"explored account ${account}")
+        (tenant, account)
       }
-      .via {
-        Flow[Tuple2[Tenant, Path]]
-          .map { case (tenant, path) =>
-            path
-              .toFile
-              .listFiles()
-              .map(_.getName)
-              .map { name => (tenant, AccountDiscovery(tenant.name, name)) }
-          }
-          .mapConcat(_.to[Seq])
-          .mapAsyncUnordered(100) { case (tenant, discovery) =>
-            onAccountDiscovery(discovery)
-              .map(_.map { account => (tenant, account) })
-          }
-          .async
-          .recover { case e: Exception => None }
-          .collect { case Some(data) => data }
+      .via(getAccountSnapshotsFlow)
+      .map { case (tenant, account, snapshot) =>
+        logger.info(s"explored account snapshot ${snapshot}")
+        (tenant, account, snapshot)
       }
-      .via {
-        Flow[Tuple2[Tenant, Account]]
-          .map { case (tenant, account) =>
-            (tenant, account, primaryStorage.getAccountSnapshotsPath(account.tenant, account.name))
-          }
-      }
-      .via {
-        Flow[Tuple3[Tenant, Account, Path]]
-          .map { case (tenant, account, path) =>
-            path
-              .toFile
-              .listFiles()
-              .map(_.getName.toInt)
-              .filter(_ >= account.lastSynchronizedSnapshot)
-              .sortWith(_ < _)
-              .map { version => (tenant, account, AccountSnapshotDiscovery(account.tenant, account.name, version)) }
-          }
-          .mapConcat(_.to[Seq])
-          .mapAsync(10) { case (tenant, account, discovery) =>
-            onAccountSnapshotDiscovery(discovery)
-              .map(_.map { snapshot => (tenant, account, snapshot) })
-          }
-          .async
-          .recover { case e: Exception => None }
-          .collect { case Some(data) => data }
-      }
-      .via {
-        Flow[Tuple3[Tenant, Account, AccountSnapshot]]
-          .map { case (tenant, account, snapshot) =>
-            (tenant, account, snapshot, primaryStorage.getAccountEventsPath(account.tenant, account.name, snapshot.version))
-          }
-      }
-      .via {
-        Flow[Tuple4[Tenant, Account, AccountSnapshot, Path]]
-          .map {
-            case (tenant, account, snapshot, path) =>
-              path
-                .toFile
-                .listFiles()
-                .map(_.getName)
-                .map { file => (tenant, account, snapshot, AccountEventDiscovery(account.tenant, account.name, snapshot.version, file)) }
-          }
-          .filterNot { events =>
-            events.isEmpty ||
-            (
-              events.last._2.lastSynchronizedSnapshot == events.last._3.version &&
-              events.size <= events.last._3.lastSynchronizedEvent
-            )
-          }
-          .mapConcat(_.to[Seq])
-          .mapAsync(10) { case (tenant, account, snapshot, discovery) =>
-            onAccountEventDiscovery(discovery)
-              .map(_.map { event => (tenant, account, snapshot, event) })
-          } // FIXME after version is known need to sort by version ascending like ".sortWith(_._4.version < _._4.version)"
-          .async
-          .recover { case e: Exception => None }
-          .collect { case Some(data) => data }
-      }
-      .via {
-        Flow[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]]
-          .map {
-            case (tenant, account, snapshot, event) =>
-              (tenant, account, snapshot, event)
-          }
+      .via(getAccountEventsFlow)
+      .map { case (tenant, account, snapshot, event) =>
+        logger.info(s"explored account event ${event}")
+        (tenant, account, snapshot, event)
       }
       .runWith(Sink.ignore)
       .map(_ => Done)
@@ -155,65 +67,112 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
       // FIXME next step get events for each account snapshot
   }
 
-  // FIXME rename to "acknowledge" something...
-  private def onTenantDiscovery(item: TenantDiscovery): Future[Option[Tenant]] = {
-    // FIXME now ask (call) secondary storage for Tenant entity, if it returns
-    // None tell SecondaryDataPersistorActor about this tenant existence
-
-    val result = primaryStorage.getTenant(item.name)
-
-    // FIXME check if tenant has account and transaction subfolders
-
-    result.map { data =>
-      data.foreach { tenant =>
-        logger.info(s"explored tenant ${item} as ${tenant}")
+  def getTenansFlow: Graph[FlowShape[Path, Tenant], NotUsed] = {
+    Flow[Path]
+      .map { path =>
+        path
+          .toFile
+          .listFiles(_.getName.matches("t_.+"))
+          .map(_.getName.stripPrefix("t_"))
       }
-      data
-    }
+      .mapConcat(_.to[Seq])
+      .mapAsyncUnordered(10) { name =>
+        primaryStorage.getTenant(name)
+      }
+      .async
+      .recover { case e: Exception => None }
+      .collect { case Some(tenant) => tenant }
   }
 
-  // FIXME rename to "acknowledge" something...
-  private def onAccountDiscovery(item: AccountDiscovery): Future[Option[Account]] = {
-
-    // FIXME now ask (call) secondary storage for Account entity, if it returns
-    // None get it from primary storage
-
-    val result = primaryStorage.getAccountMetaData(item.tenant, item.name)
-
-    // FIXME if whatever we end up with is different than what we obtained from
-    // primary storage (if necessary) tell SecondaryDataPersistorActor about this
-    // account existence
-
-    result.map { data =>
-      data.foreach { account =>
-        logger.info(s"explored account ${account}")
+  def getAccountsFlow: Graph[FlowShape[Tenant, Tuple2[Tenant, Account]], NotUsed] = {
+    Flow[Tenant]
+      .map { tenant =>
+        (tenant, primaryStorage.getAccountsPath(tenant.name))
       }
-      data
-    }
+      .map { case (tenant, path) =>
+        path
+          .toFile
+          .listFiles()
+          .map(_.getName)
+          .map { name => (tenant, name) }
+      }
+      .mapConcat(_.to[Seq])
+      .mapAsyncUnordered(100) { case (tenant, name) => {
+        // FIXME check secondary storage
+        primaryStorage
+          .getAccountMetaData(tenant.name, name)
+          .map(_.map { account => (tenant, account) })
+      }}
+      .async
+      .recover { case e: Exception => None }
+      .collect { case Some(data) => data }
   }
 
-  // FIXME rename to "acknowledge" something...
-  private def onAccountSnapshotDiscovery(item: AccountSnapshotDiscovery): Future[Option[AccountSnapshot]] = {
-    val result = primaryStorage.getAccountSnapshot(item.tenant, item.account, item.version)
-
-    result.map { data =>
-      data.foreach { snapshot =>
-        logger.info(s"explored account snapshot ${snapshot}")
+  def getAccountSnapshotsFlow: Graph[FlowShape[Tuple2[Tenant, Account], Tuple3[Tenant, Account, AccountSnapshot]], NotUsed] = {
+    Flow[Tuple2[Tenant, Account]]
+      .map { case (tenant, account) =>
+        (tenant, account, primaryStorage.getAccountSnapshotsPath(account.tenant, account.name))
       }
-      data
-    }
+      .map { case (tenant, account, path) =>
+        path
+          .toFile
+          .listFiles()
+          .map(_.getName.toInt)
+          .filter(_ >= account.lastSynchronizedSnapshot)
+          .sortWith(_ < _)
+          .map { version => (tenant, account, version) }
+      }
+      .mapConcat(_.to[Seq])
+      .mapAsync(10) { case (tenant, account, version) => {
+        // FIXME try to retrieve state from secondary storage
+        primaryStorage
+          .getAccountSnapshot(tenant.name, account.name, version)
+          .map(_.map { snapshot => (tenant, account, snapshot) })
+      }}
+      .async
+      .recover { case e: Exception => None }
+      .collect { case Some(data) => data }
   }
 
-  // FIXME rename to "acknowledge" something...
-  private def onAccountEventDiscovery(item: AccountEventDiscovery): Future[Option[AccountEvent]] = {
-    val result = primaryStorage.getAccountEvent(item.tenant, item.account, item.version, item.event)
-
-    result.map { data =>
-      data.foreach { event =>
-        logger.info(s"explored account event ${event}")
+  def getAccountEventsFlow: Graph[FlowShape[Tuple3[Tenant, Account, AccountSnapshot], Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]], NotUsed] = {
+    Flow[Tuple3[Tenant, Account, AccountSnapshot]]
+      .map { case (tenant, account, snapshot) =>
+        (tenant, account, snapshot, primaryStorage.getAccountEventsPath(account.tenant, account.name, snapshot.version))
       }
-      data
-    }
+      .map {
+        case (tenant, account, snapshot, path) =>
+          path
+            .toFile
+            .listFiles()
+            .map(_.getName)
+            .map { file => (tenant, account, snapshot, file) }
+      }
+      .filterNot { events =>
+        events.isEmpty ||
+        (
+          events.last._2.lastSynchronizedSnapshot == events.last._3.version &&
+          events.size <= events.last._3.lastSynchronizedEvent
+        )
+      }
+      .mapAsync(1) { events =>
+        Future.sequence {
+          events
+            .toSeq
+            .map { case (tenant, account, snapshot, event) =>
+              primaryStorage
+                .getAccountEvent(tenant.name, account.name, snapshot.version, event)
+                .map(_.map { event => (tenant, account, snapshot, event) })
+            }
+        }
+        .map(_.flatten)
+        .map(_.sortWith(_._4.version < _._4.version))
+        .recover { case e: Exception => Seq.empty[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]] }
+        // FIXME not sequence empty onrecover instead filter all non continuous events
+        // So for example if my last sync event is 2 and I captured events from 3-10 and then 12-20 I can
+        // resolve 3-10 and drop the rest because then I can guarantee continous history
+      }
+      .async
+      .mapConcat(_.to[Seq])
   }
 
 }
