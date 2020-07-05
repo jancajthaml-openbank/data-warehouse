@@ -9,7 +9,7 @@ import slick.jdbc.GetResult
 
 // https://books.underscore.io/essential-slick/essential-slick-3.html
 
-
+// FIXME split into interface and impl for better testing
 class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 
   def updateTenant(item: Tenant): Future[Done] = {

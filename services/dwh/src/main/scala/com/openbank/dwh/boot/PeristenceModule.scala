@@ -24,8 +24,6 @@ trait PersistenceModule extends Lifecycle {
       .flatMap(_ => super.stop())
   }
 
-  // FIXME also vertica and elastic
-
   lazy val postgres: Persistence =
     new Postgres(Database.forConfig("persistence-secondary.postgresql", config))
 

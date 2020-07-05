@@ -11,6 +11,7 @@ import com.typesafe.scalalogging.LazyLogging
 import collection.immutable.Seq
 
 
+// FIXME split into interface and impl for better testing
 class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 
   def getRootPath(): Path =
