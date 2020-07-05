@@ -21,8 +21,9 @@ object Main extends App {
     with LazyLogging
 
   try {
-    Await.result(Program.start(), 10.minutes)
+    Await.result(Program.setup(), 10.minutes)
     sys.addShutdownHook { Program.shutdown() }
+    Program.start()
   } catch {
     case e: Exception =>
       e.printStackTrace()

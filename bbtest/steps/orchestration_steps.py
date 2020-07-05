@@ -6,6 +6,12 @@ import json
 import urllib.request
 
 
+@then('I sleep for {seconds} seconds')
+def step_impl(context, seconds):
+  import time
+  time.sleep(int(seconds))
+
+
 @given('package {package} is {operation}')
 def step_impl(context, package, operation):
   if operation == 'installed':
@@ -74,10 +80,10 @@ def unit_running(context, unit):
     assert code == 0, code
     assert 'SubState=running' in result, result
 
-  @eventually(30)
+  @eventually(60)
   def wait_for_service_to_be_healthy():
     request = urllib.request.Request(method='GET', url= "http://127.0.0.1/health")
-    response = urllib.request.urlopen(request, timeout=10)
+    response = urllib.request.urlopen(request, timeout=2)
     assert response.status == 200
     status = json.loads(response.read().decode('utf-8'))
     assert status['healthy'] is True

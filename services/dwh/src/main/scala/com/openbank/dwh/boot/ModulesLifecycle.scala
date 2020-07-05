@@ -12,8 +12,8 @@ import scala.concurrent.Future
 trait ModulesLifecycle extends Lifecycle {
   self: AkkaModule with LazyLogging =>
 
-  abstract override def start(): Future[Done] = {
-    super.start().flatMap { _ =>
+  abstract override def setup(): Future[Done] = {
+    super.setup().flatMap { _ =>
       CoordinatedShutdown(system)
         .addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "graceful-stop") { () =>
           stop()

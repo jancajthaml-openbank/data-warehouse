@@ -9,9 +9,8 @@ trait ServiceModule {
   lazy val healthCheckService: HealthCheckService =
     new HealthCheckService(postgres)(defaultExecutionContext)
 
-  // FIXME separate execution context
   lazy val primaryDataExplorationService: PrimaryDataExplorationService =
-    new PrimaryDataExplorationService(primaryStorage)(defaultExecutionContext, materializer)
+    new PrimaryDataExplorationService(primaryStorage)(primaryExplorationExecutionContext, materializer)
 
 }
 

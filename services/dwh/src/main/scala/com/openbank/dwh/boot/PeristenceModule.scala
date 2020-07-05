@@ -19,6 +19,19 @@ import scala.util.control.NonFatal
 trait PersistenceModule extends Lifecycle {
   self: AkkaModule with ConfigModule with LazyLogging =>
 
+  abstract override def setup(): Future[Done] = {
+    super.setup().flatMap { _ =>
+      logger.info("Starting Persistence Module")
+
+      val provider = postgres.provider
+      Future.fromTry(provider.acquire())
+        .flatMap { _ =>
+          provider.release(None)
+          Future.successful(Done)
+        }
+    }
+  }
+
   abstract override def stop(): Future[Done] = {
     Future.fromTry(Try {
       postgres.close()
@@ -31,24 +44,12 @@ trait PersistenceModule extends Lifecycle {
     .flatMap { _ => super.stop() }
   }
 
-  abstract override def start(): Future[Done] = {
-    logger.info("Starting Persistence Module")
-    super.start().flatMap { _ =>
-      val provider = postgres.provider
-      Future.fromTry(provider.acquire())
-        .flatMap { _ =>
-          provider.release(None)
-          Future.successful(Done)
-        }
-    }
-  }
+  // FIXME also vertica and elastic
 
   lazy val postgres: Persistence =
     new Postgres(Database.forConfig("persistence-secondary.postgresql", config))
 
-  // FIXME also vertica and elastic
-
   lazy val primaryStorage: PrimaryPersistence =
-    new PrimaryPersistence(config.getString("persistence-primary.storage"))
+    new PrimaryPersistence(config.getString("persistence-primary.storage"))(primaryExplorationExecutionContext, materializer)
 
 }

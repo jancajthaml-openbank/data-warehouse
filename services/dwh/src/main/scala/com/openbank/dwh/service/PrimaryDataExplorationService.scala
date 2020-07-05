@@ -13,6 +13,8 @@ import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
 
+// https://blog.colinbreck.com/maximizing-throughput-for-akka-streams/
+// https://blog.colinbreck.com/partitioning-akka-streams-to-maximize-throughput/
 
 class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 
@@ -38,6 +40,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
           }
           .mapConcat(_.to[Seq])
           .mapAsync(10)(onTenantDiscovery)
+          .async
           .recover { case e: Exception => None }
           .collect { case Some(tenant) => tenant }
       }
@@ -61,6 +64,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
             onAccountDiscovery(discovery)
               .map(_.map { account => (tenant, account) })
           }
+          .async
           .recover { case e: Exception => None }
           .collect { case Some(data) => data }
       }
@@ -86,6 +90,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
             onAccountSnapshotDiscovery(discovery)
               .map(_.map { snapshot => (tenant, account, snapshot) })
           }
+          .async
           .recover { case e: Exception => None }
           .collect { case Some(data) => data }
       }
@@ -116,10 +121,10 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
           .mapAsync(10) { case (tenant, account, snapshot, discovery) =>
             onAccountEventDiscovery(discovery)
               .map(_.map { event => (tenant, account, snapshot, event) })
-          }
+          } // FIXME after version is known need to sort by version ascending like ".sortWith(_._4.version < _._4.version)"
+          .async
           .recover { case e: Exception => None }
           .collect { case Some(data) => data }
-//          .sortWith(_.version < _.version)
       }
       .via {
         Flow[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]]
@@ -160,7 +165,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
     // FIXME check if tenant has account and transaction subfolders
 
     result.map { data =>
-      data.map { tenant =>
+      data.foreach { tenant =>
         logger.info(s"explored tenant ${item} as ${tenant}")
       }
       data
@@ -180,7 +185,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
     // account existence
 
     result.map { data =>
-      data.map { account =>
+      data.foreach { account =>
         logger.info(s"explored account ${account}")
       }
       data
@@ -192,7 +197,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
     val result = primaryStorage.getAccountSnapshot(item.tenant, item.account, item.version)
 
     result.map { data =>
-      data.map { snapshot =>
+      data.foreach { snapshot =>
         logger.info(s"explored account snapshot ${snapshot}")
       }
       data
@@ -202,8 +207,9 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence)(implicit
   // FIXME rename to "acknowledge" something...
   private def onAccountEventDiscovery(item: AccountEventDiscovery): Future[Option[AccountEvent]] = {
     val result = primaryStorage.getAccountEvent(item.tenant, item.account, item.version, item.event)
+
     result.map { data =>
-      data.map { event =>
+      data.foreach { event =>
         logger.info(s"explored account event ${event}")
       }
       data
