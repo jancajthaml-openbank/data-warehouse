@@ -10,7 +10,7 @@ trait ServiceModule {
     new HealthCheckService(postgres)(defaultExecutionContext)
 
   lazy val primaryDataExplorationService: PrimaryDataExplorationService =
-    new PrimaryDataExplorationService(primaryStorage)(primaryExplorationExecutionContext, materializer)
+    new PrimaryDataExplorationService(primaryStorage, secondaryStorage)(primaryExplorationExecutionContext, materializer)
 
 }
 

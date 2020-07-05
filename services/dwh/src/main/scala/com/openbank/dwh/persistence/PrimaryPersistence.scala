@@ -54,7 +54,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
     if (!Files.exists(getAccountSnapshotPath(tenant, account, version))) {
       return Future.successful(None)
     }
-    return Future.successful(Some(AccountSnapshot(tenant, account, version, 0)))
+    return Future.successful(Some(AccountSnapshot(tenant, account, version)))
   }
 
   def getAccountEvent(tenant: String, account: String, version: Int, event: String): Future[Option[AccountEvent]] = {

@@ -49,6 +49,9 @@ trait PersistenceModule extends Lifecycle {
   lazy val postgres: Persistence =
     new Postgres(Database.forConfig("persistence-secondary.postgresql", config))
 
+  lazy val secondaryStorage: SecondaryPersistence =
+    new SecondaryPersistence(postgres)
+
   lazy val primaryStorage: PrimaryPersistence =
     new PrimaryPersistence(config.getString("persistence-primary.storage"))(primaryExplorationExecutionContext, materializer)
 
