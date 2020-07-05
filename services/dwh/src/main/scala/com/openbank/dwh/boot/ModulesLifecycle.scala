@@ -1,5 +1,6 @@
 package com.openbank.dwh.boot
 
+import scala.util.Try
 import akka.Done
 import akka.actor.CoordinatedShutdown
 import akka.actor.CoordinatedShutdown.Reason
@@ -23,10 +24,13 @@ trait ModulesLifecycle extends Lifecycle {
   }
 
   abstract override def stop(): Future[Done] = {
-    LoggerFactory.getILoggerFactory match {
-      case c: LoggerContext => c.stop()
-    }
-    super.stop()
+    Future
+      .fromTry(Try {
+        LoggerFactory.getILoggerFactory match {
+          case c: LoggerContext => c.stop()
+        }
+      })
+      .flatMap(_ => super.stop())
   }
 
   def kill(): Future[Done] = CoordinatedShutdown(system).run(StartupFailedReason)

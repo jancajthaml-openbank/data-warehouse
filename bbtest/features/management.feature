@@ -13,7 +13,8 @@ Feature: Properly behaving units
 
     When start unit "dwh-app.service"
     Then unit "dwh-app.service" is running
-    And I sleep for 10 seconds
+    And I sleep for 5 seconds
 
     When restart unit "dwh-app.service"
     Then unit "dwh-app.service" is running
+    And I sleep for 5 seconds

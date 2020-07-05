@@ -53,7 +53,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         .map { case (tenant, account, snapshot, event, transaction) =>
           account.copy(
             lastSynchronizedSnapshot = snapshot.version,
-            lastSynchronizedEvent = event.version
+            lastSynchronizedEvent = event.version,
+            isPristine = false
           )
         } ~> termFork
 
@@ -70,6 +71,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
 
   def onTenantFlow: Sink[Tenant, NotUsed] = {
     Flow[Tenant]
+      .filterNot(_.isPristine)
       .log("tenant")
       .mapAsyncUnordered(1000)(secondaryStorage.updateTenant)
       .async
@@ -79,6 +81,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
 
   def onAccountFlow: Sink[Account, NotUsed] = {
     Flow[Account]
+      .filterNot(_.isPristine)
       .log("account")
       .mapAsync(1)(secondaryStorage.updateAccount)
       .async
@@ -96,7 +99,12 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       }
       .mapConcat(_.to[Seq])
       .mapAsyncUnordered(10) { name =>
-        primaryStorage.getTenant(name)
+        secondaryStorage
+          .getTenant(name)
+          .flatMap {
+            case None => primaryStorage.getTenant(name)
+            case tenant => Future.successful(tenant)
+          }
       }
       .async
       .recover { case e: Exception => None }

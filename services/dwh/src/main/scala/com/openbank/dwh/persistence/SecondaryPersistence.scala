@@ -15,8 +15,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def updateTenant(item: Tenant): Future[Done] = {
     import persistence.profile.api._
 
-    // FIXME pepare statement lazily and run it in this method
-    // there is 1ms latency to prepare statement
     val query = sqlu"""
       INSERT INTO
         tenant(name)
@@ -35,8 +33,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def updateAccount(item: Account): Future[Done] = {
     import persistence.profile.api._
 
-    // FIXME pepare statement lazyli and run it in this method
-    // there is 1ms latency to prepare statement
     val query = sqlu"""
       INSERT INTO
         account(tenant, name, format, currency, last_syn_snapshot, last_syn_event)
@@ -60,8 +56,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def getAccount(tenant: String, name: String): Future[Option[Account]] = {
     import persistence.profile.api._
 
-    // FIXME pepare statement lazyli and run it in this method
-    // there is 1ms latency to prepare statement
     val query = sql"""
       SELECT
         tenant,
@@ -83,6 +77,24 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       .map(_.headOption)
   }
 
+  def getTenant(name: String): Future[Option[Tenant]] = {
+    import persistence.profile.api._
+
+    val query = sql"""
+      SELECT
+        name
+      FROM
+        tenant
+      WHERE
+        name = ${name};
+    """.as[Tenant]
+
+    persistence
+      .database
+      .run(query)
+      .map(_.headOption)
+  }
+
   @SuppressWarnings(Array("scala:S1144"))
   private implicit def asAccount: GetResult[Account] = GetResult(r =>
     Account(
@@ -91,7 +103,16 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       format = r.nextString(),
       currency = r.nextString(),
       lastSynchronizedSnapshot = r.nextInt(),
-      lastSynchronizedEvent = r.nextInt()
+      lastSynchronizedEvent = r.nextInt(),
+      isPristine = true
+    )
+  )
+
+  @SuppressWarnings(Array("scala:S1144"))
+  private implicit def asTenant: GetResult[Tenant] = GetResult(r =>
+    Tenant(
+      name = r.nextString(),
+      isPristine = true
     )
   )
 

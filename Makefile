@@ -65,7 +65,7 @@ bbtest:
 	@(docker rm -f $$(docker ps -a --filter="name=dwh_postgres" -q) &> /dev/null || :)
 	@(docker rm -f $$(docker ps -a --filter="name=dwh_bbtest_amd64" -q) &> /dev/null || :)
 	@(docker build -f bbtest/postgres/Dockerfile -t dwh_postgres bbtest/postgres)
-	@(docker run -d --name=dwh_postgres dwh_postgres &> /dev/null || :)
+	@(docker run -d --shm-size=256MB --name=dwh_postgres dwh_postgres &> /dev/null || :)
 	@docker exec -t $$(\
 		docker run -d \
 			--name=dwh_bbtest_amd64 \

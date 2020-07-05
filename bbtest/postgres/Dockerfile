@@ -1,6 +1,8 @@
-FROM library/postgres
+FROM library/postgres:13
 
 ENV TERM=xterm
+
+ENV POSTGRES_DB=openbank
 
 ENV POSTGRES_HOST_AUTH_METHOD=trust
 
