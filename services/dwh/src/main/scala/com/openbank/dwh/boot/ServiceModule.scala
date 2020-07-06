@@ -7,7 +7,7 @@ trait ServiceModule {
   self: AkkaModule with PersistenceModule =>
 
   lazy val healthCheckService: HealthCheckService =
-    new HealthCheckService(postgres)(defaultExecutionContext)
+    new HealthCheckService(secondaryStorage)(defaultExecutionContext)
 
   lazy val primaryDataExplorationService: PrimaryDataExplorationService =
     new PrimaryDataExplorationService(primaryStorage, secondaryStorage)(primaryExplorationExecutionContext, materializer)

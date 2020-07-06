@@ -9,13 +9,14 @@ import scala.concurrent.{ExecutionContext, Future}
 import akka.stream.scaladsl.{Framing, FileIO, Flow, Keep, Sink, Source}
 import collection.immutable.Seq
 import scala.math.BigDecimal
+import java.time.ZonedDateTime
 import com.typesafe.scalalogging.LazyLogging
 
 
 object PrimaryPersistence {
 
-  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): PrimaryPersistence ={
-    new PrimaryPersistence(config.getString("persistence-primary.storage"))(ec, mat)
+  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): PrimaryPersistence = {
+    new PrimaryPersistence(config.getString("persistence-primary.directory"))(ec, mat)
   }
 
 }
@@ -88,7 +89,14 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .take(1)
       .map { line =>
         val parts = event.split("_", 3)
-        Some(AccountEvent(tenant, account, parts(0).toInt, parts(2), version, line.toInt))
+        Some(AccountEvent(
+          tenant = tenant,
+          account = account,
+          status = Status.fromShort(parts(0).toShort),  // FIXME optimise just keep short
+          transaction = parts(2),
+          snapshotVersion = version,
+          version = line.toInt
+        ))
       }
       .runWith(Sink.reduce[Option[AccountEvent]]((_, last) => last))
   }
@@ -129,10 +137,10 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .via {
         Flow[String]
           .statefulMapConcat { () =>
-            var status: String = ""
+            var fisrtLine: Boolean = true
             line: String => {
-              if (status == "") {
-                status = line
+              if (fisrtLine) {
+                fisrtLine = false
                 Nil
               } else {
                 val parts = line.split(' ')
@@ -140,14 +148,13 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
                   tenant = tenant,
                   transaction = transaction,
                   transfer = parts(0),
-                  status = status,
                   creditTenant = parts(1),
                   creditAccount = parts(2),
                   debitTenant = parts(3),
                   debitAccount = parts(4),
                   amount = BigDecimal.exact(parts(6)),
                   currency = parts(7),
-                  valueDate = parts(5),
+                  valueDate = ZonedDateTime.parse(parts(5)),
                   isPristine=false
                 ) :: Nil
               }

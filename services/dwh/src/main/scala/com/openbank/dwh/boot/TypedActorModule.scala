@@ -12,8 +12,8 @@ trait TypedActorModule extends Lifecycle {
 
   private var typedSystem: ActorSystem[actor.GuardianActor.Command] = null
 
-  // FIXME need separate batch actor that will update daily balance changes on accounts based on
-  // new transactions and will run in a loop
+  // FIXME need new "analytics-batch" actor that will update daily balance changes
+  // on accounts based on new transactions and will run in a loop
   abstract override def setup(): Future[Done] = {
     super.setup().flatMap { _ =>
       logger.info("Starting Typed Actor Module")

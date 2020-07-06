@@ -15,21 +15,18 @@ trait PersistenceModule extends Lifecycle {
   abstract override def stop(): Future[Done] = {
     super.stop().flatMap { _ =>
       Future
-        .fromTry(Try(postgres.close()))
+        .fromTry(Try(secondaryStorage.close()))
         .map(_ => Done)
         .recover {
           case NonFatal(e) =>
-            logger.error("Error closing database", e)
+            logger.error("Error closing secondary storage", e)
             Done
         }
     }
   }
 
-  lazy val postgres: Persistence =
-    Postgres.forConfig(config)
-
   lazy val secondaryStorage: SecondaryPersistence =
-    new SecondaryPersistence(postgres)
+    SecondaryPersistence.forConfig(config, defaultExecutionContext, materializer)
 
   lazy val primaryStorage: PrimaryPersistence =
     PrimaryPersistence.forConfig(config, primaryExplorationExecutionContext, materializer)

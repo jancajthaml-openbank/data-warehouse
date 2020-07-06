@@ -32,14 +32,18 @@ object Postgres {
     ds.setUser(config.getString("persistence-secondary.postgresql.user"))
     ds.setPassword(config.getString("persistence-secondary.postgresql.password"))
     ds.setMinPoolSize(20)
+    ds.setPreferredTestQuery("SELECT 1")
+    ds.setIdleConnectionTestPeriod(300)
+    ds.setMaxPoolSize(100)
     ds.setInitialPoolSize(ds.getMinPoolSize)
-    ds.setAcquireIncrement(5)
-    ds.setMaxPoolSize(1000)
+    ds.setAcquireIncrement(1)
+    ds.setNumHelperThreads(10)
+    ds.setMaxStatements(50)
+    ds.setMaxStatementsPerConnection(10)
+    ds.setTestConnectionOnCheckin(false)
+    ds.setTestConnectionOnCheckout(false)
 
-    // https://medium.com/@k.wahome/database-connections-less-is-more-86c406b6fad
-    val db = Database.forDataSource(ds, Some(ds.getMaxPoolSize))
-
-    new Postgres(db)
+    new Postgres(Database.forDataSource(ds, None))
   }
 
 }

@@ -5,6 +5,7 @@ GRANT ALL PRIVILEGES ON DATABASE openbank TO postgres;
 CREATE TABLE tenant
 (
   name              VARCHAR(50) NOT NULL,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   PRIMARY KEY (name)
 );
@@ -19,6 +20,7 @@ CREATE TABLE account
   currency          CHAR(3),
   last_syn_snapshot INTEGER,
   last_syn_event    INTEGER,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   FOREIGN KEY (tenant) REFERENCES tenant(name),
   PRIMARY KEY (tenant, name)
@@ -31,14 +33,14 @@ CREATE TABLE transfer
   tenant            VARCHAR(50) NOT NULL,
   transaction       VARCHAR(100) NOT NULL,
   transfer          VARCHAR(100) NOT NULL,
-  status            VARCHAR(10) NOT NULL,
   credit_tenant     VARCHAR(50) NOT NULL,
   credit_name       VARCHAR(50) NOT NULL,
   debit_tenant      VARCHAR(50) NOT NULL,
   debit_name        VARCHAR(50) NOT NULL,
   currency          CHAR(3) NOT NULL,
   amount            NUMERIC NOT NULL,
-  value_date        VARCHAR(50) NOT NULL,
+  value_date        TIMESTAMPTZ NOT NULL,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   FOREIGN KEY (tenant) REFERENCES tenant(name),
   FOREIGN KEY (credit_tenant, credit_name) REFERENCES account(tenant, name),
