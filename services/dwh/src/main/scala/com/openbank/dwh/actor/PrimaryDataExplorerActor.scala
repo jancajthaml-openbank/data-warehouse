@@ -8,6 +8,7 @@ import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
 import com.openbank.dwh.service._
 
+case object PrimaryStoragePristine extends Exception("", None.orNull)
 
 object PrimaryDataExplorerActor extends StrictLogging {
 
@@ -42,12 +43,14 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
       case RunExploration =>
         Future.successful(Done)
-          .flatMap { _ =>
-            primaryDataExplorationService.exploreAccounts()
+          .map {
+            case _ if primaryDataExplorationService.isStoragePristine() =>
+              throw PrimaryStoragePristine
+            case _ =>
+              Done
           }
-          .flatMap { _ =>
-            primaryDataExplorationService.exploreTransfers()
-          }
+          .flatMap { _ => primaryDataExplorationService.exploreAccounts() }
+          .flatMap { _ => primaryDataExplorationService.exploreTransfers() }
           .recoverWith { case e: Exception => Future.successful(Done) }
           .onComplete { _ => context.self ! Free }
 

@@ -13,6 +13,7 @@ import akka.stream.{Materializer, OverflowStrategy, FlowShape, Graph, ClosedShap
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
+import java.util.concurrent.atomic.AtomicLong
 
 // https://www.youtube.com/watch?v=nncxYGD6m7E
 // https://doc.akka.io/docs/akka/current/stream/stream-composition.html
@@ -20,23 +21,23 @@ import collection.immutable.Seq
 // https://blog.colinbreck.com/maximizing-throughput-for-akka-streams/
 // https://blog.colinbreck.com/partitioning-akka-streams-to-maximize-throughput/
 
+
 class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 
-  // FIXME var with last modtime here
+  private val lastModTime = new AtomicLong(0L)
 
-  private def nothingToDo: Boolean = {
-    //https://serverfault.com/questions/388050/does-directory-mtime-always-change-when-a-new-file-is-created-inside
-    return false
+  def isStoragePristine(): Boolean = {
+    val nextModTime = primaryStorage.getLastModificationTime()
+    if (lastModTime.longValue() < nextModTime) {
+      lastModTime.set(nextModTime)
+      return false
+    } else {
+      return true
+    }
   }
 
   def exploreAccounts(): Future[Done] = {
-    if (nothingToDo) {
-      return Future.successful(Done)
-    }
-    // FIXME exploration should be able to tell if something changed in primaryStorage rootPath
-    // by remembering last modTime
-
-    logger.info("Exploring Account from primary data")
+    logger.debug("Exploring accounts from Primary data source")
 
     Source
       .single(primaryStorage.getRootPath())
@@ -46,14 +47,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   }
 
   def exploreTransfers(): Future[Done] = {
-    if (nothingToDo) {
-      return Future.successful(Done)
-    }
-
-    // FIXME exploration should be able to tell if something changed in primaryStorage rootPath
-    // by remembering last modTime
-
-    logger.info("Exploring Transfers from primary data")
+    logger.debug("Exploring transfers from Primary data source")
 
     Source
       .single(primaryStorage.getRootPath())
@@ -89,7 +83,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         case tenant if tenant.isPristine =>
           Future.successful(tenant)
         case tenant => {
-          logger.debug(s"tenant discovered ${tenant.name}")
+          lastModTime.set(0L)
           secondaryStorage
             .updateTenant(tenant)
             .map(_ => tenant)
@@ -127,7 +121,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           secondaryStorage
             .updateAccount(account)
             .map { _ =>
-              logger.debug(s"account discovered ${account.tenant}/${account.name}")
+              lastModTime.set(0L)
               (tenant, account)
             }
         }
@@ -230,7 +224,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
                 secondaryStorage
                   .updateTransfer(transfer)
                   .map { _ =>
-                    logger.debug(s"transfer discovered ${transfer.transaction}/${transfer.transfer}")
+                    lastModTime.set(0L)
                     transfer
                   }
               }
@@ -255,6 +249,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         case (tenant, account, snapshot, event, transfers) if account.isPristine =>
           Future.successful((tenant, account, snapshot, event, transfers))
         case (tenant, account, snapshot, event, transfers) => {
+          lastModTime.set(0L)
           secondaryStorage
             .updateAccount(account)
             .map { _ => (tenant, account, snapshot, event, transfers) }
@@ -263,7 +258,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .map {
         case (tenant, account, snapshot, event, transfers) =>
-          logger.debug(s"account ${account.tenant}/${account.name} processed event ${event.version * (snapshot.version + 1)} type ${event.status}")
           (tenant, account, snapshot, event, transfers)
       }
   }
