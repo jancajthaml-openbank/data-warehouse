@@ -25,8 +25,17 @@ trait TypedActorModule extends Lifecycle {
     }
   }
 
+  abstract override def stop(): Future[Done] = {
+    if (typedSystem != null) {
+      typedSystem ! actor.GuardianActor.ShutdownActors
+    }
+    super.stop()
+  }
+
   abstract override def start(): Future[Done] = {
-    typedSystem ! actor.GuardianActor.StartActors
+    if (typedSystem != null) {
+      typedSystem ! actor.GuardianActor.StartActors
+    }
     super.start()
   }
 

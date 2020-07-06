@@ -13,6 +13,7 @@ object GuardianActor extends StrictLogging {
 
   trait Command
   case object StartActors extends Command
+  case object ShutdownActors extends Command
   case object RunPrimaryDataExploration extends Command
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext): Behavior[Command] = {
@@ -22,7 +23,7 @@ object GuardianActor extends StrictLogging {
       case StartActors =>
         getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
           case None =>
-            logger.info("Starting Actors")
+            logger.info("Starting PrimaryDataExplorerActor")
             context.spawn(
               PrimaryDataExplorerActor(primaryDataExplorationService),
               PrimaryDataExplorerActor.namespace
@@ -32,10 +33,19 @@ object GuardianActor extends StrictLogging {
         }
         Behaviors.same
 
+      case ShutdownActors =>
+        getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
+          case Some(ref) =>
+            logger.info("Stopping PrimaryDataExplorerActor")
+            ref ! PrimaryDataExplorerActor.PoisonPill
+          case _ =>
+        }
+        Behaviors.same
+
       case RunPrimaryDataExploration =>
         getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
           case Some(ref) => ref ! PrimaryDataExplorerActor.RunExploration
-          case None => logger.info("Cannot run primary data exploration")
+          case _ => logger.info("Cannot run primary data exploration")
         }
         Behaviors.same
 

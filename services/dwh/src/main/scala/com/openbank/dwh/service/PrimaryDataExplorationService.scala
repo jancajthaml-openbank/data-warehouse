@@ -9,7 +9,7 @@ import scala.collection.mutable.Builder
 import scala.collection.generic.CanBuildFrom
 import language.higherKinds
 import akka.stream.scaladsl._
-import akka.stream.{Materializer, OverflowStrategy, FlowShape, Graph, ClosedShape}
+import akka.stream._
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
@@ -23,6 +23,13 @@ import java.util.concurrent.atomic.AtomicLong
 
 
 class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
+
+  @volatile private var killSwitch: Option[UniqueKillSwitch] = None
+
+  def killRunningWorkflow() = {
+    killSwitch.foreach(_.shutdown())
+    killSwitch = None
+  }
 
   private val lastModTime = new AtomicLong(0L)
 
@@ -39,24 +46,34 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   def exploreAccounts(): Future[Done] = {
     logger.debug("Exploring accounts from Primary data source")
 
-    Source
+    val (switch, result) = Source
       .single(primaryStorage.getRootPath())
       .via(getTenansFlow)
       .via(getAccountsFlow)
-      .runWith(Sink.ignore)
+      .viaMat(KillSwitches.single)(Keep.right)
+      .toMat(Sink.ignore)(Keep.both)
+      .run()
+
+    killSwitch = Some(switch)
+    result
   }
 
   def exploreTransfers(): Future[Done] = {
     logger.debug("Exploring transfers from Primary data source")
 
-    Source
+    val (switch, result) = Source
       .single(primaryStorage.getRootPath())
       .via(getTenansFlow)
       .via(getAccountsFlow)
       .via(getAccountSnapshotsFlow)
       .via(getAccountEventsFlow)
       .via(getTransfersFlow)
-      .runWith(Sink.ignore)
+      .viaMat(KillSwitches.single)(Keep.right)
+      .toMat(Sink.ignore)(Keep.both)
+      .run()
+
+    killSwitch = Some(switch)
+    result
   }
 
   def getTenansFlow: Graph[FlowShape[Path, Tenant], NotUsed] = {

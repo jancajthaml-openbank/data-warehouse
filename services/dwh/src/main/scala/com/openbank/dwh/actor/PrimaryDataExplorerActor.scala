@@ -16,6 +16,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
   sealed trait Command extends GuardianActor.Command
   case object RunExploration extends Command
+  case object PoisonPill extends Command
   case object Lock extends Command
   case object Free extends Command
 
@@ -27,6 +28,10 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
       case Free =>
         idle()
+
+      case PoisonPill =>
+        primaryDataExplorationService.killRunningWorkflow()
+        Behaviors.stopped
 
       case RunExploration =>
         Behaviors.same
@@ -57,6 +62,9 @@ object PrimaryDataExplorerActor extends StrictLogging {
         context.self ! Lock
 
         Behaviors.same
+
+      case PoisonPill =>
+        Behaviors.stopped
 
       case _ =>
         Behaviors.unhandled
