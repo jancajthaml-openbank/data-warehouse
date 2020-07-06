@@ -487,7 +487,7 @@ jobs:
                 -w /opt/app \
               jancajthaml/bbtest:amd64 \
             ) python3 /opt/app/main.py
-          no_output_timeout: 5m
+          no_output_timeout: 30m
       - store_test_results:
           path: /home/circleci/project/reports/blackbox-tests/cucumber
       - store_artifacts:
