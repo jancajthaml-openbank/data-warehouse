@@ -12,6 +12,15 @@ import scala.math.BigDecimal
 import com.typesafe.scalalogging.LazyLogging
 
 
+object PrimaryPersistence {
+
+  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): PrimaryPersistence ={
+    new PrimaryPersistence(config.getString("persistence-primary.storage"))(ec, mat)
+  }
+
+}
+
+
 // FIXME split into interface and impl for better testing
 class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 

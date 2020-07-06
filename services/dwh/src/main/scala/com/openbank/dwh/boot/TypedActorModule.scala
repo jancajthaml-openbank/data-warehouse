@@ -3,7 +3,7 @@ package com.openbank.dwh.boot
 import akka.Done
 import akka.actor.typed.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 import com.openbank.dwh.actor
 
 
@@ -26,10 +26,16 @@ trait TypedActorModule extends Lifecycle {
   }
 
   abstract override def stop(): Future[Done] = {
-    if (typedSystem != null) {
-      typedSystem ! actor.GuardianActor.ShutdownActors
-    }
-    super.stop()
+    Future.successful(Done)
+      .flatMap {
+        case _ if typedSystem != null =>
+          val wait = Promise[Done]()
+          typedSystem ! actor.GuardianActor.ShutdownActors(wait)
+          wait.future
+        case _ =>
+          Future.successful(Done)
+      }
+      .flatMap(_ => super.stop())
   }
 
   abstract override def start(): Future[Done] = {

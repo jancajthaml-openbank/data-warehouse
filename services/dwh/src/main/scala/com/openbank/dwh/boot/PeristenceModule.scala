@@ -10,18 +10,19 @@ import scala.util.control.NonFatal
 
 
 trait PersistenceModule extends Lifecycle {
-  self: AkkaModule with ConfigModule with LazyLogging =>
+  self: AkkaModule with TypedActorModule with ConfigModule with LazyLogging =>
 
   abstract override def stop(): Future[Done] = {
-    Future
-      .fromTry(Try(postgres.close()))
-      .map(_ => Done)
-      .recover {
-        case NonFatal(e) =>
-          logger.error("Error closing database", e)
-          Done
-      }
-      .flatMap(_ => super.stop())
+    super.stop().flatMap { _ =>
+      Future
+        .fromTry(Try(postgres.close()))
+        .map(_ => Done)
+        .recover {
+          case NonFatal(e) =>
+            logger.error("Error closing database", e)
+            Done
+        }
+    }
   }
 
   lazy val postgres: Persistence =
@@ -31,6 +32,6 @@ trait PersistenceModule extends Lifecycle {
     new SecondaryPersistence(postgres)
 
   lazy val primaryStorage: PrimaryPersistence =
-    new PrimaryPersistence(config.getString("persistence-primary.storage"))(primaryExplorationExecutionContext, materializer)
+    PrimaryPersistence.forConfig(config, primaryExplorationExecutionContext, materializer)
 
 }

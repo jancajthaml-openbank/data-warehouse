@@ -45,7 +45,6 @@ object Postgres {
 }
 
 
-
 class Postgres(val database: Database) extends Persistence {
 
   object PGProfile extends JdbcProfile
@@ -53,4 +52,3 @@ class Postgres(val database: Database) extends Persistence {
   override val profile: JdbcProfile = PGProfile
 
 }
-

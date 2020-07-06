@@ -26,9 +26,10 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
 
   @volatile private var killSwitch: Option[UniqueKillSwitch] = None
 
-  def killRunningWorkflow() = {
+  def killRunningWorkflow(): Future[Done] = {
     killSwitch.foreach(_.shutdown())
     killSwitch = None
+    Future.successful(Done)
   }
 
   private val lastModTime = new AtomicLong(0L)

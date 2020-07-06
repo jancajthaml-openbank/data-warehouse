@@ -1,8 +1,9 @@
 package com.openbank.dwh.actor
 
+import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Future, Promise, ExecutionContext}
 import com.typesafe.scalalogging.StrictLogging
 import com.openbank.dwh.service._
 
@@ -13,7 +14,7 @@ object GuardianActor extends StrictLogging {
 
   trait Command
   case object StartActors extends Command
-  case object ShutdownActors extends Command
+  case class ShutdownActors(promise: Promise[Done]) extends Command
   case object RunPrimaryDataExploration extends Command
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext): Behavior[Command] = {
@@ -33,11 +34,11 @@ object GuardianActor extends StrictLogging {
         }
         Behaviors.same
 
-      case ShutdownActors =>
+      case ShutdownActors(promise) =>
         getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
           case Some(ref) =>
             logger.info("Stopping PrimaryDataExplorerActor")
-            ref ! PrimaryDataExplorerActor.PoisonPill
+            ref ! PrimaryDataExplorerActor.PoisonPill(promise)
           case _ =>
         }
         Behaviors.same
