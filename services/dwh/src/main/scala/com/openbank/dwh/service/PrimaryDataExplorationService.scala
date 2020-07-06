@@ -9,7 +9,7 @@ import scala.collection.mutable.Builder
 import scala.collection.generic.CanBuildFrom
 import language.higherKinds
 import akka.stream.scaladsl._
-import akka.stream.{Materializer, OverflowStrategy, FlowShape, Graph, ClosedShape}
+import akka.stream._
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
@@ -24,7 +24,17 @@ import java.util.concurrent.atomic.AtomicLong
 
 class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 
+  @volatile private var killSwitch: Option[UniqueKillSwitch] = None
+
+  def killRunningWorkflow(): Future[Done] = {
+    killSwitch.foreach(_.shutdown())
+    killSwitch = None
+    Future.successful(Done)
+  }
+
   private val lastModTime = new AtomicLong(0L)
+
+  private def markAsDirty() = lastModTime.set(0L)
 
   def isStoragePristine(): Boolean = {
     val nextModTime = primaryStorage.getLastModificationTime()
@@ -37,26 +47,32 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   }
 
   def exploreAccounts(): Future[Done] = {
-    logger.debug("Exploring accounts from Primary data source")
-
-    Source
+    val (switch, result) = Source
       .single(primaryStorage.getRootPath())
       .via(getTenansFlow)
       .via(getAccountsFlow)
-      .runWith(Sink.ignore)
+      .viaMat(KillSwitches.single)(Keep.right)
+      .toMat(Sink.ignore)(Keep.both)
+      .run()
+
+    killSwitch = Some(switch)
+    result
   }
 
   def exploreTransfers(): Future[Done] = {
-    logger.debug("Exploring transfers from Primary data source")
-
-    Source
+    val (switch, result) = Source
       .single(primaryStorage.getRootPath())
       .via(getTenansFlow)
       .via(getAccountsFlow)
       .via(getAccountSnapshotsFlow)
       .via(getAccountEventsFlow)
       .via(getTransfersFlow)
-      .runWith(Sink.ignore)
+      .viaMat(KillSwitches.single)(Keep.right)
+      .toMat(Sink.ignore)(Keep.both)
+      .run()
+
+    killSwitch = Some(switch)
+    result
   }
 
   def getTenansFlow: Graph[FlowShape[Path, Tenant], NotUsed] = {
@@ -83,7 +99,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         case tenant if tenant.isPristine =>
           Future.successful(tenant)
         case tenant => {
-          lastModTime.set(0L)
+          markAsDirty()
           secondaryStorage
             .updateTenant(tenant)
             .map(_ => tenant)
@@ -121,7 +137,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           secondaryStorage
             .updateAccount(account)
             .map { _ =>
-              lastModTime.set(0L)
+              markAsDirty()
               (tenant, account)
             }
         }
@@ -143,7 +159,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           .map { version => (tenant, account, version) }
       }
       .mapConcat(_.to[Seq])
-      .mapAsync(100) { case (tenant, account, version) => {
+      .mapAsync(10) { case (tenant, account, version) => {
         primaryStorage
           .getAccountSnapshot(tenant.name, account.name, version)
           .map(_.map { snapshot => (tenant, account, snapshot) })
@@ -168,7 +184,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           events.last._2.lastSynchronizedEvent >= events.size
         )
       }
-      .mapAsync(1000) { events =>
+      .mapAsync(100) { events =>
         Future.sequence {
           events
             .toSeq
@@ -182,13 +198,13 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       }
       .async
       .mapConcat(_.to[Seq])
-      .buffer(10000, OverflowStrategy.backpressure)
+      .buffer(1000, OverflowStrategy.backpressure)
   }
 
   def getTransfersFlow: Graph[FlowShape[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent], Tuple5[Tenant, Account, AccountSnapshot, AccountEvent, Seq[Transfer]]], NotUsed] = {
     Flow[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]]
-      .mapAsync(100) {
-        case (tenant, account, snapshot, event) if event.status == 1 => // FIXME enum
+      .mapAsync(10) {
+        case (tenant, account, snapshot, event) if event.status == Status.Committed =>
           primaryStorage
             .getTransfers(tenant.name, event.transaction)
             .map(_.filter { transfer =>
@@ -200,7 +216,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           Future.successful((tenant, account, snapshot, event, Seq.empty[Transfer]))
       }
       .async
-      .mapAsync(1000) {
+      .mapAsync(100) {
         case (tenant, account, snapshot, event, transfers) if transfers.isEmpty => {
           Future.successful {
             (
@@ -224,7 +240,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
                 secondaryStorage
                   .updateTransfer(transfer)
                   .map { _ =>
-                    lastModTime.set(0L)
+                    markAsDirty()
                     transfer
                   }
               }
@@ -249,7 +265,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         case (tenant, account, snapshot, event, transfers) if account.isPristine =>
           Future.successful((tenant, account, snapshot, event, transfers))
         case (tenant, account, snapshot, event, transfers) => {
-          lastModTime.set(0L)
+          markAsDirty()
           secondaryStorage
             .updateAccount(account)
             .map { _ => (tenant, account, snapshot, event, transfers) }

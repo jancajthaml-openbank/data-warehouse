@@ -4,23 +4,23 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.util.control.NonFatal
-import com.openbank.dwh.persistence.Persistence
+import com.openbank.dwh.persistence.SecondaryPersistence
 
 
-class HealthCheckService(postgres: Persistence)(implicit ec: ExecutionContext) extends LazyLogging {
+class HealthCheckService(secondaryPersistence: SecondaryPersistence)(implicit ec: ExecutionContext) extends LazyLogging {
 
   // FIXME add isElasticHealthy
 
-  def isPostgresHealthy: Future[Boolean] = {
-    import postgres.profile.api._
+  def isSecondaryStorageHealthy: Future[Boolean] = {
+    import secondaryPersistence.profile.api._
 
-    Future.fromTry(Try(postgres.database))
+    Future.fromTry(Try(secondaryPersistence.database))
       .flatMap {
         _.run(sql"SELECT 1".as[Int]).map(_.contains(1))
       }
       .recover {
         case NonFatal(err) =>
-          logger.error("Failed postgres health check", err)
+          logger.error("Failed secondary storage health check", err)
           false
       }
   }

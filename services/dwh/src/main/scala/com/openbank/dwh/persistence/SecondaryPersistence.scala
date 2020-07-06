@@ -1,22 +1,33 @@
 package com.openbank.dwh.persistence
 
+import com.typesafe.config.Config
 import akka.Done
 import com.typesafe.scalalogging.LazyLogging
 import akka.stream.Materializer
 import scala.concurrent.{ExecutionContext, Future}
 import com.openbank.dwh.model._
-import slick.jdbc.GetResult
 import scala.math.BigDecimal
+import java.time.{ZonedDateTime, ZoneOffset}
+import slick.jdbc.{JdbcProfile, GetResult, SetParameter}
+import slick.jdbc.JdbcBackend.Database
+import java.sql.{Timestamp, Types}
 
-// https://books.underscore.io/essential-slick/essential-slick-3.html
+
+object SecondaryPersistence {
+
+  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): SecondaryPersistence = {
+    new SecondaryPersistence(Postgres.forConfig(config))(ec, mat)
+  }
+
+}
+
 
 // FIXME split into interface and impl for better testing
-class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
+class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends Persistence with LazyLogging {
 
   def updateTenant(item: Tenant): Future[Done] = {
     import persistence.profile.api._
 
-    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sqlu"""
       INSERT INTO
         tenant(name)
@@ -26,8 +37,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       DO NOTHING;
     """
 
-    persistence
-      .database
+    database
       .run(query)
       .map(_ => Done)
       .recoverWith {
@@ -41,7 +51,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def updateAccount(item: Account): Future[Done] = {
     import persistence.profile.api._
 
-    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sqlu"""
       INSERT INTO
         account(tenant, name, format, currency, last_syn_snapshot, last_syn_event)
@@ -53,11 +62,11 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         format = EXCLUDED.format,
         currency = EXCLUDED.currency,
         last_syn_snapshot = EXCLUDED.last_syn_snapshot,
-        last_syn_event = EXCLUDED.last_syn_event;
+        last_syn_event = EXCLUDED.last_syn_event,
+        updated_at = NOW();
     """
 
-    persistence
-      .database
+    database
       .run(query)
       .map(_ => Done)
       .recoverWith {
@@ -70,20 +79,15 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def updateTransfer(item: Transfer): Future[Done] = {
     import persistence.profile.api._
 
-    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sqlu"""
       INSERT INTO
-        transfer(tenant, transaction, transfer, status, credit_tenant, credit_name, debit_tenant, debit_name, amount, currency, value_date)
+        transfer(tenant, transaction, transfer, credit_tenant, credit_name, debit_tenant, debit_name, amount, currency, value_date)
       VALUES
-        (${item.tenant}, ${item.transaction}, ${item.transfer}, ${item.status}, ${item.creditTenant}, ${item.creditAccount}, ${item.debitTenant}, ${item.debitAccount}, ${item.amount}, ${item.currency}, ${item.valueDate})
-      ON CONFLICT (tenant, transaction, transfer)
-      DO UPDATE
-      SET
-        status = EXCLUDED.status;
+        (${item.tenant}, ${item.transaction}, ${item.transfer}, ${item.creditTenant}, ${item.creditAccount}, ${item.debitTenant}, ${item.debitAccount}, ${item.amount}, ${item.currency}, ${Timestamp.valueOf(item.valueDate.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)})
+      ON CONFLICT (tenant, transaction, transfer) DO NOTHING;
     """
 
-    persistence
-      .database
+    database
       .run(query)
       .map(_ => Done)
       .recoverWith {
@@ -96,7 +100,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def getTransfer(tenant: String, transaction: String, transfer: String): Future[Option[Transfer]] = {
     import persistence.profile.api._
 
-    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sql"""
       SELECT
         tenant,
@@ -118,8 +121,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         transfer = ${transfer};
     """.as[Transfer]
 
-    persistence
-      .database
+    database
       .run(query)
       .map(_.headOption)
   }
@@ -127,7 +129,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def getAccount(tenant: String, name: String): Future[Option[Account]] = {
     import persistence.profile.api._
 
-    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sql"""
       SELECT
         tenant,
@@ -143,8 +144,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         name = ${name};
     """.as[Account]
 
-    persistence
-      .database
+    database
       .run(query)
       .map(_.headOption)
   }
@@ -152,7 +152,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def getTenant(name: String): Future[Option[Tenant]] = {
     import persistence.profile.api._
 
-    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sql"""
       SELECT
         name
@@ -162,13 +161,11 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         name = ${name};
     """.as[Tenant]
 
-    persistence
-      .database
+    database
       .run(query)
       .map(_.headOption)
   }
 
-  @SuppressWarnings(Array("scala:S1144"))
   private implicit def asAccount: GetResult[Account] = GetResult(r =>
     Account(
       tenant = r.nextString(),
@@ -181,30 +178,42 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
     )
   )
 
-  @SuppressWarnings(Array("scala:S1144"))
   private implicit def asTransfer: GetResult[Transfer] = GetResult(r =>
     Transfer(
       tenant = r.nextString(),
       transaction = r.nextString(),
       transfer = r.nextString(),
-      status = r.nextString(),
       creditTenant = r.nextString(),
       creditAccount = r.nextString(),
       debitTenant = r.nextString(),
       debitAccount = r.nextString(),
       amount = r.nextBigDecimal(),
       currency = r.nextString(),
-      valueDate = r.nextString(),
-      isPristine =true
+      valueDate = ZonedDateTime.ofInstant(r.nextTimestamp().toInstant(), ZoneOffset.UTC),
+      isPristine = true
     )
   )
 
-  @SuppressWarnings(Array("scala:S1144"))
   private implicit def asTenant: GetResult[Tenant] = GetResult(r =>
     Tenant(
       name = r.nextString(),
       isPristine = true
     )
   )
+
+  /*
+  // FIXME there implicit do not work now
+
+  private implicit val SetZonedDateTime = SetParameter[ZonedDateTime] { (v, params) =>
+    params.setTimestamp(Timestamp.valueOf(v.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime))
+  }
+
+  */
+
+  override val database: Database = persistence.database
+
+  override val profile: JdbcProfile = persistence.profile
+
+  override def close(): Unit = persistence.close()
 
 }

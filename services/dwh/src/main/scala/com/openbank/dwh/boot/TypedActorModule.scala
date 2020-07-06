@@ -3,7 +3,7 @@ package com.openbank.dwh.boot
 import akka.Done
 import akka.actor.typed.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 import com.openbank.dwh.actor
 
 
@@ -12,8 +12,8 @@ trait TypedActorModule extends Lifecycle {
 
   private var typedSystem: ActorSystem[actor.GuardianActor.Command] = null
 
-  // FIXME need separate batch actor that will update daily balance changes on accounts based on
-  // new transactions and will run in a loop
+  // FIXME need new "analytics-batch" actor that will update daily balance changes
+  // on accounts based on new transactions and will run in a loop
   abstract override def setup(): Future[Done] = {
     super.setup().flatMap { _ =>
       logger.info("Starting Typed Actor Module")
@@ -25,8 +25,23 @@ trait TypedActorModule extends Lifecycle {
     }
   }
 
+  abstract override def stop(): Future[Done] = {
+    Future.successful(Done)
+      .flatMap {
+        case _ if typedSystem != null =>
+          val wait = Promise[Done]()
+          typedSystem ! actor.GuardianActor.ShutdownActors(wait)
+          wait.future
+        case _ =>
+          Future.successful(Done)
+      }
+      .flatMap(_ => super.stop())
+  }
+
   abstract override def start(): Future[Done] = {
-    typedSystem ! actor.GuardianActor.StartActors
+    if (typedSystem != null) {
+      typedSystem ! actor.GuardianActor.StartActors
+    }
     super.start()
   }
 

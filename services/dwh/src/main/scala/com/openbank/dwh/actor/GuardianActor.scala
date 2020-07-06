@@ -1,8 +1,9 @@
 package com.openbank.dwh.actor
 
+import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Future, Promise, ExecutionContext}
 import com.typesafe.scalalogging.StrictLogging
 import com.openbank.dwh.service._
 
@@ -13,6 +14,7 @@ object GuardianActor extends StrictLogging {
 
   trait Command
   case object StartActors extends Command
+  case class ShutdownActors(promise: Promise[Done]) extends Command
   case object RunPrimaryDataExploration extends Command
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext): Behavior[Command] = {
@@ -22,7 +24,7 @@ object GuardianActor extends StrictLogging {
       case StartActors =>
         getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
           case None =>
-            logger.info("Starting Actors")
+            logger.info("Starting PrimaryDataExplorerActor")
             context.spawn(
               PrimaryDataExplorerActor(primaryDataExplorationService),
               PrimaryDataExplorerActor.namespace
@@ -32,10 +34,19 @@ object GuardianActor extends StrictLogging {
         }
         Behaviors.same
 
+      case ShutdownActors(promise) =>
+        getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
+          case Some(ref) =>
+            logger.info("Stopping PrimaryDataExplorerActor")
+            ref ! PrimaryDataExplorerActor.PoisonPill(promise)
+          case _ =>
+        }
+        Behaviors.same
+
       case RunPrimaryDataExploration =>
         getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
           case Some(ref) => ref ! PrimaryDataExplorerActor.RunExploration
-          case None => logger.info("Cannot run primary data exploration")
+          case _ => logger.info("Cannot run primary data exploration")
         }
         Behaviors.same
 

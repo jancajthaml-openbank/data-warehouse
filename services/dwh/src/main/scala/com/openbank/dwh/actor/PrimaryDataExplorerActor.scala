@@ -3,7 +3,7 @@ package com.openbank.dwh.actor
 import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{Behavior, SupervisorStrategy}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
 import com.openbank.dwh.service._
@@ -16,6 +16,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
   sealed trait Command extends GuardianActor.Command
   case object RunExploration extends Command
+  case class PoisonPill(promise: Promise[Done]) extends Command
   case object Lock extends Command
   case object Free extends Command
 
@@ -27,6 +28,10 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
       case Free =>
         idle()
+
+      case PoisonPill(promise) =>
+        promise.completeWith(primaryDataExplorationService.killRunningWorkflow())
+        Behaviors.stopped
 
       case RunExploration =>
         Behaviors.same
@@ -57,6 +62,10 @@ object PrimaryDataExplorerActor extends StrictLogging {
         context.self ! Lock
 
         Behaviors.same
+
+      case PoisonPill(promise) =>
+        promise.success(Done)
+        Behaviors.stopped
 
       case _ =>
         Behaviors.unhandled

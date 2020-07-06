@@ -25,7 +25,7 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "jcl-over-slf4j" % "1.7.25",
   "org.postgresql" %  "postgresql" % "9.4.1212",
   "com.typesafe.slick" %% "slick" % "3.3.1",
-  "com.typesafe.slick" %% "slick-hikaricp" % "3.2.0"
+  "c3p0" % "c3p0" % "0.9.0.4"
 )
 
 enablePlugins(PackPlugin)
