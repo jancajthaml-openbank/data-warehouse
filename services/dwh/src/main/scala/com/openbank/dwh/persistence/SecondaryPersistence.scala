@@ -6,6 +6,7 @@ import akka.stream.Materializer
 import scala.concurrent.{ExecutionContext, Future}
 import com.openbank.dwh.model._
 import slick.jdbc.GetResult
+import scala.math.BigDecimal
 
 // https://books.underscore.io/essential-slick/essential-slick-3.html
 
@@ -15,6 +16,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def updateTenant(item: Tenant): Future[Done] = {
     import persistence.profile.api._
 
+    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sqlu"""
       INSERT INTO
         tenant(name)
@@ -28,11 +30,18 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       .database
       .run(query)
       .map(_ => Done)
+      .recoverWith {
+        case e: Exception =>
+          logger.error(s"failed to upsert tenant", e)
+          Future.failed(e)
+      }
   }
 
+  // FIXME problem with future that the last_syn_snapshot, last_syn_event are not processed in order
   def updateAccount(item: Account): Future[Done] = {
     import persistence.profile.api._
 
+    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sqlu"""
       INSERT INTO
         account(tenant, name, format, currency, last_syn_snapshot, last_syn_event)
@@ -51,11 +60,74 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       .database
       .run(query)
       .map(_ => Done)
+      .recoverWith {
+        case e: Exception =>
+          logger.error(s"failed to upsert account", e)
+          Future.failed(e)
+      }
+  }
+
+  def updateTransfer(item: Transfer): Future[Done] = {
+    import persistence.profile.api._
+
+    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
+    val query = sqlu"""
+      INSERT INTO
+        transfer(tenant, transaction, transfer, status, credit_tenant, credit_name, debit_tenant, debit_name, amount, currency, value_date)
+      VALUES
+        (${item.tenant}, ${item.transaction}, ${item.transfer}, ${item.status}, ${item.creditTenant}, ${item.creditAccount}, ${item.debitTenant}, ${item.debitAccount}, ${item.amount}, ${item.currency}, ${item.valueDate})
+      ON CONFLICT (tenant, transaction, transfer)
+      DO UPDATE
+      SET
+        status = EXCLUDED.status;
+    """
+
+    persistence
+      .database
+      .run(query)
+      .map(_ => Done)
+      .recoverWith {
+        case e: Exception =>
+          logger.error(s"failed to upsert transfer", e)
+          Future.failed(e)
+      }
+  }
+
+  def getTransfer(tenant: String, transaction: String, transfer: String): Future[Option[Transfer]] = {
+    import persistence.profile.api._
+
+    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
+    val query = sql"""
+      SELECT
+        tenant,
+        transaction,
+        transfer,
+        status,
+        credit_tenant,
+        credit_name,
+        debit_name,
+        debit_tenant,
+        amount,
+        currency,
+        value_date
+      FROM
+        transfer
+      WHERE
+        tenant = ${tenant} AND
+        transaction = ${transaction} AND
+        transfer = ${transfer};
+    """.as[Transfer]
+
+    persistence
+      .database
+      .run(query)
+      .map(_.headOption)
   }
 
   def getAccount(tenant: String, name: String): Future[Option[Account]] = {
     import persistence.profile.api._
 
+    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sql"""
       SELECT
         tenant,
@@ -80,6 +152,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   def getTenant(name: String): Future[Option[Tenant]] = {
     import persistence.profile.api._
 
+    // FIXME statement is now prepared JIT with each call and that costs 1ms, prepare statement out of scope of this function
     val query = sql"""
       SELECT
         name
@@ -105,6 +178,24 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       lastSynchronizedSnapshot = r.nextInt(),
       lastSynchronizedEvent = r.nextInt(),
       isPristine = true
+    )
+  )
+
+  @SuppressWarnings(Array("scala:S1144"))
+  private implicit def asTransfer: GetResult[Transfer] = GetResult(r =>
+    Transfer(
+      tenant = r.nextString(),
+      transaction = r.nextString(),
+      transfer = r.nextString(),
+      status = r.nextString(),
+      creditTenant = r.nextString(),
+      creditAccount = r.nextString(),
+      debitTenant = r.nextString(),
+      debitAccount = r.nextString(),
+      amount = r.nextBigDecimal(),
+      currency = r.nextString(),
+      valueDate = r.nextString(),
+      isPristine =true
     )
   )
 

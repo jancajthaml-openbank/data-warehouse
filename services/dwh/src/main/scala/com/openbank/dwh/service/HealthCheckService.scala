@@ -9,8 +9,6 @@ import com.openbank.dwh.persistence.Persistence
 
 class HealthCheckService(postgres: Persistence)(implicit ec: ExecutionContext) extends LazyLogging {
 
-  // FIXME add isVerticaHealthy
-
   // FIXME add isElasticHealthy
 
   def isPostgresHealthy: Future[Boolean] = {
