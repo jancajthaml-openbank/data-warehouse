@@ -22,68 +22,47 @@ import collection.immutable.Seq
 
 class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 
-  def runExploration: Future[Done] = {
-    val source = Source.single(primaryStorage.getRootPath())
-    val sink = Sink.ignore
-    val graph = RunnableGraph.fromGraph(GraphDSL.create(sink) { implicit builder => term =>
-      import GraphDSL.Implicits._
+  // FIXME var with last modtime here
 
-      val tenants = builder.add(getTenansFlow)
-      val accounts = builder.add(getAccountsFlow)
-      val snapshots = builder.add(getAccountSnapshotsFlow)
-      val events = builder.add(getAccountEventsFlow)
-      val transactions = builder.add(getTransactionFlow)
-
-      val tenantFork = builder.add(Broadcast[Tenant](2))
-      val accountFork = builder.add(Broadcast[Tuple2[Tenant, Account]](2))
-      val termFork = builder.add(Broadcast[Account](2))
-
-      source ~> tenants ~> tenantFork
-
-      tenantFork ~> onTenantFlow
-      tenantFork ~> accounts ~> accountFork
-
-      accountFork ~> Flow[Tuple2[Tenant, Account]].map(_._2) ~> onAccountFlow
-      accountFork ~> snapshots ~> events ~> transactions
-
-      transactions ~> Flow[Tuple5[Tenant, Account, AccountSnapshot, AccountEvent, Option[Transaction]]]
-        .map { case (tenant, account, snapshot, event, transaction) =>
-          account.copy(
-            lastSynchronizedSnapshot = snapshot.version,
-            lastSynchronizedEvent = event.version,
-            isPristine = false
-          )
-        } ~> termFork
-
-      termFork ~> onAccountFlow
-      termFork ~> term.in
-
-      ClosedShape
-    })
-
-    graph
-      .run()
-      .map(_ => Done)
+  private def nothingToDo: Boolean = {
+    //https://serverfault.com/questions/388050/does-directory-mtime-always-change-when-a-new-file-is-created-inside
+    return false
   }
 
-  def onTenantFlow: Sink[Tenant, NotUsed] = {
-    Flow[Tenant]
-      .filterNot(_.isPristine)
-      .log("tenant")
-      .mapAsyncUnordered(10)(secondaryStorage.updateTenant)
-      .async
-      .recover { case e: Exception => Done }
-      .to(Sink.ignore)
+  def exploreAccounts(): Future[Done] = {
+    if (nothingToDo) {
+      return Future.successful(Done)
+    }
+    // FIXME exploration should be able to tell if something changed in primaryStorage rootPath
+    // by remembering last modTime
+
+    logger.info("Exploring Account from primary data")
+
+    Source
+      .single(primaryStorage.getRootPath())
+      .via(getTenansFlow)
+      .via(getAccountsFlow)
+      .runWith(Sink.ignore)
   }
 
-  def onAccountFlow: Sink[Account, NotUsed] = {
-    Flow[Account]
-      .filterNot(_.isPristine)
-      .log("account")
-      .mapAsync(1)(secondaryStorage.updateAccount)
-      .async
-      .recover { case e: Exception => Done }
-      .to(Sink.ignore)
+  def exploreTransfers(): Future[Done] = {
+    if (nothingToDo) {
+      return Future.successful(Done)
+    }
+
+    // FIXME exploration should be able to tell if something changed in primaryStorage rootPath
+    // by remembering last modTime
+
+    logger.info("Exploring Transfers from primary data")
+
+    Source
+      .single(primaryStorage.getRootPath())
+      .via(getTenansFlow)
+      .via(getAccountsFlow)
+      .via(getAccountSnapshotsFlow)
+      .via(getAccountEventsFlow)
+      .via(getTransfersFlow)
+      .runWith(Sink.ignore)
   }
 
   def getTenansFlow: Graph[FlowShape[Path, Tenant], NotUsed] = {
@@ -106,6 +85,17 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception => None }
       .collect { case Some(tenant) => tenant }
+      .mapAsyncUnordered(10) {
+        case tenant if tenant.isPristine =>
+          Future.successful(tenant)
+        case tenant => {
+          logger.debug(s"tenant discovered ${tenant.name}")
+          secondaryStorage
+            .updateTenant(tenant)
+            .map(_ => tenant)
+        }
+      }
+      .async
   }
 
   def getAccountsFlow: Graph[FlowShape[Tenant, Tuple2[Tenant, Account]], NotUsed] = {
@@ -130,6 +120,19 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception => None }
       .collect { case Some(data) => data }
+      .mapAsync(1) {
+        case (tenant, account) if account.isPristine =>
+          Future.successful((tenant, account))
+        case (tenant, account) => {
+          secondaryStorage
+            .updateAccount(account)
+            .map { _ =>
+              logger.debug(s"account discovered ${account.tenant}/${account.name}")
+              (tenant, account)
+            }
+        }
+      }
+      .async
   }
 
   def getAccountSnapshotsFlow: Graph[FlowShape[Tuple2[Tenant, Account], Tuple3[Tenant, Account, AccountSnapshot]], NotUsed] = {
@@ -142,19 +145,17 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           .map(_.getName.toInt)
           .filter(_ >= account.lastSynchronizedSnapshot)
           .sortWith(_ < _)
+          .take(2)
           .map { version => (tenant, account, version) }
       }
       .mapConcat(_.to[Seq])
-      .mapAsync(10) { case (tenant, account, version) => {
+      .mapAsync(100) { case (tenant, account, version) => {
         primaryStorage
           .getAccountSnapshot(tenant.name, account.name, version)
           .map(_.map { snapshot => (tenant, account, snapshot) })
       }}
       .async
-      .recover { case e: Exception => None }
-      .collect {
-        case Some(data) => data
-      }
+      .collect { case Some(data) => data }
   }
 
   def getAccountEventsFlow: Graph[FlowShape[Tuple3[Tenant, Account, AccountSnapshot], Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]], NotUsed] = {
@@ -173,7 +174,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           events.last._2.lastSynchronizedEvent >= events.size
         )
       }
-      .mapAsync(100) { events =>
+      .mapAsync(1000) { events =>
         Future.sequence {
           events
             .toSeq
@@ -184,25 +185,87 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
             }
         }
         .map(_.flatten.sortWith(_._4.version < _._4.version))
-        .recover { case e: Exception => Seq.empty[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]] }
-        // FIXME not sequence empty onrecover instead filter all non continuous events
-        // So for example if my last sync event is 2 and I captured events from 3-10 and then 12-20 I can
-        // resolve 3-10 and drop the rest because then I can guarantee continous history
       }
       .async
       .mapConcat(_.to[Seq])
-      .buffer(1000, OverflowStrategy.backpressure)
+      .buffer(10000, OverflowStrategy.backpressure)
   }
 
-  def getTransactionFlow: Graph[FlowShape[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent], Tuple5[Tenant, Account, AccountSnapshot, AccountEvent, Option[Transaction]]], NotUsed] = {
+  def getTransfersFlow: Graph[FlowShape[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent], Tuple5[Tenant, Account, AccountSnapshot, AccountEvent, Seq[Transfer]]], NotUsed] = {
     Flow[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]]
-      .map {
-        case (tenant, account, snapshot, event) if event.status == 1 =>
-          (tenant, account, snapshot, event, Some(Transaction(tenant.name, "???")))
+      .mapAsync(100) {
+        case (tenant, account, snapshot, event) if event.status == 1 => // FIXME enum
+          primaryStorage
+            .getTransfers(tenant.name, event.transaction)
+            .map(_.filter { transfer =>
+              (transfer.creditTenant == tenant.name && transfer.creditAccount == account.name) ||
+              (transfer.debitTenant == tenant.name && transfer.debitAccount == account.name)
+            })
+            .map { transfers => (tenant, account, snapshot, event, transfers) }
         case (tenant, account, snapshot, event) =>
-          (tenant, account, snapshot, event, None)
+          Future.successful((tenant, account, snapshot, event, Seq.empty[Transfer]))
       }
-      //.log("transaction")
+      .async
+      .mapAsync(1000) {
+        case (tenant, account, snapshot, event, transfers) if transfers.isEmpty => {
+          Future.successful {
+            (
+              tenant,
+              account.copy(
+                lastSynchronizedSnapshot = snapshot.version,
+                lastSynchronizedEvent = event.version,
+                isPristine = false
+              ),
+              snapshot,
+              event,
+              transfers
+            )
+          }
+        }
+
+        case (tenant, account, snapshot, event, transfers) => {
+          Future.sequence {
+            transfers
+              .map { transfer =>
+                secondaryStorage
+                  .updateTransfer(transfer)
+                  .map { _ =>
+                    logger.debug(s"transfer discovered ${transfer.transaction}/${transfer.transfer}")
+                    transfer
+                  }
+              }
+          }
+            .map { transfers =>
+              (
+                tenant,
+                account.copy(
+                  lastSynchronizedSnapshot = snapshot.version,
+                  lastSynchronizedEvent = event.version,
+                  isPristine = false
+                ),
+                snapshot,
+                event,
+                transfers
+              )
+            }
+        }
+      }
+      .async
+      .mapAsync(1) {
+        case (tenant, account, snapshot, event, transfers) if account.isPristine =>
+          Future.successful((tenant, account, snapshot, event, transfers))
+        case (tenant, account, snapshot, event, transfers) => {
+          secondaryStorage
+            .updateAccount(account)
+            .map { _ => (tenant, account, snapshot, event, transfers) }
+        }
+      }
+      .async
+      .map {
+        case (tenant, account, snapshot, event, transfers) =>
+          logger.debug(s"account ${account.tenant}/${account.name} processed event ${event.version * (snapshot.version + 1)} type ${event.status}")
+          (tenant, account, snapshot, event, transfers)
+      }
   }
 
 }

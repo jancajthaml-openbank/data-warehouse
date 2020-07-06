@@ -18,18 +18,16 @@ object PrimaryDataExplorerActor extends StrictLogging {
   case object Lock extends Command
   case object Free extends Command
 
-  private lazy val delay = 10.minutes
+  private lazy val delay = 1.seconds
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext) = {
 
     def active(): Behavior[Command] = Behaviors.receive { (context, m) => m match {
 
       case Free =>
-        logger.debug("Unlocking exploration")
         idle()
 
       case RunExploration =>
-        logger.info("Primary Data Exploration is already running")
         Behaviors.same
 
       case _ =>
@@ -40,14 +38,16 @@ object PrimaryDataExplorerActor extends StrictLogging {
     def idle(): Behavior[Command] = Behaviors.receive { (context, m) => m match {
 
       case Lock =>
-        logger.debug("Locking exploration")
         active()
 
       case RunExploration =>
-        logger.info("Run Primary Data Exploration now")
-
-        primaryDataExplorationService
-          .runExploration
+        Future.successful(Done)
+          .flatMap { _ =>
+            primaryDataExplorationService.exploreAccounts()
+          }
+          .flatMap { _ =>
+            primaryDataExplorationService.exploreTransfers()
+          }
           .recoverWith { case e: Exception => Future.successful(Done) }
           .onComplete { _ => context.self ! Free }
 
