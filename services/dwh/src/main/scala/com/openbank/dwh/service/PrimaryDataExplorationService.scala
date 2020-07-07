@@ -15,12 +15,6 @@ import com.openbank.dwh.persistence._
 import collection.immutable.Seq
 import java.util.concurrent.atomic.AtomicLong
 
-// https://www.youtube.com/watch?v=nncxYGD6m7E
-// https://doc.akka.io/docs/akka/current/stream/stream-composition.html
-// https://github.com/inanna-malick/akka-streams-example
-// https://blog.colinbreck.com/maximizing-throughput-for-akka-streams/
-// https://blog.colinbreck.com/partitioning-akka-streams-to-maximize-throughput/
-
 
 class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
 
@@ -61,9 +55,12 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
 
   def exploreTransfers(): Future[Done] = {
     val (switch, result) = Source
-      .single(primaryStorage.getRootPath())
-      .via(getTenansFlow)
-      .via(getAccountsFlow)
+      .fromPublisher(secondaryStorage.getTenants())
+      .flatMapConcat { tenant =>
+        Source
+          .fromPublisher(secondaryStorage.getAccounts(tenant.name))
+          .map { account => (tenant, account) }
+      }
       .via(getAccountSnapshotsFlow)
       .via(getAccountEventsFlow)
       .via(getTransfersFlow)
@@ -203,48 +200,51 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
 
   def getTransfersFlow: Graph[FlowShape[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent], Tuple5[Tenant, Account, AccountSnapshot, AccountEvent, Seq[Transfer]]], NotUsed] = {
     Flow[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]]
-      .mapAsync(10) {
+      .flatMapConcat {
         case (tenant, account, snapshot, event) if event.status == Status.Committed =>
-          primaryStorage
-            .getTransfers(tenant.name, event.transaction)
-            .map(_.filter { transfer =>
+          Source
+            .fromPublisher(primaryStorage.getTransfers(tenant.name, event.transaction))
+            .filter { transfer =>
               (transfer.creditTenant == tenant.name && transfer.creditAccount == account.name) ||
               (transfer.debitTenant == tenant.name && transfer.debitAccount == account.name)
-            })
+            }
+            .fold(Seq.empty[Transfer])(_ :+ _)
             .map { transfers => (tenant, account, snapshot, event, transfers) }
         case (tenant, account, snapshot, event) =>
-          Future.successful((tenant, account, snapshot, event, Seq.empty[Transfer]))
+          Source
+            .single((tenant, account, snapshot, event, Seq.empty[Transfer]))
       }
-      .async
       .mapAsync(100) {
-        case (tenant, account, snapshot, event, transfers) if transfers.isEmpty => {
-          Future.successful {
-            (
-              tenant,
-              account.copy(
-                lastSynchronizedSnapshot = snapshot.version,
-                lastSynchronizedEvent = event.version,
-                isPristine = false
-              ),
-              snapshot,
-              event,
-              transfers
-            )
-          }
-        }
 
-        case (tenant, account, snapshot, event, transfers) => {
-          Future.sequence {
-            transfers
-              .map { transfer =>
-                secondaryStorage
-                  .updateTransfer(transfer)
-                  .map { _ =>
-                    markAsDirty()
-                    transfer
-                  }
-              }
-          }
+        case (tenant, account, snapshot, event, transfers) if transfers.isEmpty =>
+          Future
+            .successful {
+              (
+                tenant,
+                account.copy(
+                  lastSynchronizedSnapshot = snapshot.version,
+                  lastSynchronizedEvent = event.version,
+                  isPristine = false
+                ),
+                snapshot,
+                event,
+                transfers
+              )
+            }
+
+        case (tenant, account, snapshot, event, transfers) =>
+          Future
+            .sequence {
+              transfers
+                .map { transfer =>
+                  secondaryStorage
+                    .updateTransfer(transfer)
+                    .map { _ =>
+                      markAsDirty()
+                      transfer
+                    }
+                }
+            }
             .map { transfers =>
               (
                 tenant,
@@ -258,7 +258,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
                 transfers
               )
             }
-        }
+
       }
       .async
       .mapAsync(1) {

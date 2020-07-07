@@ -8,9 +8,10 @@ import scala.concurrent.{ExecutionContext, Future}
 import com.openbank.dwh.model._
 import scala.math.BigDecimal
 import java.time.{ZonedDateTime, ZoneOffset}
-import slick.jdbc.{JdbcProfile, GetResult, SetParameter}
+import slick.jdbc._
 import slick.jdbc.JdbcBackend.Database
 import java.sql.{Timestamp, Types}
+import slick.basic.DatabasePublisher
 
 
 object SecondaryPersistence {
@@ -34,7 +35,8 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       VALUES
         (${item.name})
       ON CONFLICT (name)
-      DO NOTHING;
+      DO NOTHING
+      ;
     """
 
     database
@@ -47,7 +49,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       }
   }
 
-  // FIXME problem with future that the last_syn_snapshot, last_syn_event are not processed in order
   def updateAccount(item: Account): Future[Done] = {
     import persistence.profile.api._
 
@@ -63,7 +64,8 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         currency = EXCLUDED.currency,
         last_syn_snapshot = EXCLUDED.last_syn_snapshot,
         last_syn_event = EXCLUDED.last_syn_event,
-        updated_at = NOW();
+        updated_at = NOW()
+      ;
     """
 
     database
@@ -84,7 +86,9 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         transfer(tenant, transaction, transfer, credit_tenant, credit_name, debit_tenant, debit_name, amount, currency, value_date)
       VALUES
         (${item.tenant}, ${item.transaction}, ${item.transfer}, ${item.creditTenant}, ${item.creditAccount}, ${item.debitTenant}, ${item.debitAccount}, ${item.amount}, ${item.currency}, ${Timestamp.valueOf(item.valueDate.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)})
-      ON CONFLICT (tenant, transaction, transfer) DO NOTHING;
+      ON CONFLICT (tenant, transaction, transfer)
+      DO NOTHING
+      ;
     """
 
     database
@@ -118,12 +122,19 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       WHERE
         tenant = ${tenant} AND
         transaction = ${transaction} AND
-        transfer = ${transfer};
+        transfer = ${transfer}
+      ;
     """.as[Transfer]
 
-    database
-      .run(query)
-      .map(_.headOption)
+    database.run(
+      query
+        .withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 1
+        )
+    )
+    .map(_.headOption)
   }
 
   def getAccount(tenant: String, name: String): Future[Option[Account]] = {
@@ -141,12 +152,51 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         account
       WHERE
         tenant = ${tenant} AND
-        name = ${name};
+        name = ${name}
+      ;
     """.as[Account]
 
-    database
-      .run(query)
-      .map(_.headOption)
+    database.run(
+      query
+        .withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 1
+        )
+    )
+    .map(_.headOption)
+  }
+
+  def getAccounts(tenant: String): DatabasePublisher[Account] = {
+    import persistence.profile.api._
+
+    val query = sql"""
+      SELECT
+        tenant,
+        name,
+        format,
+        currency,
+        last_syn_snapshot,
+        last_syn_event
+      FROM
+        account
+      WHERE
+        tenant = ${tenant}
+      ORDER BY
+        name ASC
+      ;
+    """.as[Account]
+
+
+    database.stream(
+      query
+        .withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 100
+        )
+        .transactionally
+    )
   }
 
   def getTenant(name: String): Future[Option[Tenant]] = {
@@ -158,12 +208,43 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       FROM
         tenant
       WHERE
-        name = ${name};
+        name = ${name}
+      ;
     """.as[Tenant]
 
-    database
-      .run(query)
-      .map(_.headOption)
+    database.run(
+      query
+        .withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 1
+        )
+    )
+    .map(_.headOption)
+  }
+
+  def getTenants(): DatabasePublisher[Tenant] = {
+    import persistence.profile.api._
+
+    val query = sql"""
+      SELECT
+        name
+      FROM
+        tenant
+      ORDER BY
+        name ASC
+      ;
+    """.as[Tenant]
+
+    database.stream(
+      query
+        .withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 10
+        )
+        .transactionally
+    )
   }
 
   private implicit def asAccount: GetResult[Account] = GetResult(r =>
@@ -200,15 +281,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       isPristine = true
     )
   )
-
-  /*
-  // FIXME there implicit do not work now
-
-  private implicit val SetZonedDateTime = SetParameter[ZonedDateTime] { (v, params) =>
-    params.setTimestamp(Timestamp.valueOf(v.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime))
-  }
-
-  */
 
   override val database: Database = persistence.database
 

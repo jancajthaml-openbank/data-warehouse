@@ -37,6 +37,7 @@ case class Account(
   format: String,
   lastSynchronizedSnapshot: Int,
   lastSynchronizedEvent: Int,
+  // FIXME add lastModTime
   isPristine: Boolean
 )
 
@@ -44,6 +45,7 @@ case class AccountSnapshot(
   tenant: String,
   account: String,
   version: Int
+  // FIXME add lastModTime
 )
 
 case class AccountEvent(
