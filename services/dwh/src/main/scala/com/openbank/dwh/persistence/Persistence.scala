@@ -38,7 +38,7 @@ object Postgres {
     ds.setInitialPoolSize(ds.getMinPoolSize)
     ds.setAcquireIncrement(1)
     ds.setNumHelperThreads(10)
-    ds.setMaxStatements(50)
+    ds.setMaxStatements(100)
     ds.setMaxStatementsPerConnection(10)
     ds.setTestConnectionOnCheckin(false)
     ds.setTestConnectionOnCheckout(false)

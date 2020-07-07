@@ -6,11 +6,12 @@ import java.nio.file.{Paths, Files, Path}
 import com.openbank.dwh.model._
 import akka.stream.Materializer
 import scala.concurrent.{ExecutionContext, Future}
-import akka.stream.scaladsl.{Framing, FileIO, Flow, Keep, Sink, Source}
+import akka.stream.scaladsl._
 import collection.immutable.Seq
 import scala.math.BigDecimal
 import java.time.ZonedDateTime
 import com.typesafe.scalalogging.LazyLogging
+import org.reactivestreams.Publisher
 
 
 object PrimaryPersistence {
@@ -125,11 +126,12 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .runWith(Sink.reduce[Option[Account]]((_, last) => last))
   }
 
-  def getTransfers(tenant: String, transaction: String): Future[Seq[Transfer]] = {
+  def getTransfers(tenant: String, transaction: String): Publisher[Transfer] = {
     val file = getTransactionPath(tenant, transaction)
     if (!Files.exists(file)) {
       logger.warn(s"transaction ${tenant}/${transaction} does not exists in primary storage")
-      return Future.successful(Seq.empty[Transfer])
+      return Source.empty.runWith(Sink.asPublisher(fanout = false))
+      //return Future.successful(Seq.empty[Transfer])
     }
 
     FileIO.fromPath(file)
@@ -137,10 +139,10 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .via {
         Flow[String]
           .statefulMapConcat { () =>
-            var fisrtLine: Boolean = true
+            var skip: Boolean = true
             line: String => {
-              if (fisrtLine) {
-                fisrtLine = false
+              if (skip) {
+                skip = false
                 Nil
               } else {
                 val parts = line.split(' ')
@@ -161,7 +163,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
             }
         }
       }
-      .runWith(Sink.seq)
+      .runWith(Sink.asPublisher(fanout = false))
   }
 
 }

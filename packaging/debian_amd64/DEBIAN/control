@@ -1,5 +1,5 @@
 Package: dwh
-Version: 0.0.0+improve-secondary-database-latency
+Version: 0.0.0+secondary-storage-streaming
 Section: misc
 Priority: extra
 Architecture: amd64
