@@ -12,13 +12,14 @@ import slick.jdbc._
 import slick.jdbc.JdbcBackend.Database
 import java.sql.{Timestamp, Types}
 import slick.basic.DatabasePublisher
+import akka.stream._
+import akka.stream.scaladsl._
 
 
 object SecondaryPersistence {
 
-  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): SecondaryPersistence = {
+  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): SecondaryPersistence =
     new SecondaryPersistence(Postgres.forConfig(config))(ec, mat)
-  }
 
 }
 
@@ -187,7 +188,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ;
     """.as[Account]
 
-
     database.stream(
       query
         .withStatementParameters(
@@ -198,6 +198,9 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         .transactionally
     )
   }
+
+  def getAccountsAsFuture(tenant: String): Future[Seq[Account]] =
+    Source.fromPublisher(getAccounts(tenant)).runWith(Sink.seq)
 
   def getTenant(name: String): Future[Option[Tenant]] = {
     import persistence.profile.api._
@@ -246,6 +249,9 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         .transactionally
     )
   }
+
+  def getTenantsAsFuture(): Future[Seq[Tenant]] =
+    Source.fromPublisher(getTenants()).runWith(Sink.seq)
 
   private implicit def asAccount: GetResult[Account] = GetResult(r =>
     Account(

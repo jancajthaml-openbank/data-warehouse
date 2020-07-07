@@ -74,6 +74,7 @@ bbtest:
 			-e IMAGE_VERSION="$(VERSION)-$(META)" \
 			-e UNIT_VERSION="$(VERSION)+$(META)" \
 			-e UNIT_ARCH=amd64 \
+			-p 3000:80 \
 			-v /var/run/docker.sock:/var/run/docker.sock:rw \
 			-v /var/lib/docker/containers:/var/lib/docker/containers:rw \
 			-v /sys/fs/cgroup:/sys/fs/cgroup:ro \
