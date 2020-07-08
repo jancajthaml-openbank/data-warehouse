@@ -12,13 +12,14 @@ import slick.jdbc._
 import slick.jdbc.JdbcBackend.Database
 import java.sql.{Timestamp, Types}
 import slick.basic.DatabasePublisher
+import akka.stream._
+import akka.stream.scaladsl._
 
 
 object SecondaryPersistence {
 
-  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): SecondaryPersistence = {
+  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): SecondaryPersistence =
     new SecondaryPersistence(Postgres.forConfig(config))(ec, mat)
-  }
 
 }
 
@@ -26,7 +27,7 @@ object SecondaryPersistence {
 // FIXME split into interface and impl for better testing
 class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends Persistence with LazyLogging {
 
-  def updateTenant(item: Tenant): Future[Done] = {
+  def updateTenant(item: PersistentTenant): Future[Done] = {
     import persistence.profile.api._
 
     val query = sqlu"""
@@ -49,7 +50,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       }
   }
 
-  def updateAccount(item: Account): Future[Done] = {
+  def updateAccount(item: PersistentAccount): Future[Done] = {
     import persistence.profile.api._
 
     val query = sqlu"""
@@ -78,7 +79,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       }
   }
 
-  def updateTransfer(item: Transfer): Future[Done] = {
+  def updateTransfer(item: PersistentTransfer): Future[Done] = {
     import persistence.profile.api._
 
     val query = sqlu"""
@@ -101,7 +102,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       }
   }
 
-  def getTransfer(tenant: String, transaction: String, transfer: String): Future[Option[Transfer]] = {
+  def getTransfer(tenant: String, transaction: String, transfer: String): Future[Option[PersistentTransfer]] = {
     import persistence.profile.api._
 
     val query = sql"""
@@ -124,7 +125,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         transaction = ${transaction} AND
         transfer = ${transfer}
       ;
-    """.as[Transfer]
+    """.as[PersistentTransfer]
 
     database.run(
       query
@@ -137,7 +138,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
     .map(_.headOption)
   }
 
-  def getAccount(tenant: String, name: String): Future[Option[Account]] = {
+  def getAccount(tenant: String, name: String): Future[Option[PersistentAccount]] = {
     import persistence.profile.api._
 
     val query = sql"""
@@ -154,7 +155,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         tenant = ${tenant} AND
         name = ${name}
       ;
-    """.as[Account]
+    """.as[PersistentAccount]
 
     database.run(
       query
@@ -167,7 +168,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
     .map(_.headOption)
   }
 
-  def getAccounts(tenant: String): DatabasePublisher[Account] = {
+  def getAccounts(tenant: String): DatabasePublisher[PersistentAccount] = {
     import persistence.profile.api._
 
     val query = sql"""
@@ -185,8 +186,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ORDER BY
         name ASC
       ;
-    """.as[Account]
-
+    """.as[PersistentAccount]
 
     database.stream(
       query
@@ -199,7 +199,11 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
     )
   }
 
-  def getTenant(name: String): Future[Option[Tenant]] = {
+  // FIXME should not be here
+  def getAccountsAsFuture(tenant: String): Future[Seq[PersistentAccount]] =
+    Source.fromPublisher(getAccounts(tenant)).runWith(Sink.seq)
+
+  def getTenant(name: String): Future[Option[PersistentTenant]] = {
     import persistence.profile.api._
 
     val query = sql"""
@@ -210,7 +214,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       WHERE
         name = ${name}
       ;
-    """.as[Tenant]
+    """.as[PersistentTenant]
 
     database.run(
       query
@@ -223,7 +227,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
     .map(_.headOption)
   }
 
-  def getTenants(): DatabasePublisher[Tenant] = {
+  def getTenants(): DatabasePublisher[PersistentTenant] = {
     import persistence.profile.api._
 
     val query = sql"""
@@ -234,7 +238,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ORDER BY
         name ASC
       ;
-    """.as[Tenant]
+    """.as[PersistentTenant]
 
     database.stream(
       query
@@ -247,20 +251,25 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
     )
   }
 
-  private implicit def asAccount: GetResult[Account] = GetResult(r =>
-    Account(
+  // FIXME should not be here
+  def getTenantsAsFuture(): Future[Seq[PersistentTenant]] =
+    Source.fromPublisher(getTenants()).runWith(Sink.seq)
+
+  private implicit def asAccount: GetResult[PersistentAccount] = GetResult(r =>
+    PersistentAccount(
       tenant = r.nextString(),
       name = r.nextString(),
       format = r.nextString(),
       currency = r.nextString(),
       lastSynchronizedSnapshot = r.nextInt(),
       lastSynchronizedEvent = r.nextInt(),
+      lastModTime = 0L,
       isPristine = true
     )
   )
 
-  private implicit def asTransfer: GetResult[Transfer] = GetResult(r =>
-    Transfer(
+  private implicit def asTransfer: GetResult[PersistentTransfer] = GetResult(r =>
+    PersistentTransfer(
       tenant = r.nextString(),
       transaction = r.nextString(),
       transfer = r.nextString(),
@@ -275,9 +284,10 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
     )
   )
 
-  private implicit def asTenant: GetResult[Tenant] = GetResult(r =>
-    Tenant(
+  private implicit def asTenant: GetResult[PersistentTenant] = GetResult(r =>
+    PersistentTenant(
       name = r.nextString(),
+      lastModTime = 0L,
       isPristine = true
     )
   )

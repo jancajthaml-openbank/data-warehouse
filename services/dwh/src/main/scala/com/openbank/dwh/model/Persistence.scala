@@ -3,61 +3,40 @@ package com.openbank.dwh.model
 import scala.math.BigDecimal
 import java.time.ZonedDateTime
 
-object Status extends Enumeration {
 
-  val New = Value("new")
-  val Accepted = Value("accepted")
-  val Rejected = Value("rejected")
-  val Committed = Value("committed")
-  val Rollbacked = Value("rollbacked")
-
-  def toShort(v: Value): Short = v match {
-    case New | Accepted | Rejected => 0
-    case Committed => 1
-    case Rollbacked => 2
-  }
-
-  def fromShort(v: Short): Value = v match {
-    case 1 => Committed
-    case 2 => Rollbacked
-    case _ => New
-  }
-
-}
-
-case class Tenant(
+case class PersistentTenant(
   name: String,
+  lastModTime: Long,
   isPristine: Boolean
 )
 
-case class Account(
+case class PersistentAccount(
   tenant: String,
   name: String,
   currency: String,
   format: String,
   lastSynchronizedSnapshot: Int,
   lastSynchronizedEvent: Int,
-  // FIXME add lastModTime
+  lastModTime: Long,
   isPristine: Boolean
 )
 
-case class AccountSnapshot(
+case class PersistentAccountSnapshot(
   tenant: String,
   account: String,
   version: Int
-  // FIXME add lastModTime
 )
 
-case class AccountEvent(
+case class PersistentAccountEvent(
   tenant: String,
   account: String,
-  status: Status.Value,
+  status: Short,
   transaction: String,
   snapshotVersion: Int,
   version: Int
 )
 
-case class Transfer(
+case class PersistentTransfer(
   tenant: String,
   transaction: String,
   transfer: String,

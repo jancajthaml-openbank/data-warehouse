@@ -12,5 +12,7 @@ trait ServiceModule {
   lazy val primaryDataExplorationService: PrimaryDataExplorationService =
     new PrimaryDataExplorationService(primaryStorage, secondaryStorage)(primaryExplorationExecutionContext, materializer)
 
+  lazy val graphQLService: GraphQLService =
+    new GraphQLService(secondaryStorage)(defaultExecutionContext)
 }
 

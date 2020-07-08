@@ -14,17 +14,19 @@ trait RouterModule extends Lifecycle {
   self: AkkaModule with ConfigModule with ServiceModule with LazyLogging =>
 
   private lazy val healthCheck = new HealthCheckRouter(healthCheckService).route
+  private lazy val graphQL = new GraphQLRouter(graphQLService).route
 
-  def routes: Route = new RootRouter(healthCheck).route
+  private lazy val bindToLocation = config.getString("http.service.bind-to")
+  private lazy val bintToPort = config.getInt("http.service.port")
+
+  def routes: Route = new RootRouter(healthCheck, graphQL).route
 
   abstract override def setup(): Future[Done] = {
     super.setup().flatMap { _ =>
       logger.info("Starting Router Module")
 
       Http()
-        .bindAndHandle(routes,
-                      config.getString("http.service.bind-to"),
-                      config.getInt("http.service.port"))
+        .bindAndHandle(routes, bindToLocation, bintToPort)
         .andThen {
           case Success(binding) => logger.info(s"Listening on ${binding.localAddress}")
         }

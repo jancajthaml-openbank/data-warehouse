@@ -8,6 +8,7 @@ import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
 import com.openbank.dwh.service._
 
+
 case object PrimaryStoragePristine extends Exception("", None.orNull)
 
 object PrimaryDataExplorerActor extends StrictLogging {
@@ -20,7 +21,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
   case object Lock extends Command
   case object Free extends Command
 
-  private lazy val delay = 1.seconds
+  private lazy val delay = 10.seconds
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext) = {
 
