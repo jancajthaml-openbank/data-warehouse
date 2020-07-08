@@ -2,22 +2,29 @@ package com.openbank.dwh.model
 
 import sangria.execution.deferred.{Fetcher, HasId}
 import sangria.schema._
+import sangria.macros.derive._
 import scala.concurrent.Future
 import com.openbank.dwh.persistence._
 import akka.stream.scaladsl._
 import akka.stream._
+import sangria.execution.deferred.{Fetcher, HasId}
+import sangria.execution.deferred.DeferredResolver
 
 
-// https://github.com/sangria-graphql/sangria-subscriptions-example/tree/master/src/main/scala
-
+// on topic of deferred resolution
+// https://medium.com/@toxicafunk/graphql-subqueries-with-sangria-735b13b0cfff
+// https://sangria-graphql.org/learn/
 object SchemaDefinition {
 
-  import SecondaryPersistence._
+  implicit val tenantHash = HasId[PersistentTenant, String] { tenant => tenant.name }
+  implicit val accountHash = HasId[PersistentAccount, String] { account => s"${account.tenant}/${account.name}" }
 
-  val Account = ObjectType(
+  val Resolver = DeferredResolver.empty
+
+  val AccountType = ObjectType(
     "account",
     "Virtual Account",
-    fields[SecondaryPersistence, Account](
+    fields[Unit, PersistentAccount](
       Field("tenant", StringType, resolve = _.value.tenant),
       Field("name", StringType, resolve = _.value.name),
       Field("format", StringType, resolve = _.value.format),
@@ -25,47 +32,50 @@ object SchemaDefinition {
     )
   )
 
-  val Tenant = ObjectType(
+  val TenantType = ObjectType(
     "tenant",
-    "Domain separation",
-    fields[SecondaryPersistence, Tenant](
+    "A Tenant",
+    fields[Unit, PersistentTenant](
       Field("name", StringType, resolve = _.value.name)
     )
   )
 
-  val FilterTenant = Argument("tenant", StringType, description = "tenant name")
-
-  val FilterAccountName = Argument("name", StringType, description = "virtual account name")
+  val FilterTenant = Argument("tenant", StringType)
+  val FilterName = Argument("name", StringType)
+  val Limit = Argument("limit", OptionInputType(IntType))
+  val Offset = Argument("offset", OptionInputType(IntType))
 
   val QueryType = ObjectType(
-    "Query", fields[SecondaryPersistence, Unit](
+    "query",
+    "top level query for listing `account` and `tenant` entities.",
+    fields[SecondaryPersistence, Unit](
       Field(
         "tenant",
-        OptionType(Tenant),
+        OptionType(TenantType),
         arguments = FilterTenant :: Nil,
-        resolve = (ctx) => ctx.ctx.getTenant(ctx.arg(FilterTenant))
+        resolve = (query) => query.ctx.getTenant(query.arg(FilterTenant))
       ),
       Field(
         "tenants",
-        ListType(Tenant),
+        ListType(TenantType),
         arguments = Nil,
-        resolve = (ctx) => ctx.ctx.getTenantsAsFuture()
+        resolve = (query) => query.ctx.getTenantsAsFuture()
       ),
       Field(
         "account",
-        OptionType(Account),
-        arguments = FilterTenant :: FilterAccountName :: Nil,
-        resolve = (ctx) => ctx.ctx.getAccount(ctx.arg(FilterTenant), ctx.arg(FilterAccountName))
+        OptionType(AccountType),
+        arguments = FilterTenant :: FilterName :: Nil,
+        resolve = (query) => query.ctx.getAccount(query.arg(FilterTenant), query.arg(FilterName))
       ),
       Field(
         "accounts",
-        ListType(Account),
+        ListType(AccountType),
         arguments = FilterTenant :: Nil,
-        resolve = (ctx) => ctx.ctx.getAccountsAsFuture(ctx.arg(FilterTenant))
+        resolve = (query) => query.ctx.getAccountsAsFuture(query.arg(FilterTenant))
       )
     )
   )
 
-  val GraphQLSchema = Schema(QueryType)
+  val GraphQLSchema = Schema(QueryType, None, None)
 
 }

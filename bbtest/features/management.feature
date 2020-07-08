@@ -17,4 +17,4 @@ Feature: Properly behaving units
 
     When restart unit "dwh-app.service"
     Then unit "dwh-app.service" is running
-    And I sleep for 300 seconds
+    And I sleep for 3000 seconds

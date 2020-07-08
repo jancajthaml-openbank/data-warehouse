@@ -1,28 +1,35 @@
 package com.openbank.dwh.service
 
-import sangria.execution.deferred.DeferredResolver
-import sangria.execution.Executor
 import scala.concurrent.{ExecutionContext, Future}
-import spray.json._
-import akka.http.scaladsl.model.StatusCodes._
 import sangria.ast.Document
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
-import sangria.marshalling.sprayJson._
+import sangria.execution.Executor
+import sangria.parser.QueryParser
+import com.typesafe.scalalogging.LazyLogging
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import scala.util.{Failure, Success}
 
 
 // https://github.com/sangria-graphql/sangria-subscriptions-example/blob/master/src/main/scala/Server.scala
-class GraphQLService(secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext) {
+class GraphQLService(secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext) extends SprayJsonSupport with LazyLogging {
 
-  def query(query: Document, variables: Option[JsObject]): Future[JsValue] =
-    Executor.execute(
-      SchemaDefinition.GraphQLSchema,
-      query,
-      secondaryStorage,
-      variables = variables.getOrElse(JsObject()),
-      operationName = None,
-      middleware = Nil,
-      //deferredResolver = DeferredResolver.fetchers(SchemaDefinition.characters)
-    )
+  import sangria.marshalling.sprayJson._
+  import spray.json._
+
+  private lazy val executor = Executor(SchemaDefinition.GraphQLSchema, deferredResolver = SchemaDefinition.Resolver)
+
+  def execute(query: String, operation: Option[String], variables: JsObject = JsObject.empty): Future[JsValue] = {
+    QueryParser.parse(query) match {
+
+      case Success(queryAst) =>
+        executor
+          .execute(queryAst, secondaryStorage, (), operation, variables)
+
+      case Failure(error) =>
+        Future.failed(error)
+
+    }
+  }
 
 }

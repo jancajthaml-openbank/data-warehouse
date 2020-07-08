@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.openbank.dwh.service.GraphQLService
 import sangria.parser.{QueryParser, SyntaxError}
-import spray.json._
+
 import akka.http.scaladsl.model.StatusCodes._
 import java.nio.charset.Charset
 import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller}
@@ -18,7 +18,6 @@ import akka.util.ByteString
 import sangria.execution.{ErrorWithResolver, QueryAnalysisError}
 import sangria.ast.Document
 import sangria.parser.QueryParser
-import sangria.renderer.{QueryRenderer, QueryRendererConfig}
 import scala.util.control.NonFatal
 import scala.collection.immutable.Seq
 import scala.util.Try
@@ -27,51 +26,41 @@ import scala.concurrent.ExecutionContext
 
 class GraphQLRouter(service: GraphQLService) extends SprayJsonSupport {
 
-  // curl -X POST http://localhost:8443/graphql -H "Content-Type: application/graphql" -d '{hero {name, friends {name}}}'
+  import spray.json._
+  import sangria.marshalling.sprayJson._
+  import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling._
 
-  def route: Route = path("graphql") {
-    post {
-      parameters('variables.?) { (variables) =>
-        entity(as[Document]) { document =>
-          val variablesParams = variables.flatMap {
-            case data => Try(data.parseJson.asJsObject).toOption
-          }
-          onSuccess(service.query(document, variablesParams)) { data =>
-            complete(data)
-          }
+  val route: Route =
+    path("graphql") {
+      post {
+        entity(as[JsValue]) { requestJson =>
+          val JsObject(fields) = requestJson
+          val JsString(query) = fields("query")
+          val operation = fields
+            .get("operationName")
+            .collect { case JsString(op) => op }
+          val vars = fields
+            .get("variables") match {
+              case Some(obj: JsObject) => obj
+              case _ => JsObject.empty
+            }
+
+          complete(service.execute(query, operation, vars))
+        }
+      } ~
+      get {
+        parameters('query, 'operation.?) { (query, operation) ⇒
+          complete(service.execute(query, operation))
         }
       }
-    }
-  }
-
-  val `application/graphql` = MediaType.applicationWithFixedCharset("graphql", HttpCharsets.`UTF-8`, "graphql")
-
-  def explicitlyAccepts(mediaType: MediaType): Directive0 =
-    headerValuePF {
-      case Accept(ranges) if ranges.exists(range => !range.isWildcard && range.matches(mediaType)) => ranges
-    }.flatMap(_ => pass)
-
-  def unmarshallerContentTypes: Seq[ContentTypeRange] =
-    mediaTypes.map(ContentTypeRange.apply)
-
-  def mediaTypes: Seq[MediaType.WithFixedCharset] =
-    List(`application/graphql`)
-
-  implicit final def documentMarshaller(implicit config: QueryRendererConfig = QueryRenderer.Compact): ToEntityMarshaller[Document] =
-    Marshaller.oneOf(mediaTypes: _*) { mediaType =>
-      Marshaller.withFixedContentType(ContentType(mediaType)) { json =>
-        HttpEntity(mediaType, QueryRenderer.render(json, config))
+    } ~
+    pathPrefix("graphiql") {
+      pathPrefix("static") {
+        getFromResourceDirectory("graphiql/static")
+      } ~
+      pathEndOrSingleSlash {
+        getFromResource("graphiql/index.html")
       }
     }
-
-  implicit final val documentUnmarshaller: FromEntityUnmarshaller[Document] =
-    Unmarshaller.byteStringUnmarshaller
-      .forContentTypes(unmarshallerContentTypes: _*)
-      .map {
-        case ByteString.empty => throw Unmarshaller.NoContentException
-        case data =>
-          import sangria.parser.DeliveryScheme.Throw
-          QueryParser.parse(data.decodeString(Charset.forName("UTF-8")))
-      }
 
 }

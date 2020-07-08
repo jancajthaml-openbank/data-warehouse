@@ -56,7 +56,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
   def getTransactionPath(tenant: String, transaction: String): Path =
     Paths.get(f"${rootStorage}/t_${tenant}/transaction/${transaction}")
 
-  def getTenant(tenant: String): Future[Option[Tenant]] = {
+  def getTenant(tenant: String): Future[Option[PersistentTenant]] = {
     if (!Files.exists(getTenantPath(tenant))) {
       logger.warn(s"tenant ${tenant} does not exists in primary storage")
       return Future.successful(None)
@@ -67,18 +67,24 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
     if (!Files.exists(getAccountsPath(tenant))) {
       return Future.successful(None)
     }
-    return Future.successful(Some(Tenant(tenant, false)))
+    return Future.successful(
+      Some(PersistentTenant(
+        name = tenant,
+        lastModTime = 0L,
+        isPristine = false
+      ))
+    )
   }
 
-  def getAccountSnapshot(tenant: String, account: String, version: Int): Future[Option[AccountSnapshot]] = {
+  def getAccountSnapshot(tenant: String, account: String, version: Int): Future[Option[PersistentAccountSnapshot]] = {
     if (!Files.exists(getAccountSnapshotPath(tenant, account, version))) {
       logger.warn(s"account snapshot ${tenant}/${account}/${version} does not exists in primary storage")
       return Future.successful(None)
     }
-    return Future.successful(Some(AccountSnapshot(tenant, account, version)))
+    return Future.successful(Some(PersistentAccountSnapshot(tenant, account, version)))
   }
 
-  def getAccountEvent(tenant: String, account: String, version: Int, event: String): Future[Option[AccountEvent]] = {
+  def getAccountEvent(tenant: String, account: String, version: Int, event: String): Future[Option[PersistentAccountEvent]] = {
     val file = getAccountEventPath(tenant, account, version, event)
     if (!Files.exists(file)) {
       logger.warn(s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage")
@@ -90,19 +96,19 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .take(1)
       .map { line =>
         val parts = event.split("_", 3)
-        Some(AccountEvent(
+        Some(PersistentAccountEvent(
           tenant = tenant,
           account = account,
-          status = Status.fromShort(parts(0).toShort),  // FIXME optimise just keep short
+          status = parts(0).toShort,
           transaction = parts(2),
           snapshotVersion = version,
           version = line.toInt
         ))
       }
-      .runWith(Sink.reduce[Option[AccountEvent]]((_, last) => last))
+      .runWith(Sink.reduce[Option[PersistentAccountEvent]]((_, last) => last))
   }
 
-  def getAccount(tenant: String, account: String): Future[Option[Account]] = {
+  def getAccount(tenant: String, account: String): Future[Option[PersistentAccount]] = {
     val file = getAccountSnapshotPath(tenant, account, 0)
     if (!Files.exists(file)) {
       logger.warn(s"account ${tenant}/${account} does not exists in primary storage")
@@ -113,25 +119,25 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       .via(Framing.delimiter(ByteString("\n"), 256, true).map(_.utf8String))
       .take(1)
       .map { line =>
-        Some(Account(
+        Some(PersistentAccount(
           tenant = tenant,
           name = account,
           currency = line.substring(0, 3),
           format = line.substring(4, line.size - 2),
           lastSynchronizedSnapshot = 0,
           lastSynchronizedEvent = 0,
+          lastModTime = 0L,
           isPristine = false
         ))
       }
-      .runWith(Sink.reduce[Option[Account]]((_, last) => last))
+      .runWith(Sink.reduce[Option[PersistentAccount]]((_, last) => last))
   }
 
-  def getTransfers(tenant: String, transaction: String): Publisher[Transfer] = {
+  def getTransfers(tenant: String, transaction: String): Publisher[PersistentTransfer] = {
     val file = getTransactionPath(tenant, transaction)
     if (!Files.exists(file)) {
       logger.warn(s"transaction ${tenant}/${transaction} does not exists in primary storage")
       return Source.empty.runWith(Sink.asPublisher(fanout = false))
-      //return Future.successful(Seq.empty[Transfer])
     }
 
     FileIO.fromPath(file)
@@ -146,7 +152,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
                 Nil
               } else {
                 val parts = line.split(' ')
-                Transfer(
+                PersistentTransfer(
                   tenant = tenant,
                   transaction = transaction,
                   transfer = parts(0),
@@ -157,7 +163,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
                   amount = BigDecimal.exact(parts(6)),
                   currency = parts(7),
                   valueDate = ZonedDateTime.parse(parts(5)),
-                  isPristine=false
+                  isPristine = false
                 ) :: Nil
               }
             }

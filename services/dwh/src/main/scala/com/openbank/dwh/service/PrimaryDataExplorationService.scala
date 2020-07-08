@@ -72,7 +72,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
     result
   }
 
-  def getTenansFlow: Graph[FlowShape[Path, Tenant], NotUsed] = {
+  def getTenansFlow: Graph[FlowShape[Path, PersistentTenant], NotUsed] = {
     Flow[Path]
       .map { path =>
         path
@@ -92,6 +92,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception => None }
       .collect { case Some(tenant) => tenant }
+      .log("tenant")
       .mapAsyncUnordered(10) {
         case tenant if tenant.isPristine =>
           Future.successful(tenant)
@@ -105,8 +106,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
   }
 
-  def getAccountsFlow: Graph[FlowShape[Tenant, Tuple2[Tenant, Account]], NotUsed] = {
-    Flow[Tenant]
+  def getAccountsFlow: Graph[FlowShape[PersistentTenant, Tuple2[PersistentTenant, PersistentAccount]], NotUsed] = {
+    Flow[PersistentTenant]
       .map { tenant =>
         primaryStorage
           .getAccountsPath(tenant.name)
@@ -127,6 +128,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception => None }
       .collect { case Some(data) => data }
+      .log("account")
       .mapAsync(1) {
         case (tenant, account) if account.isPristine =>
           Future.successful((tenant, account))
@@ -142,8 +144,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
   }
 
-  def getAccountSnapshotsFlow: Graph[FlowShape[Tuple2[Tenant, Account], Tuple3[Tenant, Account, AccountSnapshot]], NotUsed] = {
-    Flow[Tuple2[Tenant, Account]]
+  def getAccountSnapshotsFlow: Graph[FlowShape[Tuple2[PersistentTenant, PersistentAccount], Tuple3[PersistentTenant, PersistentAccount, PersistentAccountSnapshot]], NotUsed] = {
+    Flow[Tuple2[PersistentTenant, PersistentAccount]]
       .map { case (tenant, account) =>
         primaryStorage
           .getAccountSnapshotsPath(account.tenant, account.name)
@@ -156,6 +158,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           .map { version => (tenant, account, version) }
       }
       .mapConcat(_.to[Seq])
+      .log("account-snapshot")
       .mapAsync(10) { case (tenant, account, version) => {
         primaryStorage
           .getAccountSnapshot(tenant.name, account.name, version)
@@ -165,8 +168,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .collect { case Some(data) => data }
   }
 
-  def getAccountEventsFlow: Graph[FlowShape[Tuple3[Tenant, Account, AccountSnapshot], Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]], NotUsed] = {
-    Flow[Tuple3[Tenant, Account, AccountSnapshot]]
+  def getAccountEventsFlow: Graph[FlowShape[Tuple3[PersistentTenant, PersistentAccount, PersistentAccountSnapshot], Tuple4[PersistentTenant, PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]], NotUsed] = {
+    Flow[Tuple3[PersistentTenant, PersistentAccount, PersistentAccountSnapshot]]
       .map { case (tenant, account, snapshot) =>
         primaryStorage
           .getAccountEventsPath(account.tenant, account.name, snapshot.version)
@@ -195,25 +198,27 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       }
       .async
       .mapConcat(_.to[Seq])
+      .log("account-event")
       .buffer(1000, OverflowStrategy.backpressure)
   }
 
-  def getTransfersFlow: Graph[FlowShape[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent], Tuple5[Tenant, Account, AccountSnapshot, AccountEvent, Seq[Transfer]]], NotUsed] = {
-    Flow[Tuple4[Tenant, Account, AccountSnapshot, AccountEvent]]
+  def getTransfersFlow: Graph[FlowShape[Tuple4[PersistentTenant, PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent], Tuple5[PersistentTenant, PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent, Seq[PersistentTransfer]]], NotUsed] = {
+    Flow[Tuple4[PersistentTenant, PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]]
       .flatMapConcat {
-        case (tenant, account, snapshot, event) if event.status == Status.Committed =>
+        case (tenant, account, snapshot, event) if event.status == 1 =>
           Source
             .fromPublisher(primaryStorage.getTransfers(tenant.name, event.transaction))
             .filter { transfer =>
               (transfer.creditTenant == tenant.name && transfer.creditAccount == account.name) ||
               (transfer.debitTenant == tenant.name && transfer.debitAccount == account.name)
             }
-            .fold(Seq.empty[Transfer])(_ :+ _)
+            .fold(Seq.empty[PersistentTransfer])(_ :+ _)
             .map { transfers => (tenant, account, snapshot, event, transfers) }
         case (tenant, account, snapshot, event) =>
           Source
-            .single((tenant, account, snapshot, event, Seq.empty[Transfer]))
+            .single((tenant, account, snapshot, event, Seq.empty[PersistentTransfer]))
       }
+      .log("account-transaction")
       .mapAsync(100) {
 
         case (tenant, account, snapshot, event, transfers) if transfers.isEmpty =>
