@@ -53,13 +53,13 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
     result
   }
 
+  // zipWithN
+
   def exploreTransfers(): Future[Done] = {
     val (switch, result) = Source
       .fromPublisher(secondaryStorage.getTenants())
       .flatMapConcat { tenant =>
-        Source
-          .fromPublisher(secondaryStorage.getAccounts(tenant.name))
-          .map { account => (tenant, account) }
+        Source.fromPublisher(secondaryStorage.getAccounts(tenant.name))
       }
       .via(getAccountSnapshotsFlow)
       .via(getAccountEventsFlow)
@@ -69,218 +69,210 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .run()
 
     killSwitch = Some(switch)
+
     result
   }
 
   def getTenansFlow: Graph[FlowShape[Path, PersistentTenant], NotUsed] = {
     Flow[Path]
-      .map { path =>
-        path
-          .toFile
-          .listFiles(_.getName.matches("t_.+"))
-          .map(_.getName.stripPrefix("t_"))
+      .flatMapConcat { path =>
+        Source {
+          path
+            .toFile
+            .listFiles(_.getName.matches("t_.+"))
+            .map(_.getName.stripPrefix("t_"))
+            .toIndexedSeq
+        }
       }
-      .mapConcat(_.to[Seq])
-      .mapAsyncUnordered(10) { name =>
-        secondaryStorage
-          .getTenant(name)
-          .flatMap {
-            case None => primaryStorage.getTenant(name)
-            case tenant => Future.successful(tenant)
-          }
+      .buffer(16, OverflowStrategy.backpressure)
+      .mapAsync(8) { name =>
+        (
+          primaryStorage.getTenant(name)
+          zip
+          secondaryStorage.getTenant(name)
+        ).flatMap {
+          case (None, None) =>
+            Future.successful(None)
+          case (None, Some(b)) =>
+            Future.successful(Some(b))
+          case (Some(a), None) =>
+            secondaryStorage
+              .updateTenant(a)
+              .map { _ =>
+                markAsDirty()
+                Some(a)
+              }
+          case (Some(a), Some(_)) =>
+            Future.successful(Some(a))
+        }
       }
       .async
       .recover { case e: Exception => None }
       .collect { case Some(tenant) => tenant }
+      .buffer(16, OverflowStrategy.backpressure)
       .log("tenant")
-      .mapAsyncUnordered(10) {
-        case tenant if tenant.isPristine =>
-          Future.successful(tenant)
-        case tenant => {
-          markAsDirty()
-          secondaryStorage
-            .updateTenant(tenant)
-            .map(_ => tenant)
-        }
-      }
-      .async
   }
 
-  def getAccountsFlow: Graph[FlowShape[PersistentTenant, Tuple2[PersistentTenant, PersistentAccount]], NotUsed] = {
+  def getAccountsFlow: Graph[FlowShape[PersistentTenant, PersistentAccount], NotUsed] = {
     Flow[PersistentTenant]
-      .map { tenant =>
-        primaryStorage
-          .getAccountsPath(tenant.name)
-          .toFile
-          .listFiles()
-          .map { file => (tenant, file.getName) }
+      .flatMapConcat { tenant =>
+        Source {
+          primaryStorage
+            .getAccountsPath(tenant.name)
+            .toFile
+            .listFiles()
+            .map { file => (tenant, file.getName) }
+            .toIndexedSeq
+        }
       }
-      .mapConcat(_.to[Seq])
-      .mapAsyncUnordered(10) { case (tenant, name) => {
-        secondaryStorage
-          .getAccount(tenant.name, name)
-          .flatMap {
-            case None => primaryStorage.getAccount(tenant.name, name)
-            case account => Future.successful(account)
-          }
-          .map(_.map { account => (tenant, account) })
-      }}
+      .buffer(16, OverflowStrategy.backpressure)
+      .mapAsync(8) { case (tenant, name) => {
+        (
+          primaryStorage.getAccount(tenant.name, name)
+          zip
+          secondaryStorage.getAccount(tenant.name, name)
+        )
+        .flatMap {
+          case (None, None) =>
+            Future.successful(None)
+          case (None, Some(b)) =>
+            Future.successful(Some(b))
+          case (Some(a), None) =>
+            secondaryStorage
+              .updateAccount(a)
+              .map { _ =>
+                markAsDirty()
+                Some(a)
+              }
+          case (Some(a), Some(_)) =>
+            Future.successful(Some(a))
+        }
+      } }
       .async
       .recover { case e: Exception => None }
       .collect { case Some(data) => data }
+      .buffer(16, OverflowStrategy.backpressure)
       .log("account")
-      .mapAsync(1) {
-        case (tenant, account) if account.isPristine =>
-          Future.successful((tenant, account))
-        case (tenant, account) => {
-          secondaryStorage
-            .updateAccount(account)
-            .map { _ =>
-              markAsDirty()
-              (tenant, account)
-            }
-        }
-      }
-      .async
   }
 
-  def getAccountSnapshotsFlow: Graph[FlowShape[Tuple2[PersistentTenant, PersistentAccount], Tuple3[PersistentTenant, PersistentAccount, PersistentAccountSnapshot]], NotUsed] = {
-    Flow[Tuple2[PersistentTenant, PersistentAccount]]
-      .map { case (tenant, account) =>
-        primaryStorage
-          .getAccountSnapshotsPath(account.tenant, account.name)
-          .toFile
-          .listFiles()
-          .map(_.getName.toInt)
-          .filter(_ >= account.lastSynchronizedSnapshot)
-          .sortWith(_ < _)
-          .take(2)
-          .map { version => (tenant, account, version) }
+  def getAccountSnapshotsFlow: Graph[FlowShape[PersistentAccount, Tuple2[PersistentAccount, PersistentAccountSnapshot]], NotUsed] = {
+    Flow[PersistentAccount]
+      .flatMapConcat { account =>
+        Source {
+          primaryStorage
+            .getAccountSnapshotsPath(account.tenant, account.name)
+            .toFile
+            .listFiles()
+            .map(_.getName.toInt)
+            .filter(_ >= account.lastSynchronizedSnapshot)
+            .sortWith(_ < _)
+            .toIndexedSeq
+        }
+        .take(2)
+        .map { version => (account, version) }
       }
-      .mapConcat(_.to[Seq])
-      .log("account-snapshot")
-      .mapAsync(10) { case (tenant, account, version) => {
+      .buffer(1, OverflowStrategy.backpressure)
+      .mapAsync(100) { case (account, version) => {
         primaryStorage
-          .getAccountSnapshot(tenant.name, account.name, version)
-          .map(_.map { snapshot => (tenant, account, snapshot) })
-      }}
+          .getAccountSnapshot(account.tenant, account.name, version)
+          .map(_.map { snapshot => (account, snapshot) })
+      } }
       .async
       .collect { case Some(data) => data }
+      .buffer(1, OverflowStrategy.backpressure)
+      .log("account-snapshot")
   }
 
-  def getAccountEventsFlow: Graph[FlowShape[Tuple3[PersistentTenant, PersistentAccount, PersistentAccountSnapshot], Tuple4[PersistentTenant, PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]], NotUsed] = {
-    Flow[Tuple3[PersistentTenant, PersistentAccount, PersistentAccountSnapshot]]
-      .map { case (tenant, account, snapshot) =>
+  def getAccountEventsFlow: Graph[FlowShape[Tuple2[PersistentAccount, PersistentAccountSnapshot], Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]], NotUsed] = {
+    Flow[Tuple2[PersistentAccount, PersistentAccountSnapshot]]
+      .map { case (account, snapshot) =>
         primaryStorage
           .getAccountEventsPath(account.tenant, account.name, snapshot.version)
           .toFile
           .listFiles()
-          .map { file => (tenant, account, snapshot, file.getName) }
+          .map { file => (account, snapshot, file.getName) }
       }
+      .buffer(128, OverflowStrategy.backpressure)
       .filterNot { events =>
         events.isEmpty ||
         (
-          events.last._2.lastSynchronizedSnapshot == events.last._3.version &&
-          events.last._2.lastSynchronizedEvent >= events.size
+          events.last._1.lastSynchronizedSnapshot == events.last._2.version &&
+          events.last._1.lastSynchronizedEvent >= events.size
         )
       }
-      .mapAsync(100) { events =>
-        Future.sequence {
-          events
-            .toSeq
-            .map { case (tenant, account, snapshot, event) =>
-              primaryStorage
-                .getAccountEvent(tenant.name, account.name, snapshot.version, event)
-                .map(_.map { event => (tenant, account, snapshot, event) })
-            }
-        }
-        .map(_.flatten.sortWith(_._4.version < _._4.version))
+      .buffer(128, OverflowStrategy.backpressure)
+      .mapAsync(128) { events =>
+        Source(events.toIndexedSeq)
+          .mapAsync(1000) { case (account, snapshot, event) =>
+            primaryStorage
+              .getAccountEvent(account.tenant, account.name, snapshot.version, event)
+              .map(_.map { event => (account, snapshot, event) })
+          }
+          .runWith(Sink.seq)
+          .map(_.flatten.sortWith(_._3.version < _._3.version))
       }
       .async
+      .buffer(128, OverflowStrategy.backpressure)
       .mapConcat(_.to[Seq])
       .log("account-event")
-      .buffer(1000, OverflowStrategy.backpressure)
   }
 
-  def getTransfersFlow: Graph[FlowShape[Tuple4[PersistentTenant, PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent], Tuple5[PersistentTenant, PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent, Seq[PersistentTransfer]]], NotUsed] = {
-    Flow[Tuple4[PersistentTenant, PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]]
+  def getTransfersFlow: Graph[FlowShape[Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent], Tuple4[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent, Seq[PersistentTransfer]]], NotUsed] = {
+    Flow[Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]]
       .flatMapConcat {
-        case (tenant, account, snapshot, event) if event.status == 1 =>
+        case (account, snapshot, event) if event.status == 1 =>
           Source
-            .fromPublisher(primaryStorage.getTransfers(tenant.name, event.transaction))
+            .fromPublisher(primaryStorage.getTransfers(account.tenant, event.transaction))
             .filter { transfer =>
-              (transfer.creditTenant == tenant.name && transfer.creditAccount == account.name) ||
-              (transfer.debitTenant == tenant.name && transfer.debitAccount == account.name)
+              (transfer.creditTenant == account.tenant && transfer.creditAccount == account.name) ||
+              (transfer.debitTenant == account.tenant && transfer.debitAccount == account.name)
             }
+            .log("transfer")
             .fold(Seq.empty[PersistentTransfer])(_ :+ _)
-            .map { transfers => (tenant, account, snapshot, event, transfers) }
-        case (tenant, account, snapshot, event) =>
-          Source
-            .single((tenant, account, snapshot, event, Seq.empty[PersistentTransfer]))
-      }
-      .log("account-transaction")
-      .mapAsync(100) {
+            .map { transfers => (account, snapshot, event, transfers) }
 
-        case (tenant, account, snapshot, event, transfers) if transfers.isEmpty =>
+        case (account, snapshot, event) =>
+          Source
+            .single((account, snapshot, event, Seq.empty[PersistentTransfer]))
+      }
+      .buffer(4, OverflowStrategy.backpressure)
+      .mapAsync(4) {
+
+        case (account, snapshot, event, transfers) if transfers.isEmpty =>
           Future
             .successful {
-              (
-                tenant,
-                account.copy(
-                  lastSynchronizedSnapshot = snapshot.version,
-                  lastSynchronizedEvent = event.version,
-                  isPristine = false
-                ),
-                snapshot,
-                event,
-                transfers
-              )
+              (account, snapshot, event, transfers)
             }
 
-        case (tenant, account, snapshot, event, transfers) =>
+        case (account, snapshot, event, transfers) =>
           Future
-            .sequence {
-              transfers
-                .map { transfer =>
-                  secondaryStorage
-                    .updateTransfer(transfer)
-                    .map { _ =>
-                      markAsDirty()
-                      transfer
-                    }
-                }
-            }
+            .sequence(transfers.map { transfer =>
+              secondaryStorage
+                .updateTransfer(transfer)
+                .map(_ => transfer)
+            })
             .map { transfers =>
-              (
-                tenant,
-                account.copy(
-                  lastSynchronizedSnapshot = snapshot.version,
-                  lastSynchronizedEvent = event.version,
-                  isPristine = false
-                ),
-                snapshot,
-                event,
-                transfers
-              )
+              markAsDirty()
+              (account, snapshot, event, transfers)
             }
 
       }
       .async
+      .buffer(1, OverflowStrategy.backpressure)
+      .log("account-update")
       .mapAsync(1) {
-        case (tenant, account, snapshot, event, transfers) if account.isPristine =>
-          Future.successful((tenant, account, snapshot, event, transfers))
-        case (tenant, account, snapshot, event, transfers) => {
+        case (account, snapshot, event, transfers) => {
           markAsDirty()
+          val nextAccount = account.copy(
+            lastSynchronizedSnapshot = snapshot.version,
+            lastSynchronizedEvent = event.version
+          )
           secondaryStorage
-            .updateAccount(account)
-            .map { _ => (tenant, account, snapshot, event, transfers) }
+            .updateAccount(nextAccount)
+            .map { _ => (nextAccount, snapshot, event, transfers) }
         }
       }
       .async
-      .map {
-        case (tenant, account, snapshot, event, transfers) =>
-          (tenant, account, snapshot, event, transfers)
-      }
   }
 
 }

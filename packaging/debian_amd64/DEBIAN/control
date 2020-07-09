@@ -1,5 +1,5 @@
 Package: dwh
-Version: 0.0.0+grapqhl
+Version: 0.0.0+lower-primary-to-secondary-sync-resources-consumtion
 Section: misc
 Priority: extra
 Architecture: amd64

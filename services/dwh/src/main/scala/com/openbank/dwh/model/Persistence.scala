@@ -5,9 +5,7 @@ import java.time.ZonedDateTime
 
 
 case class PersistentTenant(
-  name: String,
-  lastModTime: Long,
-  isPristine: Boolean
+  name: String
 )
 
 case class PersistentAccount(
@@ -16,9 +14,7 @@ case class PersistentAccount(
   currency: String,
   format: String,
   lastSynchronizedSnapshot: Int,
-  lastSynchronizedEvent: Int,
-  lastModTime: Long,
-  isPristine: Boolean
+  lastSynchronizedEvent: Int
 )
 
 case class PersistentAccountSnapshot(
