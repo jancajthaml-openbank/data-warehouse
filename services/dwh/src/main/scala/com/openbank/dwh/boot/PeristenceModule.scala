@@ -28,8 +28,11 @@ trait PersistenceModule extends Lifecycle {
   lazy val secondaryStorage: SecondaryPersistence =
     SecondaryPersistence.forConfig(config, defaultExecutionContext, materializer)
 
+  // persistence-graphql.postgresql
   lazy val graphStorage: SecondaryPersistence =
     SecondaryPersistence.forConfig(config, defaultExecutionContext, materializer)
+    // FIXME graphql persistence
+    // FIXME graphql execution context
 
   lazy val primaryStorage: PrimaryPersistence =
     PrimaryPersistence.forConfig(config, primaryExplorationExecutionContext, materializer)

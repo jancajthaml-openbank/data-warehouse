@@ -110,7 +110,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
         tenant,
         transaction,
         transfer,
-        status,
         credit_tenant,
         credit_name,
         debit_name,
@@ -137,6 +136,47 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
     )
     .map(_.headOption)
   }
+
+  def getTransfers(tenant: String): DatabasePublisher[PersistentTransfer] = {
+    import persistence.profile.api._
+
+    val query = sql"""
+      SELECT
+        tenant,
+        transaction,
+        transfer,
+        credit_tenant,
+        credit_name,
+        debit_name,
+        debit_tenant,
+        amount,
+        currency,
+        value_date
+      FROM
+        transfer
+      WHERE
+        tenant = ${tenant}
+      ORDER BY
+        tenant ASC,
+        transaction ASC,
+        transfer ASC
+      ;
+    """.as[PersistentTransfer]
+
+    database.stream(
+      query
+        .withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 100
+        )
+        .transactionally
+    )
+  }
+
+  // FIXME should not be here
+  def getTransfersAsFuture(tenant: String): Future[Seq[PersistentTransfer]] =
+    Source.fromPublisher(getTransfers(tenant)).runWith(Sink.seq)
 
   def getAccount(tenant: String, name: String): Future[Option[PersistentAccount]] = {
     import persistence.profile.api._
