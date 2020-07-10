@@ -5,7 +5,6 @@ GRANT ALL PRIVILEGES ON DATABASE openbank TO postgres;
 CREATE TABLE tenant
 (
   name              VARCHAR(50) NOT NULL,
-  last_mod_time     BIGINT NOT NULL DEFAULT 0,
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   PRIMARY KEY (name)
@@ -19,7 +18,6 @@ CREATE TABLE account
   name              VARCHAR(50) NOT NULL,
   format            VARCHAR(50),
   currency          CHAR(3),
-  last_mod_time     BIGINT NOT NULL DEFAULT 0,
   last_syn_snapshot INTEGER,
   last_syn_event    INTEGER,
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),

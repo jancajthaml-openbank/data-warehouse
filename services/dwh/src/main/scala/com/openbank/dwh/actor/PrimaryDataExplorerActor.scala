@@ -21,7 +21,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
   case object Lock extends Command
   case object Free extends Command
 
-  private lazy val delay = 10.seconds
+  private lazy val delay = 5.seconds
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext) = {
 

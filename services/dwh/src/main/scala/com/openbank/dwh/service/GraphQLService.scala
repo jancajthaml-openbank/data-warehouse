@@ -17,7 +17,7 @@ class GraphQLService(graphStorage: SecondaryPersistence)(implicit ec: ExecutionC
   import sangria.marshalling.sprayJson._
   import spray.json._
 
-  private lazy val executor = Executor(SchemaDefinition.GraphQLSchema, deferredResolver = SchemaDefinition.Resolver)
+  private val executor = Executor(SchemaDefinition.GraphQLSchema, deferredResolver = SchemaDefinition.Resolver)
 
   def execute(query: String, operation: Option[String], variables: JsObject = JsObject.empty): Future[JsValue] = {
     QueryParser.parse(query) match {

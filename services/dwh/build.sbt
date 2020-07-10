@@ -1,14 +1,8 @@
-name := "dwh"
-
 organization := "com.openbank"
-
+name := "dwh"
 version := "1.0.0"
 
-crossScalaVersions := Seq(
-  "2.12.8"
-)
-
-scalaVersion := crossScalaVersions.value.head
+val scalaVersion = "2.12.8"
 
 val akkaVersion = "2.6.4"
 val akkaHttpVersion = "10.1.11"

@@ -84,8 +84,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
             .toIndexedSeq
         }
       }
-      .buffer(16, OverflowStrategy.backpressure)
-      .mapAsync(8) { name =>
+      .buffer(8, OverflowStrategy.backpressure)
+      .mapAsync(4) { name =>
         (
           primaryStorage.getTenant(name)
           zip
@@ -109,7 +109,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception => None }
       .collect { case Some(tenant) => tenant }
-      .buffer(16, OverflowStrategy.backpressure)
+      .buffer(8, OverflowStrategy.backpressure)
       .log("tenant")
   }
 
@@ -125,8 +125,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
             .toIndexedSeq
         }
       }
-      .buffer(16, OverflowStrategy.backpressure)
-      .mapAsync(8) { case (tenant, name) => {
+      .buffer(8, OverflowStrategy.backpressure)
+      .mapAsync(4) { case (tenant, name) => {
         (
           primaryStorage.getAccount(tenant.name, name)
           zip
@@ -151,7 +151,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception => None }
       .collect { case Some(data) => data }
-      .buffer(16, OverflowStrategy.backpressure)
+      .buffer(8, OverflowStrategy.backpressure)
       .log("account")
   }
 
@@ -172,7 +172,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         .map { version => (account, version) }
       }
       .buffer(1, OverflowStrategy.backpressure)
-      .mapAsync(100) { case (account, version) => {
+      .mapAsync(16) { case (account, version) => {
         primaryStorage
           .getAccountSnapshot(account.tenant, account.name, version)
           .map(_.map { snapshot => (account, snapshot) })
@@ -192,7 +192,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           .listFiles()
           .map { file => (account, snapshot, file.getName) }
       }
-      .buffer(128, OverflowStrategy.backpressure)
+      .buffer(32, OverflowStrategy.backpressure)
       .filterNot { events =>
         events.isEmpty ||
         (
@@ -200,8 +200,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           events.last._1.lastSynchronizedEvent >= events.size
         )
       }
-      .buffer(128, OverflowStrategy.backpressure)
-      .mapAsync(128) { events =>
+      .buffer(32, OverflowStrategy.backpressure)
+      .mapAsync(32) { events =>
         Source(events.toIndexedSeq)
           .mapAsync(1000) { case (account, snapshot, event) =>
             primaryStorage
@@ -212,7 +212,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           .map(_.flatten.sortWith(_._3.version < _._3.version))
       }
       .async
-      .buffer(128, OverflowStrategy.backpressure)
+      .buffer(32, OverflowStrategy.backpressure)
       .mapConcat(_.to[Seq])
       .log("account-event")
   }
