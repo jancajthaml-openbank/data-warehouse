@@ -28,6 +28,9 @@ trait PersistenceModule extends Lifecycle {
   lazy val secondaryStorage: SecondaryPersistence =
     SecondaryPersistence.forConfig(config, defaultExecutionContext, materializer)
 
+  lazy val graphStorage: SecondaryPersistence =
+    SecondaryPersistence.forConfig(config, defaultExecutionContext, materializer)
+
   lazy val primaryStorage: PrimaryPersistence =
     PrimaryPersistence.forConfig(config, primaryExplorationExecutionContext, materializer)
 

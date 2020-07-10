@@ -1,14 +1,8 @@
-name := "dwh"
-
 organization := "com.openbank"
-
+name := "dwh"
 version := "1.0.0"
 
-crossScalaVersions := Seq(
-  "2.12.8"
-)
-
-scalaVersion := crossScalaVersions.value.head
+val scalaVersion = "2.12.8"
 
 val akkaVersion = "2.6.4"
 val akkaHttpVersion = "10.1.11"
@@ -25,7 +19,7 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "jcl-over-slf4j" % "1.7.25",
   "org.postgresql" %  "postgresql" % "9.4.1212",
   "com.typesafe.slick" %% "slick" % "3.3.1",
-  "c3p0" % "c3p0" % "0.9.0.4",
+  "com.typesafe.slick" %% "slick-hikaricp" % "3.2.0",
   "org.sangria-graphql" %% "sangria" % "2.0.0",
   "org.sangria-graphql" %% "sangria-spray-json" % "1.0.2",
   "org.sangria-graphql" %% "sangria-akka-streams" % "1.0.2"

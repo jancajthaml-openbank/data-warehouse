@@ -76,6 +76,6 @@ object SchemaDefinition {
     )
   )
 
-  val GraphQLSchema = Schema(QueryType, None, None)
+  lazy val GraphQLSchema = Schema(QueryType, None, None)
 
 }

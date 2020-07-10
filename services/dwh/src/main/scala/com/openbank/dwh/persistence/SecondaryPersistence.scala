@@ -262,9 +262,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       format = r.nextString(),
       currency = r.nextString(),
       lastSynchronizedSnapshot = r.nextInt(),
-      lastSynchronizedEvent = r.nextInt(),
-      lastModTime = 0L,
-      isPristine = true
+      lastSynchronizedEvent = r.nextInt()
     )
   )
 
@@ -286,9 +284,7 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
 
   private implicit def asTenant: GetResult[PersistentTenant] = GetResult(r =>
     PersistentTenant(
-      name = r.nextString(),
-      lastModTime = 0L,
-      isPristine = true
+      name = r.nextString()
     )
   )
 

@@ -69,9 +69,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
     }
     return Future.successful(
       Some(PersistentTenant(
-        name = tenant,
-        lastModTime = 0L,
-        isPristine = false
+        name = tenant
       ))
     )
   }
@@ -85,6 +83,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
   }
 
   def getAccountEvent(tenant: String, account: String, version: Int, event: String): Future[Option[PersistentAccountEvent]] = {
+    // FIXME instead of future combine sources (first nil then something) and take last
     val file = getAccountEventPath(tenant, account, version, event)
     if (!Files.exists(file)) {
       logger.warn(s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage")
@@ -92,7 +91,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
     }
 
     FileIO.fromPath(file)
-      .via(Framing.delimiter(ByteString("\n"), 256, true).map(_.utf8String))
+      .via(Framing.delimiter(ByteString(System.lineSeparator()), 256, true).map(_.utf8String))
       .take(1)
       .map { line =>
         val parts = event.split("_", 3)
@@ -109,6 +108,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
   }
 
   def getAccount(tenant: String, account: String): Future[Option[PersistentAccount]] = {
+    // FIXME instead of future combine sources (first nil then something) and take last
     val file = getAccountSnapshotPath(tenant, account, 0)
     if (!Files.exists(file)) {
       logger.warn(s"account ${tenant}/${account} does not exists in primary storage")
@@ -116,7 +116,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
     }
 
     FileIO.fromPath(file)
-      .via(Framing.delimiter(ByteString("\n"), 256, true).map(_.utf8String))
+      .via(Framing.delimiter(ByteString(System.lineSeparator()), 256, true).map(_.utf8String))
       .take(1)
       .map { line =>
         Some(PersistentAccount(
@@ -125,9 +125,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
           currency = line.substring(0, 3),
           format = line.substring(4, line.size - 2),
           lastSynchronizedSnapshot = 0,
-          lastSynchronizedEvent = 0,
-          lastModTime = 0L,
-          isPristine = false
+          lastSynchronizedEvent = 0
         ))
       }
       .runWith(Sink.reduce[Option[PersistentAccount]]((_, last) => last))
@@ -141,33 +139,23 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
     }
 
     FileIO.fromPath(file)
-      .via(Framing.delimiter(ByteString("\n"), 256, true).map(_.utf8String))
-      .via {
-        Flow[String]
-          .statefulMapConcat { () =>
-            var skip: Boolean = true
-            line: String => {
-              if (skip) {
-                skip = false
-                Nil
-              } else {
-                val parts = line.split(' ')
-                PersistentTransfer(
-                  tenant = tenant,
-                  transaction = transaction,
-                  transfer = parts(0),
-                  creditTenant = parts(1),
-                  creditAccount = parts(2),
-                  debitTenant = parts(3),
-                  debitAccount = parts(4),
-                  amount = BigDecimal.exact(parts(6)),
-                  currency = parts(7),
-                  valueDate = ZonedDateTime.parse(parts(5)),
-                  isPristine = false
-                ) :: Nil
-              }
-            }
-        }
+      .via(Framing.delimiter(ByteString(System.lineSeparator()), 256, true).map(_.utf8String))
+      .drop(1)
+      .map { line =>
+        val parts = line.split(' ')
+        PersistentTransfer(
+          tenant = tenant,
+          transaction = transaction,
+          transfer = parts(0),
+          creditTenant = parts(1),
+          creditAccount = parts(2),
+          debitTenant = parts(3),
+          debitAccount = parts(4),
+          amount = BigDecimal.exact(parts(6)),
+          currency = parts(7),
+          valueDate = ZonedDateTime.parse(parts(5)),
+          isPristine = false
+        )
       }
       .runWith(Sink.asPublisher(fanout = false))
   }
