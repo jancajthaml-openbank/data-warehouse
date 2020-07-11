@@ -2,7 +2,7 @@ package com.openbank.dwh.persistence
 
 import com.typesafe.config.Config
 import akka.Done
-import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.scalalogging.StrictLogging
 import akka.stream.Materializer
 import scala.concurrent.{ExecutionContext, Future}
 import com.openbank.dwh.model._
@@ -19,16 +19,18 @@ import akka.stream.scaladsl._
 object SecondaryPersistence {
 
   def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): SecondaryPersistence =
-    new SecondaryPersistence(Postgres.forConfig(config))(ec, mat)
+    new SecondaryPersistence(Postgres.forConfig(config, "data-exploration.postgresql"))(ec, mat)
+
 
 }
 
 
 // FIXME split into interface and impl for better testing
-class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends Persistence with LazyLogging {
+class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends StrictLogging {
+
+  import persistence.profile.api._
 
   def updateTenant(item: PersistentTenant): Future[Done] = {
-    import persistence.profile.api._
 
     val query = sqlu"""
       INSERT INTO
@@ -40,7 +42,8 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ;
     """
 
-    database
+    persistence
+      .database
       .run(query)
       .map(_ => Done)
       .recoverWith {
@@ -51,7 +54,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   }
 
   def updateAccount(item: PersistentAccount): Future[Done] = {
-    import persistence.profile.api._
 
     val query = sqlu"""
       INSERT INTO
@@ -69,7 +71,8 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ;
     """
 
-    database
+    persistence
+      .database
       .run(query)
       .map(_ => Done)
       .recoverWith {
@@ -80,7 +83,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   }
 
   def updateTransfer(item: PersistentTransfer): Future[Done] = {
-    import persistence.profile.api._
 
     val query = sqlu"""
       INSERT INTO
@@ -92,7 +94,8 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ;
     """
 
-    database
+    persistence
+      .database
       .run(query)
       .map(_ => Done)
       .recoverWith {
@@ -103,7 +106,6 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
   }
 
   def getTransfer(tenant: String, transaction: String, transfer: String): Future[Option[PersistentTransfer]] = {
-    import persistence.profile.api._
 
     val query = sql"""
       SELECT
@@ -126,60 +128,20 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ;
     """.as[PersistentTransfer]
 
-    database.run(
-      query
-        .withStatementParameters(
-          rsType = ResultSetType.ForwardOnly,
-          rsConcurrency = ResultSetConcurrency.ReadOnly,
-          fetchSize = 1
-        )
-    )
-    .map(_.headOption)
+    persistence
+      .database
+      .run(
+        query
+          .withStatementParameters(
+            rsType = ResultSetType.ForwardOnly,
+            rsConcurrency = ResultSetConcurrency.ReadOnly,
+            fetchSize = 1
+          )
+      )
+      .map(_.headOption)
   }
-
-  def getTransfers(tenant: String): DatabasePublisher[PersistentTransfer] = {
-    import persistence.profile.api._
-
-    val query = sql"""
-      SELECT
-        tenant,
-        transaction,
-        transfer,
-        credit_tenant,
-        credit_name,
-        debit_name,
-        debit_tenant,
-        amount,
-        currency,
-        value_date
-      FROM
-        transfer
-      WHERE
-        tenant = ${tenant}
-      ORDER BY
-        tenant ASC,
-        transaction ASC,
-        transfer ASC
-      ;
-    """.as[PersistentTransfer]
-
-    database.stream(
-      query
-        .withStatementParameters(
-          rsType = ResultSetType.ForwardOnly,
-          rsConcurrency = ResultSetConcurrency.ReadOnly,
-          fetchSize = 100
-        )
-        .transactionally
-    )
-  }
-
-  // FIXME should not be here
-  def getTransfersAsFuture(tenant: String): Future[Seq[PersistentTransfer]] =
-    Source.fromPublisher(getTransfers(tenant)).runWith(Sink.seq)
 
   def getAccount(tenant: String, name: String): Future[Option[PersistentAccount]] = {
-    import persistence.profile.api._
 
     val query = sql"""
       SELECT
@@ -197,19 +159,20 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ;
     """.as[PersistentAccount]
 
-    database.run(
-      query
-        .withStatementParameters(
-          rsType = ResultSetType.ForwardOnly,
-          rsConcurrency = ResultSetConcurrency.ReadOnly,
-          fetchSize = 1
-        )
-    )
-    .map(_.headOption)
+    persistence
+      .database
+      .run(
+        query
+          .withStatementParameters(
+            rsType = ResultSetType.ForwardOnly,
+            rsConcurrency = ResultSetConcurrency.ReadOnly,
+            fetchSize = 1
+          )
+      )
+      .map(_.headOption)
   }
 
   def getAccounts(tenant: String): DatabasePublisher[PersistentAccount] = {
-    import persistence.profile.api._
 
     val query = sql"""
       SELECT
@@ -228,23 +191,20 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ;
     """.as[PersistentAccount]
 
-    database.stream(
-      query
-        .withStatementParameters(
-          rsType = ResultSetType.ForwardOnly,
-          rsConcurrency = ResultSetConcurrency.ReadOnly,
-          fetchSize = 100
-        )
-        .transactionally
-    )
+    persistence
+      .database
+      .stream(
+        query
+          .withStatementParameters(
+            rsType = ResultSetType.ForwardOnly,
+            rsConcurrency = ResultSetConcurrency.ReadOnly,
+            fetchSize = 100
+          )
+          .transactionally
+      )
   }
 
-  // FIXME should not be here
-  def getAccountsAsFuture(tenant: String): Future[Seq[PersistentAccount]] =
-    Source.fromPublisher(getAccounts(tenant)).runWith(Sink.seq)
-
   def getTenant(name: String): Future[Option[PersistentTenant]] = {
-    import persistence.profile.api._
 
     val query = sql"""
       SELECT
@@ -256,19 +216,20 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ;
     """.as[PersistentTenant]
 
-    database.run(
-      query
-        .withStatementParameters(
-          rsType = ResultSetType.ForwardOnly,
-          rsConcurrency = ResultSetConcurrency.ReadOnly,
-          fetchSize = 1
-        )
-    )
-    .map(_.headOption)
+    persistence
+      .database
+      .run(
+        query
+          .withStatementParameters(
+            rsType = ResultSetType.ForwardOnly,
+            rsConcurrency = ResultSetConcurrency.ReadOnly,
+            fetchSize = 1
+          )
+      )
+      .map(_.headOption)
   }
 
   def getTenants(): DatabasePublisher[PersistentTenant] = {
-    import persistence.profile.api._
 
     val query = sql"""
       SELECT
@@ -280,20 +241,18 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       ;
     """.as[PersistentTenant]
 
-    database.stream(
-      query
-        .withStatementParameters(
-          rsType = ResultSetType.ForwardOnly,
-          rsConcurrency = ResultSetConcurrency.ReadOnly,
-          fetchSize = 10
-        )
-        .transactionally
-    )
+    persistence
+      .database
+      .stream(
+        query
+          .withStatementParameters(
+            rsType = ResultSetType.ForwardOnly,
+            rsConcurrency = ResultSetConcurrency.ReadOnly,
+            fetchSize = 10
+          )
+          .transactionally
+      )
   }
-
-  // FIXME should not be here
-  def getTenantsAsFuture(): Future[Seq[PersistentTenant]] =
-    Source.fromPublisher(getTenants()).runWith(Sink.seq)
 
   private implicit def asAccount: GetResult[PersistentAccount] = GetResult(r =>
     PersistentAccount(
@@ -327,11 +286,5 @@ class SecondaryPersistence(persistence: Persistence)(implicit ec: ExecutionConte
       name = r.nextString()
     )
   )
-
-  override val database: Database = persistence.database
-
-  override val profile: JdbcProfile = persistence.profile
-
-  override def close(): Unit = persistence.close()
 
 }

@@ -13,6 +13,8 @@ trait AkkaModule {
   implicit lazy val scheduler: Scheduler = system.scheduler
   implicit lazy val defaultExecutionContext: ExecutionContext = system.dispatcher
 
-  lazy val primaryExplorationExecutionContext: ExecutionContext = system.dispatchers.lookup("dispatchers.primary-exploration")
+  lazy val dataExplorationExecutionContext: ExecutionContext = system.dispatchers.lookup("data-exploration.dispatcher")
+
+  lazy val graphQLExecutionContext: ExecutionContext = system.dispatchers.lookup("graphql.dispatcher")
 }
 

@@ -7,12 +7,13 @@ trait ServiceModule {
   self: AkkaModule with PersistenceModule =>
 
   lazy val healthCheckService: HealthCheckService =
-    new HealthCheckService(secondaryStorage)(defaultExecutionContext)
+    new HealthCheckService(graphStorage)(defaultExecutionContext)
 
   lazy val primaryDataExplorationService: PrimaryDataExplorationService =
-    new PrimaryDataExplorationService(primaryStorage, secondaryStorage)(primaryExplorationExecutionContext, materializer)
+    new PrimaryDataExplorationService(primaryStorage, secondaryStorage)(dataExplorationExecutionContext, materializer)
 
   lazy val graphQLService: GraphQLService =
-    new GraphQLService(graphStorage)(defaultExecutionContext)
+    new GraphQLService(graphStorage)(graphQLExecutionContext)
+
 }
 

@@ -5,13 +5,13 @@ import akka.Done
 import akka.actor.CoordinatedShutdown
 import akka.actor.CoordinatedShutdown.Reason
 import ch.qos.logback.classic.LoggerContext
-import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
 import scala.concurrent.Future
 
 
 trait ModulesLifecycle extends Lifecycle {
-  self: AkkaModule with LazyLogging =>
+  self: AkkaModule with StrictLogging =>
 
   abstract override def setup(): Future[Done] = {
     super.setup().flatMap { _ =>

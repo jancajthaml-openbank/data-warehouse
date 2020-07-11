@@ -18,6 +18,7 @@ libraryDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "org.slf4j" % "jcl-over-slf4j" % "1.7.25",
   "org.postgresql" %  "postgresql" % "9.4.1212",
+  "com.github.tminglei" %% "slick-pg" % "0.19.0",
   "com.typesafe.slick" %% "slick" % "3.3.1",
   "com.typesafe.slick" %% "slick-hikaricp" % "3.2.0",
   "org.sangria-graphql" %% "sangria" % "2.0.0",

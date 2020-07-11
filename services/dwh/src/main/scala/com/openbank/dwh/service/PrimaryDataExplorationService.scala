@@ -3,7 +3,7 @@ package com.openbank.dwh.service
 import java.nio.file.{Paths, Files, Path}
 import akka.Done
 import akka.NotUsed
-import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.mutable.Builder
 import scala.collection.generic.CanBuildFrom
@@ -16,7 +16,7 @@ import collection.immutable.Seq
 import java.util.concurrent.atomic.AtomicLong
 
 
-class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
+class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends StrictLogging {
 
   @volatile private var killSwitch: Option[UniqueKillSwitch] = None
 
@@ -110,7 +110,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .recover { case e: Exception => None }
       .collect { case Some(tenant) => tenant }
       .buffer(8, OverflowStrategy.backpressure)
-      .log("tenant")
   }
 
   def getAccountsFlow: Graph[FlowShape[PersistentTenant, PersistentAccount], NotUsed] = {
@@ -152,7 +151,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .recover { case e: Exception => None }
       .collect { case Some(data) => data }
       .buffer(8, OverflowStrategy.backpressure)
-      .log("account")
   }
 
   def getAccountSnapshotsFlow: Graph[FlowShape[PersistentAccount, Tuple2[PersistentAccount, PersistentAccountSnapshot]], NotUsed] = {
@@ -180,7 +178,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .collect { case Some(data) => data }
       .buffer(1, OverflowStrategy.backpressure)
-      .log("account-snapshot")
   }
 
   def getAccountEventsFlow: Graph[FlowShape[Tuple2[PersistentAccount, PersistentAccountSnapshot], Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]], NotUsed] = {
@@ -214,7 +211,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .buffer(32, OverflowStrategy.backpressure)
       .mapConcat(_.to[Seq])
-      .log("account-event")
   }
 
   def getTransfersFlow: Graph[FlowShape[Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent], Tuple4[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent, Seq[PersistentTransfer]]], NotUsed] = {
@@ -227,7 +223,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
               (transfer.creditTenant == account.tenant && transfer.creditAccount == account.name) ||
               (transfer.debitTenant == account.tenant && transfer.debitAccount == account.name)
             }
-            .log("transfer")
             .fold(Seq.empty[PersistentTransfer])(_ :+ _)
             .map { transfers => (account, snapshot, event, transfers) }
 
@@ -259,7 +254,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       }
       .async
       .buffer(1, OverflowStrategy.backpressure)
-      .log("account-update")
       .mapAsync(1) {
         case (account, snapshot, event, transfers) => {
           markAsDirty()

@@ -1,20 +1,19 @@
 package com.openbank.dwh.service
 
-import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.util.control.NonFatal
-import com.openbank.dwh.persistence.SecondaryPersistence
+import com.openbank.dwh.persistence.GraphQLPersistence
 
 
-class HealthCheckService(secondaryPersistence: SecondaryPersistence)(implicit ec: ExecutionContext) extends LazyLogging {
-
-  // FIXME add isElasticHealthy
+class HealthCheckService(graphqlPersistence: GraphQLPersistence)(implicit ec: ExecutionContext) extends StrictLogging {
 
   def isSecondaryStorageHealthy: Future[Boolean] = {
-    import secondaryPersistence.profile.api._
+    import graphqlPersistence.persistence.profile.api._
 
-    Future.fromTry(Try(secondaryPersistence.database))
+    Future
+      .fromTry(Try(graphqlPersistence.persistence.database))
       .flatMap {
         _.run(sql"SELECT 1".as[Int]).map(_.contains(1))
       }

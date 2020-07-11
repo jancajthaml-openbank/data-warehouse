@@ -14,6 +14,10 @@
 
   <logger name="slick" level="WARN" />
 
+  <logger name="slick.compiler.QueryCompiler" level="${DWH_LOG_LEVEL:-INFO}" />
+  <logger name="slick.compiler.QueryCompilerBenchmark" level="${DWH_LOG_LEVEL:-INFO}" />
+  <logger name="slick.jdbc.JdbcBackend.benchmark" level="${DWH_LOG_LEVEL:-INFO}" />
+
   <root level="${DWH_LOG_LEVEL:-INFO}">
     <appender-ref ref="STDOUT_SYNC"/>
   </root>
