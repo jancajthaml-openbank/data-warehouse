@@ -2,13 +2,13 @@ package com.openbank.dwh.boot
 
 import akka.Done
 import akka.actor.typed.ActorSystem
-import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{Future, Promise}
 import com.openbank.dwh.actor
 
 
 trait TypedActorModule extends Lifecycle {
-  self: AkkaModule with ServiceModule with LazyLogging =>
+  self: AkkaModule with ServiceModule with StrictLogging =>
 
   private var typedSystem: ActorSystem[actor.GuardianActor.Command] = null
 

@@ -1,7 +1,7 @@
 package com.openbank.dwh.boot
 
 import akka.Done
-import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.Future
 import scala.util.Try
 import slick.jdbc.JdbcBackend.Database
@@ -10,28 +10,34 @@ import scala.util.control.NonFatal
 
 
 trait PersistenceModule extends Lifecycle {
-  self: AkkaModule with TypedActorModule with ConfigModule with LazyLogging =>
+  self: AkkaModule with TypedActorModule with ConfigModule with StrictLogging =>
 
   abstract override def stop(): Future[Done] = {
     super.stop().flatMap { _ =>
-      Future
-        .fromTry(Try(secondaryStorage.close()))
-        .map(_ => Done)
+      Future.successful(Done)
+        .flatMap(_ => Future.fromTry(Try(graphStorage.persistence.close())))
+        .recover {
+          case NonFatal(e) =>
+            logger.error("Error closing graphql storage", e)
+            Done
+        }
+        .flatMap(_ => Future.fromTry(Try(secondaryStorage.persistence.close())))
         .recover {
           case NonFatal(e) =>
             logger.error("Error closing secondary storage", e)
             Done
         }
+        .map(_ => Done)
     }
   }
 
-  lazy val secondaryStorage: SecondaryPersistence =
-    SecondaryPersistence.forConfig(config, defaultExecutionContext, materializer)
-
-  lazy val graphStorage: SecondaryPersistence =
-    SecondaryPersistence.forConfig(config, defaultExecutionContext, materializer)
+  lazy val graphStorage: GraphQLPersistence =
+    GraphQLPersistence.forConfig(config, graphQLExecutionContext, materializer)
 
   lazy val primaryStorage: PrimaryPersistence =
-    PrimaryPersistence.forConfig(config, primaryExplorationExecutionContext, materializer)
+    PrimaryPersistence.forConfig(config, dataExplorationExecutionContext, materializer)
+
+  lazy val secondaryStorage: SecondaryPersistence =
+    SecondaryPersistence.forConfig(config, dataExplorationExecutionContext, materializer)
 
 }

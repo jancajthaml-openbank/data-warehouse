@@ -2,7 +2,7 @@ package com.openbank.dwh.boot
 
 import akka.Done
 import scala.concurrent.Future
-import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.scalalogging.StrictLogging
 
 
 trait Lifecycle {
@@ -17,7 +17,7 @@ trait Lifecycle {
 
 
 class ProgramLifecycle extends Lifecycle {
-  self: LazyLogging =>
+  self: StrictLogging =>
 
   override def setup(): Future[Done] = {
     logger.info("Program Starting")

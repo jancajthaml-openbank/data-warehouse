@@ -10,21 +10,21 @@ import akka.stream.scaladsl._
 import collection.immutable.Seq
 import scala.math.BigDecimal
 import java.time.ZonedDateTime
-import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.scalalogging.StrictLogging
 import org.reactivestreams.Publisher
 
 
 object PrimaryPersistence {
 
   def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): PrimaryPersistence = {
-    new PrimaryPersistence(config.getString("persistence-primary.directory"))(ec, mat)
+    new PrimaryPersistence(config.getString("data-exploration.primary.directory"))(ec, mat)
   }
 
 }
 
 
 // FIXME split into interface and impl for better testing
-class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends LazyLogging {
+class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends StrictLogging {
 
   def getLastModificationTime(): Long =
     Paths.get(rootStorage).toFile.lastModified()
