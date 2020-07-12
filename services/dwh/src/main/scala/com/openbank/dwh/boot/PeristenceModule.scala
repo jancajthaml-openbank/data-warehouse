@@ -32,7 +32,7 @@ trait PersistenceModule extends Lifecycle {
   }
 
   lazy val graphStorage: GraphQLPersistence =
-    GraphQLPersistence.forConfig(config, graphQLExecutionContext, materializer)
+    GraphQLPersistence.forConfig(config, graphQLExecutionContext)
 
   lazy val primaryStorage: PrimaryPersistence =
     PrimaryPersistence.forConfig(config, dataExplorationExecutionContext, materializer)

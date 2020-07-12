@@ -27,7 +27,7 @@ object Main extends App with StrictLogging {
   } catch {
     case e: Exception =>
       implicit val ec = ExecutionContext.global
-      logger.error("Program crashed", e)
+      e.printStackTrace()
       Program
         .stop()
         .onComplete { _ => System.exit(1) }

@@ -3,7 +3,6 @@ package com.openbank.dwh.persistence
 import com.typesafe.config.Config
 import akka.Done
 import com.typesafe.scalalogging.StrictLogging
-import akka.stream.Materializer
 import scala.concurrent.{ExecutionContext, Future}
 import com.openbank.dwh.model._
 import scala.math.BigDecimal
@@ -19,14 +18,15 @@ import akka.http.scaladsl.model.DateTime
 
 object GraphQLPersistence {
 
-  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): GraphQLPersistence =
-    new GraphQLPersistence(Postgres.forConfig(config, "graphql.postgresql"))(ec, mat)
+  def forConfig(config: Config, ec: ExecutionContext): GraphQLPersistence = {
+    new GraphQLPersistence(Postgres.forConfig(config, "graphql.postgresql"))(ec)
+  }
 
 }
 
 
 // FIXME split into interface and impl for better testing
-class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends StrictLogging {
+class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContext) extends StrictLogging {
 
   import persistence.profile.api._
 
@@ -75,7 +75,7 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
 
   val Transfers = TableQuery[TransferTable]
 
-  lazy val allTenants = {
+  val allTenants = {
     val query = Compiled {
       (limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
         Tenants
@@ -89,30 +89,20 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
     }
   }
 
-  lazy val tenants = {
+  val tenants = {
     val query = Compiled {
       (names: Rep[List[String]]) =>
         Tenants
           .filter { row => row.name === names.any }
+          .sortBy(_.name)
     }
 
-    (names: List[String]) => persistence.database.run {
-      query(names).result
-    }
-  }
-
-  lazy val tenant = {
-    val query = Compiled {
-      (name: Rep[String]) => Tenants
-        .filter { row => row.name === name }
-    }
-
-    (name: String) => persistence.database.run {
-      query(name).result.headOption
+    (names: Iterable[String]) => persistence.database.run {
+      query(names.toList).result
     }
   }
 
-  lazy val allAccounts = {
+  val allAccounts = {
     val query = Compiled {
       (tenant: Rep[String], limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
         Accounts
@@ -127,33 +117,21 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
     }
   }
 
-  lazy val accounts = {
+  val accounts = {
     val query = Compiled {
       (tenant: Rep[String], names: Rep[List[String]]) =>
         Accounts
           .filter { row => row.tenant === tenant }
           .filter { row => row.name === names.any }
+          .sortBy(_.name)
     }
 
-    (tenant: String, names: List[String]) => persistence.database.run {
-      query(tenant, names).result
-    }
-  }
-
-  lazy val account = {
-    val query = Compiled {
-      (tenant: Rep[String], name: Rep[String]) =>
-        Accounts
-          .filter { row => row.tenant === tenant }
-          .filter { row => row.name === name }
-    }
-
-    (tenant: String, name: String) => persistence.database.run {
-      query(tenant, name).result.headOption
+    (tenant: String, names: Iterable[String]) => persistence.database.run {
+      query(tenant, names.toList).result
     }
   }
 
-  lazy val allTransfers = {
+  val allTransfers = {
     val query = Compiled {
       (tenant: Rep[String], limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
         Transfers
@@ -165,13 +143,10 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
 
     (tenant: String, limit: Long, offset: Long) => persistence.database.run {
       query(tenant, limit, offset).result
-    }.map { result =>
-      logger.info("allTransfers", result)
-      result
     }
   }
 
-  lazy val transfers = {
+  val transfers = {
     val query = Compiled {
       (tenant: Rep[String], transfers: Rep[List[String]]) =>
         Transfers
@@ -179,12 +154,12 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
           .filter { row => row.transfer === transfers.any }
     }
 
-    (tenant: String, transfers: List[String]) => persistence.database.run {
-      query(tenant, transfers).result
+    (tenant: String, transfers: Iterable[String]) => persistence.database.run {
+      query(tenant, transfers.toList).result
     }
   }
 
-  lazy val transfer = {
+  val transfer = {
     val query = Compiled {
       (tenant: Rep[String], transaction: Rep[String], transfer: Rep[String]) =>
         Transfers

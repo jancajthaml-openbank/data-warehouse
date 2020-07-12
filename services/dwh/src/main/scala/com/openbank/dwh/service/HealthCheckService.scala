@@ -19,7 +19,7 @@ class HealthCheckService(graphqlPersistence: GraphQLPersistence)(implicit ec: Ex
       }
       .recover {
         case NonFatal(err) =>
-          logger.error("Failed secondary storage health check", err)
+          logger.error("Failed health check", err)
           false
       }
   }
