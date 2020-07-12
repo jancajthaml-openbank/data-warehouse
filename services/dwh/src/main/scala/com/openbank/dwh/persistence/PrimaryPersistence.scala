@@ -83,7 +83,6 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
   }
 
   def getAccountEvent(tenant: String, account: String, version: Int, event: String): Future[Option[PersistentAccountEvent]] = {
-    // FIXME instead of future combine sources (first nil then something) and take last
     val file = getAccountEventPath(tenant, account, version, event)
     if (!Files.exists(file)) {
       logger.warn(s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage")
@@ -108,7 +107,6 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
   }
 
   def getAccount(tenant: String, account: String): Future[Option[PersistentAccount]] = {
-    // FIXME instead of future combine sources (first nil then something) and take last
     val file = getAccountSnapshotPath(tenant, account, 0)
     if (!Files.exists(file)) {
       logger.warn(s"account ${tenant}/${account} does not exists in primary storage")

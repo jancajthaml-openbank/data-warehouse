@@ -18,9 +18,9 @@ import akka.stream.scaladsl._
 
 object SecondaryPersistence {
 
-  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): SecondaryPersistence =
+  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): SecondaryPersistence = {
     new SecondaryPersistence(Postgres.forConfig(config, "data-exploration.postgresql"))(ec, mat)
-
+  }
 
 }
 
