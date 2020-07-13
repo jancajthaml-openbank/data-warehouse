@@ -1,5 +1,5 @@
 Package: dwh
-Version: 0.0.0+better-graphql-filters
+Version: 0.0.0+account-balance
 Section: misc
 Priority: extra
 Architecture: amd64

@@ -4,14 +4,13 @@ import scala.concurrent.{ExecutionContext, Future}
 import sangria.execution.{ExceptionHandler, Executor, HandledException}
 import sangria.parser.QueryParser
 import com.typesafe.scalalogging.StrictLogging
-//import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.DateTime
 import sangria.schema._
 import sangria.macros.derive._
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import sangria.execution.deferred._
-import sangria.ast.StringValue //{StringValue, LongValue}
+import sangria.ast.StringValue
 
 
 class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionContext) extends /*SprayJsonSupport with*/ StrictLogging {
@@ -46,22 +45,6 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
       case _ => Left(DateTimeCoerceViolation)
     }
   )
-
-  /*
-  implicit val NaturalLongType = ScalarType[Long](
-    "NaturalLong",
-    coerceOutput = (number, _) => number,
-    coerceInput = {
-      case LongValue(number, _, _, _, _) =>
-        number
-        //DateTime.fromIsoDateTimeString(dt).toRight(DateTimeCoerceViolation)
-      case _ => Left(DateTimeCoerceViolation)
-    },
-    coerceUserInput = {
-      case s: String => DateTime.fromIsoDateTimeString(s).toRight(DateTimeCoerceViolation)
-      case _ => Left(DateTimeCoerceViolation)
-    }
-  )*/
 
   implicit val tenantHash = HasId[Tenant, String] { tenant => tenant.name }
   implicit val accountHash = HasId[Account, Tuple2[String, String]] { account => (account.tenant, account.name) }
@@ -99,7 +82,7 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
   lazy val AccountType = ObjectType(
     "account",
     "Virtual Account",
-    fields[Unit, Account](
+    fields[GraphQLPersistence, Account](
       Field("tenant", OptionType(TenantType),
         resolve = (ctx) => tenants.deferOpt(ctx.value.tenant)
       ),
@@ -111,6 +94,12 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
       ),
       Field("currency", StringType,
         resolve = (ctx) => ctx.value.currency
+      ),
+      Field("balance", BigDecimalType,
+        resolve = (ctx) =>
+          ctx.ctx
+            .accountBalance(ctx.value.tenant, ctx.value.name)
+            .map(_.getOrElse(0: BigDecimal))
       )
     )
   )
@@ -165,8 +154,6 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
   val FilterAmountFrom = Argument("amountLte", OptionInputType(BigDecimalType))
 
   val FilterAmountTo = Argument("amountGte", OptionInputType(BigDecimalType))
-
-  // FIXME add amount filter
 
   // FIXME should be positive number -> NaturalLongType scalar
   val Limit = Argument("limit", LongType)

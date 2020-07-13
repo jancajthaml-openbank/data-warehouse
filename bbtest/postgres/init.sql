@@ -49,3 +49,20 @@ CREATE TABLE transfer
 );
 
 GRANT ALL PRIVILEGES ON TABLE transfer TO postgres;
+
+CREATE VIEW account_balance_change AS (
+  SELECT
+    account.tenant,
+    account.name,
+    date_trunc('day', transfer.value_date) as value_date,
+    SUM(transfer.amount) as amount
+  FROM account
+  INNER JOIN transfer
+  ON
+  (
+    (account.tenant = transfer.credit_tenant AND account.name = transfer.credit_name) OR
+    (account.tenant = transfer.debit_tenant AND account.name = transfer.debit_name)
+  )
+  GROUP BY
+    (account.tenant, account.name, transfer.value_date)
+);
