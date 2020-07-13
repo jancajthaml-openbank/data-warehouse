@@ -56,6 +56,17 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
 
   val Accounts = TableQuery[AccountTable]
 
+  class AccountBalanceChangeTable(tag: Tag) extends Table[AccountBalance](tag, "account_balance_change") {
+    def tenant = column[String]("tenant")
+    def name = column[String]("name")
+    def valueDate = column[DateTime]("value_date")
+    def amount = column[BigDecimal]("amount")
+
+    def * = (tenant, name, valueDate, amount) <> ((AccountBalance.apply _).tupled, AccountBalance.unapply)
+  }
+
+  val AccountsBalanceChange = TableQuery[AccountBalanceChangeTable]
+
   class TransferTable(tag: Tag) extends Table[Transfer](tag, "transfer") {
     def tenant = column[String]("tenant")
     def transaction = column[String]("transaction")
