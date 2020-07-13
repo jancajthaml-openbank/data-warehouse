@@ -8,6 +8,7 @@ import com.openbank.dwh.model._
 import scala.math.BigDecimal
 import java.time.{ZonedDateTime, ZoneOffset}
 import slick.jdbc._
+import slick.lifted._
 import slick.jdbc.JdbcBackend.Database
 import slick.basic.DatabasePublisher
 import akka.stream._
@@ -75,7 +76,7 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
 
   val Transfers = TableQuery[TransferTable]
 
-  val allTenants = {
+  lazy val allTenants = {
     val query = Compiled {
       (limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
         Tenants
@@ -89,7 +90,7 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
     }
   }
 
-  val tenants = {
+  lazy val tenantsByNames = {
     val query = Compiled {
       (names: Rep[List[String]]) =>
         Tenants
@@ -102,22 +103,24 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
     }
   }
 
-  val allAccounts = {
+  lazy val allAccounts = {
     val query = Compiled {
-      (tenant: Rep[String], limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
+      (tenant: Rep[String], currency: Rep[Option[String]], format: Rep[Option[String]], limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
         Accounts
           .filter { row => row.tenant === tenant }
+          .filter { row => (format.asColumnOf[Option[String]]).isEmpty || row.format === format }
+          .filter { row => (currency.asColumnOf[Option[String]]).isEmpty || row.currency >= currency }
           .sortBy(_.name)
           .drop(offset)
           .take(limit)
     }
 
-    (tenant: String, limit: Long, offset: Long) => persistence.database.run {
-      query(tenant, limit, offset).result
+    (tenant: String, currency: Option[String], format: Option[String], limit: Long, offset: Long) => persistence.database.run {
+      query(tenant, currency, format, limit, offset).result
     }
   }
 
-  val accounts = {
+  lazy val accountsByNames = {
     val query = Compiled {
       (tenant: Rep[String], names: Rep[List[String]]) =>
         Accounts
@@ -131,45 +134,23 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
     }
   }
 
-  val allTransfers = {
+  lazy val allTransfers = {
     val query = Compiled {
-      (tenant: Rep[String], limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
+      (tenant: Rep[String], currency: Rep[Option[String]], amountGte: Rep[Option[BigDecimal]], amountLte: Rep[Option[BigDecimal]], valueDateGte: Rep[Option[DateTime]], valueDateLte: Rep[Option[DateTime]], limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
         Transfers
           .filter { row => row.tenant === tenant }
+          .filter { row => (amountGte.asColumnOf[Option[BigDecimal]]).isEmpty || row.amount <= amountGte }
+          .filter { row => (amountLte.asColumnOf[Option[BigDecimal]]).isEmpty || row.amount >= amountLte }
+          .filter { row => (valueDateGte.asColumnOf[Option[DateTime]]).isEmpty || row.valueDate <= valueDateGte }
+          .filter { row => (valueDateLte.asColumnOf[Option[DateTime]]).isEmpty || row.valueDate >= valueDateLte }
+          .filter { row => (currency.asColumnOf[Option[String]]).isEmpty || row.currency >= currency }
           .sortBy { row => (row.transaction, row.transfer) }
           .drop(offset)
           .take(limit)
     }
 
-    (tenant: String, limit: Long, offset: Long) => persistence.database.run {
-      query(tenant, limit, offset).result
-    }
-  }
-
-  val transfers = {
-    val query = Compiled {
-      (tenant: Rep[String], transfers: Rep[List[String]]) =>
-        Transfers
-          .filter { row => row.tenant === tenant }
-          .filter { row => row.transfer === transfers.any }
-    }
-
-    (tenant: String, transfers: Iterable[String]) => persistence.database.run {
-      query(tenant, transfers.toList).result
-    }
-  }
-
-  val transfer = {
-    val query = Compiled {
-      (tenant: Rep[String], transaction: Rep[String], transfer: Rep[String]) =>
-        Transfers
-          .filter { row => row.tenant === tenant }
-          .filter { row => row.transaction === transaction }
-          .filter { row => row.transfer === transfer }
-    }
-
-    (tenant: String, transaction: String, transfer: String) => persistence.database.run {
-      query(tenant, transaction, transfer).result.headOption
+    (tenant: String, currency: Option[String], amountGte: Option[BigDecimal], amountLte: Option[BigDecimal], valueDateGte: Option[DateTime], valueDateLte: Option[DateTime], limit: Long, offset: Long) => persistence.database.run {
+      query(tenant, currency, amountGte, amountLte, valueDateGte, valueDateLte, limit, offset).result
     }
   }
 

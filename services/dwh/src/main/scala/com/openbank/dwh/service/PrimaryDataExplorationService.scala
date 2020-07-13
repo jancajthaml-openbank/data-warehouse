@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicLong
 
 class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondaryStorage: SecondaryPersistence)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends StrictLogging {
 
+  private lazy val parallelism = 2
+
   @volatile private var killSwitch: Option[UniqueKillSwitch] = None
 
   def killRunningWorkflow(): Future[Done] = {
@@ -84,8 +86,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
             .toIndexedSeq
         }
       }
-      .buffer(8, OverflowStrategy.backpressure)
-      .mapAsync(4) { name =>
+      .buffer(parallelism * 2, OverflowStrategy.backpressure)
+      .mapAsync(parallelism) { name =>
         (
           primaryStorage.getTenant(name)
           zip
@@ -109,7 +111,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception => None }
       .collect { case Some(tenant) => tenant }
-      .buffer(8, OverflowStrategy.backpressure)
+      .buffer(parallelism * 2, OverflowStrategy.backpressure)
   }
 
   def getAccountsFlow: Graph[FlowShape[PersistentTenant, PersistentAccount], NotUsed] = {
@@ -124,8 +126,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
             .toIndexedSeq
         }
       }
-      .buffer(8, OverflowStrategy.backpressure)
-      .mapAsync(4) { case (tenant, name) => {
+      .buffer(parallelism * 2, OverflowStrategy.backpressure)
+      .mapAsync(parallelism) { case (tenant, name) => {
         (
           primaryStorage.getAccount(tenant.name, name)
           zip
@@ -150,7 +152,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception => None }
       .collect { case Some(data) => data }
-      .buffer(8, OverflowStrategy.backpressure)
+      .buffer(parallelism * 2, OverflowStrategy.backpressure)
   }
 
   def getAccountSnapshotsFlow: Graph[FlowShape[PersistentAccount, Tuple2[PersistentAccount, PersistentAccountSnapshot]], NotUsed] = {
@@ -170,7 +172,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         .map { version => (account, version) }
       }
       .buffer(1, OverflowStrategy.backpressure)
-      .mapAsync(16) { case (account, version) => {
+      .mapAsync(parallelism * 2) { case (account, version) => {
         primaryStorage
           .getAccountSnapshot(account.tenant, account.name, version)
           .map(_.map { snapshot => (account, snapshot) })
@@ -189,7 +191,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           .listFiles()
           .map { file => (account, snapshot, file.getName) }
       }
-      .buffer(32, OverflowStrategy.backpressure)
+      .buffer(parallelism * 4, OverflowStrategy.backpressure)
       .filterNot { events =>
         events.isEmpty ||
         (
@@ -197,8 +199,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           events.last._1.lastSynchronizedEvent >= events.size
         )
       }
-      .buffer(32, OverflowStrategy.backpressure)
-      .mapAsync(32) { events =>
+      .buffer(parallelism * 4, OverflowStrategy.backpressure)
+      .mapAsync(parallelism * 4) { events =>
         Source(events.toIndexedSeq)
           .mapAsync(1000) { case (account, snapshot, event) =>
             primaryStorage
@@ -209,7 +211,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           .map(_.flatten.sortWith(_._3.version < _._3.version))
       }
       .async
-      .buffer(32, OverflowStrategy.backpressure)
+      .buffer(parallelism * 4, OverflowStrategy.backpressure)
       .mapConcat(_.to[Seq])
   }
 
@@ -230,8 +232,8 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           Source
             .single((account, snapshot, event, Seq.empty[PersistentTransfer]))
       }
-      .buffer(4, OverflowStrategy.backpressure)
-      .mapAsync(4) {
+      .buffer(parallelism, OverflowStrategy.backpressure)
+      .mapAsync(parallelism) {
 
         case (account, snapshot, event, transfers) if transfers.isEmpty =>
           Future
