@@ -21,13 +21,6 @@ case class Account(
   balance: Option[BigDecimal]
 )
 
-case class AccountBalance(
-  tenant: String,
-  name: String,
-  valueDate: DateTime,
-  amount: BigDecimal
-)
-
 case class Transfer(
   tenant: String,
   transaction: String,
