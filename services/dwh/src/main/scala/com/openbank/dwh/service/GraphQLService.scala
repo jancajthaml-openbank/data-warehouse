@@ -66,6 +66,13 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
   implicit val tenantHash = HasId[Tenant, String] { tenant => tenant.name }
   implicit val accountHash = HasId[Account, Tuple2[String, String]] { account => (account.tenant, account.name) }
 
+  /*
+  val balances = Fetcher(
+    (ctx: GraphQLPersistence, names: Seq[Tuple2[String, String]]) => {
+      ctx.tenantsByNames(names)
+    }
+  )*/
+
   val tenants = Fetcher(
     (ctx: GraphQLPersistence, names: Seq[String]) => ctx.tenantsByNames(names)
   )
@@ -99,7 +106,7 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
   lazy val AccountType = ObjectType(
     "account",
     "Virtual Account",
-    fields[Unit, Account](
+    fields[GraphQLPersistence, Account](
       Field("tenant", OptionType(TenantType),
         resolve = (ctx) => tenants.deferOpt(ctx.value.tenant)
       ),
@@ -111,6 +118,12 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
       ),
       Field("currency", StringType,
         resolve = (ctx) => ctx.value.currency
+      ),
+      Field("balance", BigDecimalType,
+        resolve = (ctx) =>
+          ctx.ctx
+            .accountBalance(ctx.value.tenant, ctx.value.name)
+            .map(_.getOrElse(0: BigDecimal))
       )
     )
   )

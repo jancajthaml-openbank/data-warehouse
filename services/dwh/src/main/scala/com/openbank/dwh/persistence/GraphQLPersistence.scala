@@ -49,12 +49,23 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
     def name = column[String]("name")
     def currency = column[String]("currency")
     def format = column[String]("format")
-    def * = (tenant, name, currency, format) <> ((Account.apply _).tupled, Account.unapply)
+    def * = (tenant, name, currency, format, Rep.None[BigDecimal]) <> ((Account.apply _).tupled, Account.unapply)
     def pk = primaryKey("account_pkey", (tenant, name))
     def tenant_fk = foreignKey("account_tenant_fkey", tenant, Tenants)(_.name)
   }
 
   val Accounts = TableQuery[AccountTable]
+
+  class AccountBalanceChangeTable(tag: Tag) extends Table[AccountBalance](tag, "account_balance_change") {
+    def tenant = column[String]("tenant")
+    def name = column[String]("name")
+    def valueDate = column[DateTime]("value_date")
+    def amount = column[BigDecimal]("amount")
+
+    def * = (tenant, name, valueDate, amount) <> ((AccountBalance.apply _).tupled, AccountBalance.unapply)
+  }
+
+  val AccountsBalanceChange = TableQuery[AccountBalanceChangeTable]
 
   class TransferTable(tag: Tag) extends Table[Transfer](tag, "transfer") {
     def tenant = column[String]("tenant")
@@ -151,6 +162,21 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
 
     (tenant: String, currency: Option[String], amountGte: Option[BigDecimal], amountLte: Option[BigDecimal], valueDateGte: Option[DateTime], valueDateLte: Option[DateTime], limit: Long, offset: Long) => persistence.database.run {
       query(tenant, currency, amountGte, amountLte, valueDateGte, valueDateLte, limit, offset).result
+    }
+  }
+
+  lazy val accountBalance = {
+    val query = Compiled {
+      (tenant: Rep[String], name: Rep[String]) =>
+        AccountsBalanceChange
+          .filter { row => row.tenant === tenant }
+          .filter { row => row.name === name }
+          .map { row => row.amount }
+          .sum
+    }
+
+    (tenant: String, name: String) => persistence.database.run {
+      query(tenant, name).result
     }
   }
 

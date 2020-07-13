@@ -17,7 +17,15 @@ case class Account(
   tenant: String,
   name: String,
   currency: String,
-  format: String
+  format: String,
+  balance: Option[BigDecimal]
+)
+
+case class AccountBalance(
+  tenant: String,
+  name: String,
+  valueDate: DateTime,
+  amount: BigDecimal
 )
 
 case class Transfer(
