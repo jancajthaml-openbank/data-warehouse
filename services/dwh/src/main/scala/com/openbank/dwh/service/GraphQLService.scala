@@ -1,23 +1,20 @@
 package com.openbank.dwh.service
 
 import scala.concurrent.{ExecutionContext, Future}
-import com.openbank.dwh.persistence._
 import sangria.execution.{ExceptionHandler, Executor, HandledException}
 import sangria.parser.QueryParser
 import com.typesafe.scalalogging.StrictLogging
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import scala.math.BigDecimal
+//import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.DateTime
-import sangria.execution.deferred.{Fetcher, HasId}
 import sangria.schema._
 import sangria.macros.derive._
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import sangria.execution.deferred._
-import sangria.ast.StringValue
+import sangria.ast.StringValue //{StringValue, LongValue}
 
 
-class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionContext) extends SprayJsonSupport with StrictLogging {
+class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionContext) extends /*SprayJsonSupport with*/ StrictLogging {
 
   import sangria.marshalling.sprayJson._
   import spray.json._
@@ -50,12 +47,27 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
     }
   )
 
+  /*
+  implicit val NaturalLongType = ScalarType[Long](
+    "NaturalLong",
+    coerceOutput = (number, _) => number,
+    coerceInput = {
+      case LongValue(number, _, _, _, _) =>
+        number
+        //DateTime.fromIsoDateTimeString(dt).toRight(DateTimeCoerceViolation)
+      case _ => Left(DateTimeCoerceViolation)
+    },
+    coerceUserInput = {
+      case s: String => DateTime.fromIsoDateTimeString(s).toRight(DateTimeCoerceViolation)
+      case _ => Left(DateTimeCoerceViolation)
+    }
+  )*/
+
   implicit val tenantHash = HasId[Tenant, String] { tenant => tenant.name }
   implicit val accountHash = HasId[Account, Tuple2[String, String]] { account => (account.tenant, account.name) }
-  implicit val transferHash = HasId[Transfer, String] { transfer => s"${transfer.tenant}/${transfer.transaction}/${transfer.transfer}" }
 
   val tenants = Fetcher(
-    (ctx: GraphQLPersistence, ids: Seq[String]) => ctx.tenants(ids)
+    (ctx: GraphQLPersistence, names: Seq[String]) => ctx.tenantsByNames(names)
   )
 
   val accounts = Fetcher(
@@ -67,7 +79,7 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
             case (tenant, group) => (tenant, group.map(_._2))
           }
           .map {
-            case (tenant, names) => ctx.accounts(tenant, names)
+            case (tenant, names) => ctx.accountsByNames(tenant, names)
           }
       }(_ ++ _)
     }
@@ -75,11 +87,12 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
 
   lazy val GraphResolver = DeferredResolver.fetchers(accounts, tenants)
 
-  lazy val TenantType = ObjectType(
-    "tenant",
+  lazy val TenantType = ObjectType("tenant",
     "A Tenant",
     fields[Unit, Tenant](
-      Field("name", StringType, resolve = ctx => ctx.value.name)
+      Field("name", StringType,
+        resolve = (ctx) => ctx.value.name
+      )
     )
   )
 
@@ -87,25 +100,17 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
     "account",
     "Virtual Account",
     fields[Unit, Account](
-      Field(
-        "tenant",
-        OptionType(TenantType),
-        resolve = ctx => tenants.deferOpt(ctx.value.tenant)
+      Field("tenant", OptionType(TenantType),
+        resolve = (ctx) => tenants.deferOpt(ctx.value.tenant)
       ),
-      Field(
-        "name",
-        StringType,
-        resolve = ctx => ctx.value.name
+      Field("name", StringType,
+        resolve = (ctx) => ctx.value.name
       ),
-      Field(
-        "format",
-        StringType,
-        resolve = ctx => ctx.value.format
+      Field("format", StringType,
+        resolve = (ctx) => ctx.value.format
       ),
-      Field(
-        "currency",
-        StringType,
-        resolve = ctx => ctx.value.currency
+      Field("currency", StringType,
+        resolve = (ctx) => ctx.value.currency
       )
     )
   )
@@ -114,46 +119,29 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
     "transfer",
     "Single transfer from Virtual Account to Virtual Account",
     fields[Unit, Transfer](
-      Field("tenant",
-        OptionType(TenantType),
-        resolve = ctx => tenants.deferOpt(ctx.value.tenant)
+      Field("tenant", OptionType(TenantType),
+        resolve = (ctx) => tenants.deferOpt(ctx.value.tenant)
       ),
-      Field(
-        "transaction",
-        StringType,
-        resolve = ctx => ctx.value.transaction
+      Field("transaction", StringType,
+        resolve = (ctx) => ctx.value.transaction
       ),
-      Field(
-        "transfer",
-        StringType,
-        resolve = ctx => ctx.value.transfer
+      Field("transfer", StringType,
+        resolve = (ctx) => ctx.value.transfer
       ),
-      Field(
-        "credit",
-        OptionType(AccountType),
-        resolve = ctx =>
-          accounts.deferOpt((ctx.value.creditTenant, ctx.value.creditAccount))
+      Field("credit", OptionType(AccountType),
+        resolve = (ctx) => accounts.deferOpt((ctx.value.creditTenant, ctx.value.creditAccount))
       ),
-      Field(
-        "debit",
-        OptionType(AccountType),
-        resolve = ctx =>
-          accounts.deferOpt((ctx.value.debitTenant, ctx.value.debitAccount))
+      Field("debit", OptionType(AccountType),
+        resolve = (ctx) => accounts.deferOpt((ctx.value.debitTenant, ctx.value.debitAccount))
       ),
-      Field(
-        "currency",
-        StringType,
-        resolve = ctx => ctx.value.currency
+      Field("currency", StringType,
+        resolve = (ctx) => ctx.value.currency
       ),
-      Field(
-        "amount",
-        BigDecimalType,
-        resolve = ctx => ctx.value.amount
+      Field("amount", BigDecimalType,
+        resolve = (ctx) => ctx.value.amount
       ),
-      Field(
-        "valueDate",
-        DateTimeType,
-        resolve = ctx => ctx.value.valueDate
+      Field("valueDate", DateTimeType,
+        resolve = (ctx) => ctx.value.valueDate
       )
     )
   )
@@ -162,9 +150,23 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
 
   val FilterName = Argument("name", StringType)
 
+  val FilterCurrency = Argument("currency", OptionInputType(StringType))
+
+  val FilterFofmat = Argument("format", OptionInputType(StringType))
+
   val FilterTransaction = Argument("transaction", StringType)
 
   val FilterTransfer = Argument("transfer", StringType)
+
+  val FilterValueDateFrom = Argument("valueDateLte", OptionInputType(DateTimeType))
+
+  val FilterValueDateTo = Argument("valueDateGte", OptionInputType(DateTimeType))
+
+  val FilterAmountFrom = Argument("amountLte", OptionInputType(BigDecimalType))
+
+  val FilterAmountTo = Argument("amountGte", OptionInputType(BigDecimalType))
+
+  // FIXME add amount filter
 
   // FIXME should be positive number -> NaturalLongType scalar
   val Limit = Argument("limit", LongType)
@@ -176,47 +178,66 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
     "query",
     "top level query for searching over entities.",
     fields[GraphQLPersistence, Unit](
-      Field(
-        "tenant",
-        OptionType(TenantType),
-        arguments = FilterTenant :: Nil,
-        resolve = (query) =>
-          tenants.deferOpt(query.arg(FilterTenant))
+      Field("tenant", OptionType(TenantType),
+        arguments = FilterTenant ::
+                    Nil,
+        resolve = (query) => tenants.deferOpt(
+          query.arg(FilterTenant)
+        )
       ),
-      Field(
-        "tenants",
-        ListType(TenantType),
-        arguments = Limit :: Offset :: Nil,
-        resolve = (query) =>
-          query.ctx.allTenants(query.arg(Limit), query.arg(Offset))
+      Field("tenants", ListType(TenantType),
+        arguments = Limit ::
+                    Offset ::
+                    Nil,
+        resolve = (query) => query.ctx.allTenants(
+          query.arg(Limit),
+          query.arg(Offset)
+        )
       ),
-      Field(
-        "account",
-        OptionType(AccountType),
-        arguments = FilterTenant :: FilterName :: Nil,
-        resolve = (query) =>
-          accounts.deferOpt((query.arg(FilterTenant), query.arg(FilterName)))
+      Field("account", OptionType(AccountType),
+        arguments = FilterTenant ::
+                    FilterName ::
+                    Nil,
+        resolve = (query) => accounts.deferOpt((
+          query.arg(FilterTenant),
+          query.arg(FilterName)
+        ))
       ),
-      Field(
-        "accounts",
-        ListType(AccountType),
-        arguments = FilterTenant :: Limit :: Offset :: Nil,
-        resolve = (query) =>
-          query.ctx.allAccounts(query.arg(FilterTenant), query.arg(Limit), query.arg(Offset))
+      Field("accounts", ListType(AccountType),
+        arguments = FilterTenant ::
+                    FilterCurrency ::
+                    FilterFofmat ::
+                    Limit ::
+                    Offset ::
+                    Nil,
+        resolve = (query) => query.ctx.allAccounts(
+          query.arg(FilterTenant),
+          query.arg(FilterCurrency),
+          query.arg(FilterFofmat),
+          query.arg(Limit),
+          query.arg(Offset)
+        )
       ),
-      Field(
-        "transfer",
-        OptionType(TransferType),
-        arguments = FilterTenant :: FilterTransaction :: FilterTransfer :: Nil,
-        resolve = (query) =>
-          query.ctx.transfer(query.arg(FilterTenant), query.arg(FilterTransaction), query.arg(FilterTransfer))
-      ),
-      Field(
-        "transfers",
-        ListType(TransferType),
-        arguments = FilterTenant :: Limit :: Offset :: Nil,
-        resolve = (query) =>
-          query.ctx.allTransfers(query.arg(FilterTenant), query.arg(Limit), query.arg(Offset))
+      Field("transfers", ListType(TransferType),
+        arguments = FilterTenant ::
+                    FilterCurrency ::
+                    FilterAmountFrom ::
+                    FilterAmountTo ::
+                    FilterValueDateFrom ::
+                    FilterValueDateTo ::
+                    Limit ::
+                    Offset ::
+                    Nil,
+        resolve = (query) => query.ctx.allTransfers(
+          query.arg(FilterTenant),
+          query.arg(FilterCurrency),
+          query.arg(FilterAmountFrom),
+          query.arg(FilterAmountTo),
+          query.arg(FilterValueDateFrom),
+          query.arg(FilterValueDateTo),
+          query.arg(Limit),
+          query.arg(Offset)
+        )
       )
     )
   )
@@ -231,7 +252,7 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
 
   private lazy val exceptionHandler = ExceptionHandler {
     case (m, e) =>
-      logger.error(s"exception occured when executing query ${e}")
+      logger.error(s"exception occured when executing query ${m} ${e}")
       HandledException("Internal server error")
   }
 

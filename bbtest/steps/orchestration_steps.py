@@ -80,7 +80,7 @@ def unit_running(context, unit):
     assert code == 0, code
     assert 'SubState=running' in result, result
 
-  @eventually(60)
+  @eventually(240)
   def wait_for_service_to_be_healthy():
     request = urllib.request.Request(method='GET', url= "http://127.0.0.1/health")
     response = urllib.request.urlopen(request, timeout=2)

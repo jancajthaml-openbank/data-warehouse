@@ -1,5 +1,5 @@
 Package: dwh
-Version: 0.0.0+account-in-transfer-relationship
+Version: 0.0.0+better-graphql-filters
 Section: misc
 Priority: extra
 Architecture: amd64
