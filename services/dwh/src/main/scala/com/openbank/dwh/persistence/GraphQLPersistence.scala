@@ -96,8 +96,8 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
           .take(limit)
     }
 
-    (limit: Long, offset: Long) => persistence.database.run {
-      query(limit, offset).result
+    (limit: Int, offset: Int) => persistence.database.run {
+      query(limit.toLong, offset.toLong).result
     }
   }
 
@@ -126,8 +126,8 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
           .take(limit)
     }
 
-    (tenant: String, currency: Option[String], format: Option[String], limit: Long, offset: Long) => persistence.database.run {
-      query(tenant, currency, format, limit, offset).result
+    (tenant: String, currency: Option[String], format: Option[String], limit: Int, offset: Int) => persistence.database.run {
+      query(tenant, currency, format, limit.toLong, offset.toLong).result
     }
   }
 
@@ -160,8 +160,8 @@ class GraphQLPersistence(val persistence: Postgres)(implicit ec: ExecutionContex
           .take(limit)
     }
 
-    (tenant: String, currency: Option[String], amountGte: Option[BigDecimal], amountLte: Option[BigDecimal], valueDateGte: Option[DateTime], valueDateLte: Option[DateTime], limit: Long, offset: Long) => persistence.database.run {
-      query(tenant, currency, amountGte, amountLte, valueDateGte, valueDateLte, limit, offset).result
+    (tenant: String, currency: Option[String], amountGte: Option[BigDecimal], amountLte: Option[BigDecimal], valueDateGte: Option[DateTime], valueDateLte: Option[DateTime], limit: Int, offset: Int) => persistence.database.run {
+      query(tenant, currency, amountGte, amountLte, valueDateGte, valueDateLte, limit.toLong, offset.toLong).result
     }
   }
 
