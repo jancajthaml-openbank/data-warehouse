@@ -156,13 +156,13 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit ec: ExecutionCon
   val FilterAmountTo = Argument("amountGte", OptionInputType(BigDecimalType))
 
   // FIXME should be positive number -> NaturalLongType scalar
-  val Limit = Argument("limit", LongType)
+  val Limit = Argument("limit", IntType)
 
   // FIXME should be positive number -> NaturalLongType scalar
-  val Offset = Argument("offset", LongType)
+  val Offset = Argument("offset", IntType)
 
   lazy val QueryType = ObjectType(
-    "query",
+    "Query",
     "top level query for searching over entities.",
     fields[GraphQLPersistence, Unit](
       Field("tenant", OptionType(TenantType),
