@@ -11,10 +11,10 @@ trait AkkaModule {
   implicit lazy val system: ActorSystem = ActorSystem("dwh", config)
   implicit lazy val materializer: Materializer = ActorMaterializer()
   implicit lazy val scheduler: Scheduler = system.scheduler
+
   implicit lazy val defaultExecutionContext: ExecutionContext = system.dispatcher
-
   lazy val dataExplorationExecutionContext: ExecutionContext = system.dispatchers.lookup("data-exploration.dispatcher")
-
   lazy val graphQLExecutionContext: ExecutionContext = system.dispatchers.lookup("graphql.dispatcher")
+
 }
 

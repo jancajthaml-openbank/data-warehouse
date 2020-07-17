@@ -72,6 +72,11 @@ else
   mkdir -p ${DEB_SOURCES}/usr/share/openbank/dwh
 fi
 
+mkdir -p ${DEB_SOURCES}/usr/bin
+if [ -f "${DEB_SOURCES}/usr/bin/dwh-app" ] ; then
+  rm -f ${DEB_SOURCES}/usr/bin/dwh-app
+fi
+
 generate_manpage() {
   mkdir -p ${DEB_SOURCES}/usr/share/man/man8
 
@@ -185,7 +190,12 @@ check_files() {
 
 ################################################################################
 
-cp -R "${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}/lib/." "${DEB_SOURCES}/usr/share/openbank/dwh/"
+cp -R \
+  "${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}/lib/." \
+  "${DEB_SOURCES}/usr/share/openbank/dwh/lib"
+cp \
+  "${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}/bin/main" \
+  "${DEB_SOURCES}/usr/bin/dwh-app"
 
 generate_changelog
 generate_manpage

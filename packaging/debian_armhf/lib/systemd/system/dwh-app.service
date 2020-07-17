@@ -7,12 +7,9 @@ ConditionPathExists=/etc/init/dwh.conf
 [Service]
 Type=simple
 EnvironmentFile=/etc/init/dwh.conf
+Environment="PROG_HOME=/usr/share/openbank/dwh"
 StartLimitBurst=0
-ExecStart=/bin/java \
-  -XX:+HeapDumpOnOutOfMemoryError \
-  -XX:+UseGCOverheadLimit \
-  -cp '/usr/share/openbank/dwh/*' \
-  com.openbank.dwh.Main
+ExecStart=/usr/bin/dwh-app
 StandardInput=null
 LimitNOFILE=1048576
 LimitNPROC=infinity
@@ -20,7 +17,8 @@ LimitCORE=infinity
 Restart=always
 RestartSec=1
 KillSignal=SIGINT
-SuccessExitStatus=143
+SuccessExitStatus=130
+KillMode=process
 
 [Install]
 WantedBy=dwh.service

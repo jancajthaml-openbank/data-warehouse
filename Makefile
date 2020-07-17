@@ -68,9 +68,9 @@ bbtest:
 	@(docker run -d --shm-size=256MB --name=dwh_postgres dwh_postgres &> /dev/null || :)
 	@docker exec -t $$(\
 		docker run -d \
-			--name=dwh_bbtest_amd64 \
 			--cpuset-cpus=1 \
 			--link=dwh_postgres:postgres \
+			--name=dwh_bbtest_amd64 \
 			-e IMAGE_VERSION="$(VERSION)-$(META)" \
 			-e UNIT_VERSION="$(VERSION)+$(META)" \
 			-e UNIT_ARCH=amd64 \

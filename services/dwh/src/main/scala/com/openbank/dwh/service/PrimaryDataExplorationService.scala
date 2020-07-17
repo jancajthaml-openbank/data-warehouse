@@ -109,7 +109,10 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         }
       }
       .async
-      .recover { case e: Exception => None }
+      .recover { case e: Exception =>
+        logger.warn("Failed to get tenant caused by", e)
+        None
+      }
       .collect { case Some(tenant) => tenant }
       .buffer(parallelism * 2, OverflowStrategy.backpressure)
   }
@@ -150,7 +153,10 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         }
       } }
       .async
-      .recover { case e: Exception => None }
+      .recover { case e: Exception =>
+        logger.warn("Failed to get account caused by", e)
+        None
+      }
       .collect { case Some(data) => data }
       .buffer(parallelism * 2, OverflowStrategy.backpressure)
   }

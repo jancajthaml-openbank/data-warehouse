@@ -105,6 +105,7 @@ class UnitHelper(object):
     if params:
       options.update(params)
 
+    os.makedirs("/etc/init", exist_ok=True)
     with open('/etc/init/dwh.conf', 'w') as fd:
       for k, v in sorted(options.items()):
         fd.write('DWH_{}={}\n'.format(k, v))
