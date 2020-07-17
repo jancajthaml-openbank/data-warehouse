@@ -1,4 +1,4 @@
-Package: dwh
+Package: data-warehouse
 Version: 0.0.0+better-logging
 Section: misc
 Priority: optional

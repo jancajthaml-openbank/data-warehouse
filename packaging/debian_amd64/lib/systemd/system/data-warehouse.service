@@ -1,11 +1,11 @@
 [Unit]
 Description=openbank data warehouse namespace
 After=inetd.service
-ConditionPathExists=/etc/init/reporting.conf
+ConditionPathExists=/etc/init/data-warehouse.conf
 
 [Service]
 Type=oneshot
-ExecStart=/bin/echo start reporting namespace
+ExecStart=/bin/echo start data-warehouse namespace
 RemainAfterExit=yes
 
 [Install]

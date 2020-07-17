@@ -5,14 +5,14 @@ set -e
 case "$1" in
 
   install|upgrade)
-    if [ ! -f "/etc/init/dwh.conf" ] ; then
+    if [ ! -f "/etc/init/data-warehouse.conf" ] ; then
       mkdir -p /etc/init
-      touch /etc/init/dwh.conf
+      touch /etc/init/data-warehouse.conf
 
-      echo "DWH_LOG_LEVEL=INFO" >> /etc/init/dwh.conf
-      echo "DWH_HTTP_PORT=8443" >> /etc/init/dwh.conf
-      echo "DWH_POSTGRES_URL=jdbc:postgresql://127.0.0.1:5432/openbank" >> /etc/init/dwh.conf
-      echo "DWH_PRIMARY_STORAGE_PATH=/data" >> /etc/init/dwh.conf
+      echo "DWH_LOG_LEVEL=INFO" >> /etc/init/data-warehouse.conf
+      echo "DWH_HTTP_PORT=8443" >> /etc/init/data-warehouse.conf
+      echo "DWH_POSTGRES_URL=jdbc:postgresql://127.0.0.1:5432/openbank" >> /etc/init/data-warehouse.conf
+      echo "DWH_PRIMARY_STORAGE_PATH=/data" >> /etc/init/data-warehouse.conf
     fi
 
   ;;

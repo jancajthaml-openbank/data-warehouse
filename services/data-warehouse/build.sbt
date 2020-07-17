@@ -1,5 +1,5 @@
 organization := "com.openbank"
-name := "dwh"
+name := "data-warehouse"
 version := "1.0.0"
 
 val scalaVersion = "2.13.1"

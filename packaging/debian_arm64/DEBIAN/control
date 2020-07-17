@@ -1,4 +1,4 @@
-Package: dwh
+Package: data-warehouse
 Version: 0.0.0+initial-skeleton
 Section: misc
 Priority: optional

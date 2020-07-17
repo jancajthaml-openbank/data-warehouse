@@ -19,14 +19,14 @@ def step_impl(context, package, operation):
       "apt-get", "-y", "install", "-f", "/tmp/packages/{}.deb".format(package)
     ])
     assert code == 0, "unable to install with code {} and {} {}".format(code, result, error)
-    assert os.path.isfile('/etc/init/dwh.conf') is True
+    assert os.path.isfile('/etc/init/data-warehouse.conf') is True
 
   elif operation == 'uninstalled':
     (code, result, error) = execute([
       "apt-get", "-y", "remove", package
     ])
     assert code == 0, "unable to uninstall with code {} and {} {}".format(code, result, error)
-    assert os.path.isfile('/etc/init/dwh.conf') is False
+    assert os.path.isfile('/etc/init/data-warehouse.conf') is False
 
   else:
     assert False
@@ -115,7 +115,7 @@ def operation_unit(context, operation, unit):
     unit_running(context, unit)
 
 
-@given('dwh is configured with')
+@given('data-warehouse is configured with')
 def unit_is_configured(context):
   params = dict()
   for row in context.table:
@@ -126,7 +126,7 @@ def unit_is_configured(context):
     'systemctl', 'list-units', '--no-legend'
   ])
   result = [item.split(' ')[0].strip() for item in result.split('\n')]
-  result = [item for item in result if ("dwh-" in item and ".service" in item)]
+  result = [item for item in result if ("data-warehouse-" in item and ".service" in item)]
 
   for unit in result:
     operation_unit(context, 'restart', unit)

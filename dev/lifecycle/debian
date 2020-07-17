@@ -60,27 +60,27 @@ if [ ! -d "${DEB_SOURCES}" ] ; then
   exit 1
 fi
 
-if [ ! -d "${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}" ] ; then
-  (>&2 echo "did not found bundle to package at ${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}")
+if [ ! -d "${BIN_SOURCES}/data-warehouse-linux-${TARGET_ARCHITECTURE}" ] ; then
+  (>&2 echo "did not found bundle to package at ${BIN_SOURCES}/data-warehouse-linux-${TARGET_ARCHITECTURE}")
   exit 1
 fi
 
 mkdir -p ${DEB_SOURCES}/usr/share/openbank
-if [ -d "${DEB_SOURCES}/usr/share/openbank/dwh" ] ; then
-  rm -rf ${DEB_SOURCES}/usr/share/openbank/dwh/*
+if [ -d "${DEB_SOURCES}/usr/share/openbank/data-warehouse" ] ; then
+  rm -rf ${DEB_SOURCES}/usr/share/openbank/data-warehouse/*
 else
-  mkdir -p ${DEB_SOURCES}/usr/share/openbank/dwh
+  mkdir -p ${DEB_SOURCES}/usr/share/openbank/data-warehouse
 fi
 
 mkdir -p ${DEB_SOURCES}/usr/bin
-if [ -f "${DEB_SOURCES}/usr/bin/dwh-app" ] ; then
-  rm -f ${DEB_SOURCES}/usr/bin/dwh-app
+if [ -f "${DEB_SOURCES}/usr/bin/data-warehouse-app" ] ; then
+  rm -f ${DEB_SOURCES}/usr/bin/data-warehouse-app
 fi
 
 generate_manpage() {
   mkdir -p ${DEB_SOURCES}/usr/share/man/man8
 
-  target="${DEB_SOURCES}/usr/share/man/man8/dwh.8"
+  target="${DEB_SOURCES}/usr/share/man/man8/data-warehouse.8"
 
   if [ -f ${target} ] ; then
     rm -f ${target}
@@ -91,9 +91,9 @@ generate_manpage() {
   fi
 
 cat > ${target} <<EOL
-.TH DWH 8 2019 "Data Warehouse" "OpenBank Data Warehouse"
+.TH DATA-WAREHOUSE 8 2019 "Data Warehouse" "OpenBank Data Warehouse"
 .SH NAME
-dwh \- starts openbank dwh service
+data-warehouse \- starts openbank data-warehouse service
 .SH DESCRIPTION
 The data warehouse provides secondary data mirror for analytics
 .EE
@@ -104,9 +104,9 @@ EOL
 }
 
 generate_changelog() {
-  mkdir -p ${DEB_SOURCES}/usr/share/doc/dwh
+  mkdir -p ${DEB_SOURCES}/usr/share/doc/data-warehouse
 
-  target="${DEB_SOURCES}/usr/share/doc/dwh/changelog"
+  target="${DEB_SOURCES}/usr/share/doc/data-warehouse/changelog"
 
   if [ -f ${target} ] ; then
     rm -f ${target}
@@ -128,7 +128,7 @@ generate_changelog() {
 
   if [[ -z "${ADDS// }" ]] ; then
     DATE=$(date '+%a, %-d %b %Y %H:%M:%S %z')
-    echo "dwh (${VER}) unstable; urgency=low" >> ${target}
+    echo "data-warehouse (${VER}) unstable; urgency=low" >> ${target}
     echo "" >> ${target}
     echo "  * includes non-released commits" >> ${target}
     echo "" >> ${target}
@@ -154,7 +154,7 @@ generate_changelog() {
 
     if [[ -n "${commits// }" ]] ; then
 
-      echo "dwh (${tag_to#v}) stable; urgency=low" >> ${target}
+      echo "data-warehouse (${tag_to#v}) stable; urgency=low" >> ${target}
       echo "" >> ${target}
 
       echo "${commits}" | \
@@ -191,24 +191,24 @@ check_files() {
 ################################################################################
 
 cp -R \
-  "${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}/lib/." \
-  "${DEB_SOURCES}/usr/share/openbank/dwh/lib"
+  "${BIN_SOURCES}/data-warehouse-linux-${TARGET_ARCHITECTURE}/lib/." \
+  "${DEB_SOURCES}/usr/share/openbank/data-warehouse/lib"
 cp \
-  "${BIN_SOURCES}/dwh-linux-${TARGET_ARCHITECTURE}/bin/main" \
-  "${DEB_SOURCES}/usr/bin/dwh-app"
+  "${BIN_SOURCES}/data-warehouse-linux-${TARGET_ARCHITECTURE}/bin/main" \
+  "${DEB_SOURCES}/usr/bin/data-warehouse-app"
 
 generate_changelog
 generate_manpage
 
 sed -i 's/Version.*/Version: '${VERSION#v}'/' "${DEB_SOURCES}/DEBIAN/control"
 
-find "${BIN_SOURCES}" -name "dwh_*_${TARGET_ARCHITECTURE}.deb" -exec rm -f {} \;
+find "${BIN_SOURCES}" -name "data-warehouse_*_${TARGET_ARCHITECTURE}.deb" -exec rm -f {} \;
 
 check_files
 
 dpkg-deb --build "${DEB_SOURCES}" "${BIN_SOURCES}"
 
-find "${BIN_SOURCES}" -name "dwh_*_${TARGET_ARCHITECTURE}.deb" -exec fakeroot lintian --pedantic {} \;
-find "${BIN_SOURCES}" -name "dwh_*_${TARGET_ARCHITECTURE}.deb" -exec du -hs {} \;
+find "${BIN_SOURCES}" -name "data-warehouse_*_${TARGET_ARCHITECTURE}.deb" -exec fakeroot lintian --pedantic {} \;
+find "${BIN_SOURCES}" -name "data-warehouse_*_${TARGET_ARCHITECTURE}.deb" -exec du -hs {} \;
 
 exit 0

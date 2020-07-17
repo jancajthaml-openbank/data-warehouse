@@ -13,16 +13,16 @@ enable() {
 case "$1" in
 
   configure)
-    if [ -f /etc/init/dwh.conf ] ; then
-      enable dwh.path
-      enable dwh.service
-      enable dwh-app.service
+    if [ -f /etc/init/data-warehouse.conf ] ; then
+      enable data-warehouse.path
+      enable data-warehouse.service
+      enable data-warehouse-app.service
       (systemctl daemon-reload >/dev/null 2>&1 || :)
-      (systemctl start dwh.service >/dev/null 2>&1 || :)
-      (systemctl start dwh-app.service >/dev/null 2>&1 || :)
-      (systemctl start dwh.path >/dev/null 2>&1 || :)
+      (systemctl start data-warehouse.service >/dev/null 2>&1 || :)
+      (systemctl start data-warehouse-app.service >/dev/null 2>&1 || :)
+      (systemctl start data-warehouse.path >/dev/null 2>&1 || :)
     else
-      (>&2 echo "/etc/init/dwh.conf file not found")
+      (>&2 echo "/etc/init/data-warehouse.conf file not found")
       exit 1
     fi
   ;;
