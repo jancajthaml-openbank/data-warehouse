@@ -26,7 +26,7 @@ package-%: %
 
 .PHONY: bundle-binaries-%
 bundle-binaries-%: %
-	@docker-compose run --rm package --arch linux/$^ --pkg dwh --output /project/packaging/bin
+	@docker-compose run --rm package --arch linux/$^ --pkg data-warehouse --output /project/packaging/bin
 
 .PHONY: bundle-debian-%
 bundle-debian-%: %
@@ -42,19 +42,19 @@ bootstrap:
 
 .PHONY: lint
 lint:
-	@docker-compose run --rm lint --pkg dwh || :
+	@docker-compose run --rm lint --pkg data-warehouse || :
 
 .PHONY: sec
 sec:
-	@docker-compose run --rm sec --pkg dwh || :
+	@docker-compose run --rm sec --pkg data-warehouse || :
 
 .PHONY: sync
 sync:
-	@docker-compose run --rm sync --pkg dwh
+	@docker-compose run --rm sync --pkg data-warehouse
 
 .PHONY: test
 test:
-	@docker-compose run --rm test --pkg dwh --output /project/reports
+	@docker-compose run --rm test --pkg data-warehouse --output /project/reports
 
 .PHONY: release
 release:
@@ -68,9 +68,9 @@ bbtest:
 	@(docker run -d --shm-size=256MB --name=dwh_postgres dwh_postgres &> /dev/null || :)
 	@docker exec -t $$(\
 		docker run -d \
-			--name=dwh_bbtest_amd64 \
 			--cpuset-cpus=1 \
 			--link=dwh_postgres:postgres \
+			--name=dwh_bbtest_amd64 \
 			-e IMAGE_VERSION="$(VERSION)-$(META)" \
 			-e UNIT_VERSION="$(VERSION)+$(META)" \
 			-e UNIT_ARCH=amd64 \

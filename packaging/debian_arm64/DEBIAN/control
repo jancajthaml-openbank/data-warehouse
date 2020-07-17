@@ -1,7 +1,7 @@
-Package: dwh
+Package: data-warehouse
 Version: 0.0.0+initial-skeleton
 Section: misc
-Priority: extra
+Priority: optional
 Architecture: arm64
 Vcs-Git: https://github.com/jancajthaml-openbank/data-warehouse.git
 Maintainer: Jan Cajthaml <jan.cajthaml@gmail.com>

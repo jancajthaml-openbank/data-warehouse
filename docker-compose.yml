@@ -70,6 +70,6 @@ services:
     build:
       dockerfile: Dockerfile
       context: .
-    image: openbank/dwh
+    image: openbank/data-warehouse
 
 # ---------------------------------------------------------------------------- #

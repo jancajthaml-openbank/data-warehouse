@@ -220,28 +220,28 @@ jobs:
       - run:
           name: Sync dependencies
           command: |
-            cd /home/circleci/project/services/dwh
+            cd /home/circleci/project/services/data-warehouse
 
             sbt \
-              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              -Dsbt.ivy.home=/home/circleci/project/services/data-warehouse/.ivy \
               clean
 
             sbt \
-              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              -Dsbt.ivy.home=/home/circleci/project/services/data-warehouse/.ivy \
               evicted
 
             sbt \
-              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              -Dsbt.ivy.home=/home/circleci/project/services/data-warehouse/.ivy \
               update
 
       - save_cache:
           key: dependencies-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
           paths:
             - /home/circleci/project/packaging
-            - /home/circleci/project/services/dwh/.ivy
-            - /home/circleci/project/services/dwh/target
-            - /home/circleci/project/services/dwh/project/project
-            - /home/circleci/project/services/dwh/project/target
+            - /home/circleci/project/services/data-warehouse/.ivy
+            - /home/circleci/project/services/data-warehouse/target
+            - /home/circleci/project/services/data-warehouse/project/project
+            - /home/circleci/project/services/data-warehouse/project/target
 
   # -------------------------------------------------------------------------- #
 
@@ -257,44 +257,44 @@ jobs:
       - run:
           name: compile sources
           command: |
-            cd /home/circleci/project/services/dwh
+            cd /home/circleci/project/services/data-warehouse
 
             sbt \
-              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              -Dsbt.ivy.home=/home/circleci/project/services/data-warehouse/.ivy \
               compile
 
             sbt \
-              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              -Dsbt.ivy.home=/home/circleci/project/services/data-warehouse/.ivy \
               pack
 
             mkdir -p \
-              /home/circleci/project/packaging/bin/dwh-linux-amd64 \
-              /home/circleci/project/packaging/bin/dwh-linux-arm64 \
-              /home/circleci/project/packaging/bin/dwh-linux-armhf
+              /home/circleci/project/packaging/bin/data-warehouse-linux-amd64 \
+              /home/circleci/project/packaging/bin/data-warehouse-linux-arm64 \
+              /home/circleci/project/packaging/bin/data-warehouse-linux-armhf
 
             cp -R \
-              /home/circleci/project/services/dwh/target/pack/bin \
-              /home/circleci/project/packaging/bin/dwh-linux-amd64
+              /home/circleci/project/services/data-warehouse/target/pack/bin \
+              /home/circleci/project/packaging/bin/data-warehouse-linux-amd64
 
             cp -R \
-              /home/circleci/project/services/dwh/target/pack/lib \
-              /home/circleci/project/packaging/bin/dwh-linux-amd64
+              /home/circleci/project/services/data-warehouse/target/pack/lib \
+              /home/circleci/project/packaging/bin/data-warehouse-linux-amd64
 
             cp -R \
-              /home/circleci/project/services/dwh/target/pack/bin \
-              /home/circleci/project/packaging/bin/dwh-linux-arm64
+              /home/circleci/project/services/data-warehouse/target/pack/bin \
+              /home/circleci/project/packaging/bin/data-warehouse-linux-arm64
 
             cp -R \
-              /home/circleci/project/services/dwh/target/pack/lib \
-              /home/circleci/project/packaging/bin/dwh-linux-arm64
+              /home/circleci/project/services/data-warehouse/target/pack/lib \
+              /home/circleci/project/packaging/bin/data-warehouse-linux-arm64
 
             cp -R \
-              /home/circleci/project/services/dwh/target/pack/bin \
-              /home/circleci/project/packaging/bin/dwh-linux-armhf
+              /home/circleci/project/services/data-warehouse/target/pack/bin \
+              /home/circleci/project/packaging/bin/data-warehouse-linux-armhf
 
             cp -R \
-              /home/circleci/project/services/dwh/target/pack/lib \
-              /home/circleci/project/packaging/bin/dwh-linux-armhf
+              /home/circleci/project/services/data-warehouse/target/pack/lib \
+              /home/circleci/project/packaging/bin/data-warehouse-linux-armhf
 
           no_output_timeout: 5m
       - save_cache:
@@ -440,10 +440,10 @@ jobs:
       - run:
           name: Unit test data-warehouse
           command: |
-            cd /home/circleci/project/services/dwh
+            cd /home/circleci/project/services/data-warehouse
 
             sbt \
-              -Dsbt.ivy.home=/home/circleci/project/services/dwh/.ivy \
+              -Dsbt.ivy.home=/home/circleci/project/services/data-warehouse/.ivy \
               test
 
           no_output_timeout: 5m
@@ -507,8 +507,8 @@ jobs:
           key: debian-amd64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           command: |
-            if [ ! -f ./packaging/bin/dwh_${CIRCLE_TAG#v}_amd64.deb ] ; then
-              echo "dwh_${CIRCLE_TAG#v}_amd64.deb not found at"
+            if [ ! -f ./packaging/bin/data-warehouse_${CIRCLE_TAG#v}_amd64.deb ] ; then
+              echo "data-warehouse_${CIRCLE_TAG#v}_amd64.deb not found at"
               ls -la ./packaging/bin
               exit 1
             fi
@@ -516,8 +516,8 @@ jobs:
           key: debian-armhf-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           command: |
-            if [ ! -f ./packaging/bin/dwh_${CIRCLE_TAG#v}_armhf.deb ] ; then
-              echo "dwh_${CIRCLE_TAG#v}_armhf.deb not found at"
+            if [ ! -f ./packaging/bin/data-warehouse_${CIRCLE_TAG#v}_armhf.deb ] ; then
+              echo "data-warehouse_${CIRCLE_TAG#v}_armhf.deb not found at"
               ls -la ./packaging/bin
               exit 1
             fi
@@ -525,8 +525,8 @@ jobs:
           key: debian-arm64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           command: |
-            if [ ! -f ./packaging/bin/dwh_${CIRCLE_TAG#v}_arm64.deb ] ; then
-              echo "dwh_${CIRCLE_TAG#v}_arm64.deb not found at"
+            if [ ! -f ./packaging/bin/data-warehouse_${CIRCLE_TAG#v}_arm64.deb ] ; then
+              echo "data-warehouse_${CIRCLE_TAG#v}_arm64.deb not found at"
               ls -la ./packaging/bin
               exit 1
             fi

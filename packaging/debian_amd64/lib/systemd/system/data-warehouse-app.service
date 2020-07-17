@@ -1,18 +1,15 @@
 [Unit]
 Description=openbank data warehouse application namespace
-PartOf=dwh.service
-After=dwh.service
-ConditionPathExists=/etc/init/dwh.conf
+PartOf=data-warehouse.service
+After=data-warehouse.service
+ConditionPathExists=/etc/init/data-warehouse.conf
 
 [Service]
 Type=simple
-EnvironmentFile=/etc/init/dwh.conf
+EnvironmentFile=/etc/init/data-warehouse.conf
+Environment="PROG_HOME=/usr/share/openbank/data-warehouse"
 StartLimitBurst=0
-ExecStart=/bin/java \
-  -XX:+HeapDumpOnOutOfMemoryError \
-  -XX:+UseGCOverheadLimit \
-  -cp '/usr/share/openbank/dwh/*' \
-  com.openbank.dwh.Main
+ExecStart=/usr/bin/data-warehouse-app
 StandardInput=null
 LimitNOFILE=1048576
 LimitNPROC=infinity
@@ -24,4 +21,4 @@ SuccessExitStatus=130
 KillMode=process
 
 [Install]
-WantedBy=dwh.service
+WantedBy=multi-user.target

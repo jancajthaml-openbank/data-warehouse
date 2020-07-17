@@ -51,8 +51,10 @@ object PrimaryDataExplorerActor extends StrictLogging {
         Future.successful(Done)
           .map {
             case _ if primaryDataExplorationService.isStoragePristine() =>
+              logger.debug("Skipping Primary Data Exploration")
               throw PrimaryStoragePristine
             case _ =>
+              logger.debug("Running Primary Data Exploration")
               Done
           }
           .flatMap { _ => primaryDataExplorationService.exploreAccounts() }

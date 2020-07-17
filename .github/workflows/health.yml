@@ -28,7 +28,7 @@ jobs:
 
     - name: Install static dependencies
       run: |
-        cd services/dwh
+        cd services/data-warehouse
 
         sbt -Dsbt.ivy.home=.ivy clean
         sbt -Dsbt.ivy.home=.ivy update
@@ -36,5 +36,6 @@ jobs:
 
     - name: Unit Test
       run:  |
-        cd services/dwh
+        cd services/data-warehouse
+
         sbt -Dsbt.ivy.home=.ivy test

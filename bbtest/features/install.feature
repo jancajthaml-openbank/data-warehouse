@@ -1,9 +1,9 @@
 Feature: Install package
 
   Scenario: install
-    Given package dwh is installed
+    Given package data-warehouse is installed
     Then  systemctl contains following active units
-      | name    | type    |
-      | dwh-app | service |
-      | dwh     | service |
-      | dwh     | path    |
+      | name               | type    |
+      | data-warehouse-app | service |
+      | data-warehouse     | service |
+      | data-warehouse     | path    |

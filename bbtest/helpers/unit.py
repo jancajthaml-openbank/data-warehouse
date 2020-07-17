@@ -17,7 +17,7 @@ class UnitHelper(object):
   def default_config():
     return {
       "LOG_LEVEL": "DEBUG",
-      "SECRETS": "/opt/dwh/secrets",
+      "SECRETS": "/opt/data-warehouse/secrets",
       "HTTP_PORT": "80",
       "POSTGRES_URL": "jdbc:postgresql://postgres:5432/openbank"
     }
@@ -57,8 +57,8 @@ class UnitHelper(object):
     scratch_docker_cmd = ['FROM alpine']
 
     image = 'openbank/data-warehouse:{}'.format(self.image_version)
-    package = 'dwh_{}_{}'.format(self.debian_version, self.arch)
-    scratch_docker_cmd.append('COPY --from={} /opt/artifacts/{}.deb /tmp/packages/dwh.deb'.format(image, package))
+    package = 'data-warehouse_{}_{}'.format(self.debian_version, self.arch)
+    scratch_docker_cmd.append('COPY --from={} /opt/artifacts/{}.deb /tmp/packages/data-warehouse.deb'.format(image, package))
 
     temp = tempfile.NamedTemporaryFile(delete=True)
     try:
@@ -79,16 +79,16 @@ class UnitHelper(object):
 
       tar_name = tempfile.NamedTemporaryFile(delete=True)
 
-      tar_stream, stat = self.docker.get_archive(scratch['Id'], '/tmp/packages/dwh.deb')
+      tar_stream, stat = self.docker.get_archive(scratch['Id'], '/tmp/packages/data-warehouse.deb')
       with open(tar_name.name, 'wb') as destination:
         for chunk in tar_stream:
           destination.write(chunk)
 
       archive = tarfile.TarFile(tar_name.name)
-      archive.extract('dwh.deb', '/tmp/packages')
+      archive.extract('data-warehouse.deb', '/tmp/packages')
 
       (code, result, error) = execute([
-        'dpkg', '-c', '/tmp/packages/dwh.deb'
+        'dpkg', '-c', '/tmp/packages/data-warehouse.deb'
       ])
 
       if code != 0:
@@ -105,7 +105,8 @@ class UnitHelper(object):
     if params:
       options.update(params)
 
-    with open('/etc/init/dwh.conf', 'w') as fd:
+    os.makedirs("/etc/init", exist_ok=True)
+    with open('/etc/init/data-warehouse.conf', 'w') as fd:
       for k, v in sorted(options.items()):
         fd.write('DWH_{}={}\n'.format(k, v))
 
@@ -114,7 +115,7 @@ class UnitHelper(object):
       'systemctl', 'list-units', '--no-legend'
     ])
     result = [item.split(' ')[0].strip() for item in result.split('\n')]
-    result = [item.split('.service')[0] for item in result if ("dwh" in item and ".service" in item)]
+    result = [item.split('.service')[0] for item in result if ("data-warehouse" in item and ".service" in item)]
 
     for unit in result:
       (code, result, error) = execute([
@@ -130,7 +131,7 @@ class UnitHelper(object):
       'systemctl', 'list-units', '--no-legend'
     ])
     result = [item.split(' ')[0].strip() for item in result.split('\n')]
-    result = [item for item in result if "dwh" in item]
+    result = [item for item in result if "data-warehouse" in item]
 
     for unit in result:
       execute(['systemctl', 'stop', unit])

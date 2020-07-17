@@ -2,19 +2,19 @@ Feature: Properly behaving units
 
   Scenario: lifecycle
     Given systemctl contains following active units
-      | name    | type    |
-      | dwh     | path    |
-      | dwh     | service |
-      | dwh-app | service |
-    And unit "dwh-app.service" is running
+      | name               | type    |
+      | data-warehouse     | path    |
+      | data-warehouse     | service |
+      | data-warehouse-app | service |
+    And unit "data-warehouse-app.service" is running
 
-    When stop unit "dwh-app.service"
-    Then unit "dwh-app.service" is not running
+    When stop unit "data-warehouse-app.service"
+    Then unit "data-warehouse-app.service" is not running
 
-    When start unit "dwh-app.service"
-    Then unit "dwh-app.service" is running
+    When start unit "data-warehouse-app.service"
+    Then unit "data-warehouse-app.service" is running
     And I sleep for 5 seconds
 
-    When restart unit "dwh-app.service"
-    Then unit "dwh-app.service" is running
+    When restart unit "data-warehouse-app.service"
+    Then unit "data-warehouse-app.service" is running
     And I sleep for 10 seconds

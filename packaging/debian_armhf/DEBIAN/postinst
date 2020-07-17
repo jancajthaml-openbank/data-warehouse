@@ -2,12 +2,6 @@
 
 set -e
 
-if [ "$(ps -o comm -p 1 --no-headers | tr -d ' ')" = "systemd" ] ; then
-  SYSTEMD_AVAIL=true
-else
-  SYSTEMD_AVAIL=false
-fi
-
 enable() {
   wanted_by=$(cat /lib/systemd/system/${1} | sed -n -e 's/^.*WantedBy=//p')
   mkdir -p /etc/systemd/system/${wanted_by}.wants
@@ -19,19 +13,16 @@ enable() {
 case "$1" in
 
   configure)
-    if [ -f /etc/init/dwh.conf ] ; then
-      enable dwh.path
-      enable dwh.service
-      enable dwh-app.service
-
-      if [ ${SYSTEMD_AVAIL} ] ; then
-        (systemctl daemon-reload || :)
-        (systemctl start dwh.service || :)
-        (systemctl start dwh.path || :)
-      fi
-
+    if [ -f /etc/init/data-warehouse.conf ] ; then
+      enable data-warehouse.path
+      enable data-warehouse.service
+      enable data-warehouse-app.service
+      (systemctl daemon-reload >/dev/null 2>&1 || :)
+      (systemctl start data-warehouse.service >/dev/null 2>&1 || :)
+      (systemctl start data-warehouse-app.service >/dev/null 2>&1 || :)
+      (systemctl start data-warehouse.path >/dev/null 2>&1 || :)
     else
-      (>&2 echo "/etc/init/dwh.conf file not found")
+      (>&2 echo "/etc/init/data-warehouse.conf file not found")
       exit 1
     fi
   ;;
