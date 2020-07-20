@@ -60,7 +60,10 @@ object PrimaryDataExplorerActor extends StrictLogging {
           .flatMap { _ => primaryDataExplorationService.exploreAccounts() }
           .flatMap { _ => primaryDataExplorationService.exploreTransfers() }
           .recoverWith { case e: Exception => Future.successful(Done) }
-          .onComplete { _ => context.self ! Free }
+          .onComplete { _ =>
+            logger.debug("Finished Primary Data Exploration")
+            context.self ! Free
+          }
 
         context.self ! Lock
 

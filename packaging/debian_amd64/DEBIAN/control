@@ -1,5 +1,5 @@
 Package: data-warehouse
-Version: 0.0.0+better-logging
+Version: 0.0.0+null-pointer-get-account
 Section: misc
 Priority: optional
 Architecture: amd64
