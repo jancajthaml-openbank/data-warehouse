@@ -82,6 +82,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           path
             .toFile
             .listFiles(_.getName.matches("t_.+"))
+            .filterNot(_ == null)
             .map(_.getName.stripPrefix("t_"))
             .toIndexedSeq
         }
@@ -111,6 +112,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception =>
         logger.warn("Failed to get tenant caused by", e)
+        markAsDirty()
         None
       }
       .collect { case Some(tenant) => tenant }
@@ -125,6 +127,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
             .getAccountsPath(tenant.name)
             .toFile
             .listFiles()
+            .filterNot(_ == null)
             .map { file => (tenant, file.getName) }
             .toIndexedSeq
         }
@@ -155,6 +158,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception =>
         logger.warn("Failed to get account caused by", e)
+        markAsDirty()
         None
       }
       .collect { case Some(data) => data }
@@ -169,6 +173,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
             .getAccountSnapshotsPath(account.tenant, account.name)
             .toFile
             .listFiles()
+            .filterNot(_ == null)
             .map(_.getName.toInt)
             .filter(_ >= account.lastSynchronizedSnapshot)
             .sortWith(_ < _)
@@ -195,6 +200,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           .getAccountEventsPath(account.tenant, account.name, snapshot.version)
           .toFile
           .listFiles()
+          .filterNot(_ == null)
           .map { file => (account, snapshot, file.getName) }
       }
       .buffer(parallelism * 4, OverflowStrategy.backpressure)
