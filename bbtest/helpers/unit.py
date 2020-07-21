@@ -115,7 +115,7 @@ class UnitHelper(object):
       'systemctl', 'list-units', '--no-legend'
     ])
     result = [item.split(' ')[0].strip() for item in result.split('\n')]
-    result = [item.split('.service')[0] for item in result if ("data-warehouse" in item and ".service" in item)]
+    result = [item for item in result if ("data-warehouse" in item)]
 
     for unit in result:
       (code, result, error) = execute([
