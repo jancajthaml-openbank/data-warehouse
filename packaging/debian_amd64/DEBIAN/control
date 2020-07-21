@@ -1,9 +1,0 @@
-Package: data-warehouse
-Version: 0.0.0+null-pointer-get-account
-Section: misc
-Priority: optional
-Architecture: amd64
-Vcs-Git: https://github.com/jancajthaml-openbank/data-warehouse.git
-Maintainer: Jan Cajthaml <jan.cajthaml@gmail.com>
-Description: opebank data-warehouse
- Service for transforming primary data to secondary data of OpenBank system.

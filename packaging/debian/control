@@ -1,0 +1,12 @@
+Source: data-warehouse
+Maintainer: Jan Cajthaml <jan.cajthaml@gmail.com>
+Section: misc
+Priority: optional
+Build-Depends: debhelper (>= 10)
+Standards-Version: 4.1.4
+
+Package: data-warehouse
+Architecture: any
+Description: opebank data-warehouse
+ Service for transforming primary data to secondary data of OpenBank system.
+Depends: openssl (>= 1.1~), ${shlibs:Depends}

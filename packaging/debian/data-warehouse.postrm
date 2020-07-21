@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+#DEBHELPER#
+if [ "$1" = remove -o "$1" = purge ] && [ -f /etc/data-warehouse/conf.d/init.conf ] ; then
+  rm /etc/data-warehouse/conf.d/init.conf
+fi
+
+if [ "$1" = remove -o "$1" = purge ] && [ -d /usr/share/openbank/data-warehouse ] ; then
+  rm -rf /usr/share/openbank/data-warehouse
+fi
+

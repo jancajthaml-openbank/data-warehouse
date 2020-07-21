@@ -3,70 +3,22 @@
 set -eu
 trap exit INT TERM
 
+################################################################################
+
 TARGET_ARCHITECTURE="linux/amd64"
 TARGET_PACKAGE=""
 OUTPUT=""
-
-package_service() {
-  local arch=${TARGET_ARCHITECTURE#*/}
-  local platform=${TARGET_ARCHITECTURE%%/*}
-  local output=${OUTPUT}/${TARGET_PACKAGE}-${platform}-${arch}
-
-  if [ -d ${output} ] ; then
-    rm -rf ${output}
-  fi
-
-  cd /project/services/${TARGET_PACKAGE}
-
-  echo "[info] (${platform}/${arch}) compiling ${TARGET_PACKAGE}"
-  sbt \
-    -Dsbt.ivy.home=/project/services/${TARGET_PACKAGE}/.ivy \
-    compile
-
-  echo "[info] (${platform}/${arch}) packaging ${TARGET_PACKAGE}"
-  sbt \
-    -Dsbt.ivy.home=/project/services/${TARGET_PACKAGE}/.ivy \
-    pack
-
-  mkdir -p ${output}
-  cp -R target/pack/bin ${output}
-  cp -R target/pack/lib ${output}
-
-  echo "[info] (${platform}/${arch}) check"
-  du -hs ${output}
-
-  echo "[info] (${platform}/${arch}) done"
-}
-
 while [ $# -gt 0 ] ; do
 key="$1"
-
 case $key in
-
-  --arch)
-    TARGET_ARCHITECTURE="$2"
-    shift
-    shift
-  ;;
-
-  --pkg)
-    TARGET_PACKAGE="$2"
-    shift
-    shift
-  ;;
-
-  --output)
-    OUTPUT="$2"
-    shift
-    shift
-  ;;
-
-  *)
-    shift
-  ;;
-
+  --arch)   TARGET_ARCHITECTURE="$2"; shift; shift; ;;
+  --pkg)    TARGET_PACKAGE="$2";      shift; shift; ;;
+  --output) OUTPUT="$2";              shift; shift; ;;
+  *)                                  shift;        ;;
 esac
 done
+
+################################################################################
 
 if [ -z "${TARGET_PACKAGE}" ] ; then
   (>&2 echo "[error] target package not provided")
@@ -78,4 +30,39 @@ if [ -z "${OUTPUT}" ] ; then
   exit 1
 fi
 
-package_service
+################################################################################
+
+lifecycle::scala::pack() {
+  local dir="$1"
+  if [ -z ${dir} -o ! -d ${dir} ] ; then
+    return
+  fi
+
+  local arch=${TARGET_ARCHITECTURE#*/}
+  local platform=${TARGET_ARCHITECTURE%%/*}
+  local output=${OUTPUT}/${TARGET_PACKAGE}-${platform}-${arch}
+
+  if [ -f ${output} ] ; then
+    rm -f ${output}
+  fi
+
+  echo "[info] (${platform}/${arch}) compiling ${TARGET_PACKAGE}"
+  cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy compile
+
+  echo "[info] (${platform}/${arch}) packaging ${TARGET_PACKAGE}"
+  cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy pack
+
+  mkdir -p ${output}
+  cp -R ${dir}/target/pack/bin ${output}
+  cp -R ${dir}/target/pack/lib ${output}
+
+  echo "[info] (${platform}/${arch}) check"
+  du -hs ${output}
+
+  echo "[info] (${platform}/${arch}) done"
+}
+
+################################################################################
+
+lifecycle::scala::pack \
+  /project/services/${TARGET_PACKAGE}

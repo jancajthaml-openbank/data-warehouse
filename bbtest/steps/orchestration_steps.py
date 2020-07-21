@@ -16,20 +16,20 @@ def step_impl(context, seconds):
 def step_impl(context, package, operation):
   if operation == 'installed':
     (code, result, error) = execute([
-      "apt-get", "-y", "install", "-f", "/tmp/packages/{}.deb".format(package)
+      "apt-get", "install", "-f", "-qq", "-o=Dpkg::Use-Pty=0", "-o=Dpkg::Options::=--force-confdef", "-o=Dpkg::Options::=--force-confnew", "/tmp/packages/{}.deb".format(package)
     ])
     assert code == 0, "unable to install with code {} and {} {}".format(code, result, error)
-    assert os.path.isfile('/etc/init/data-warehouse.conf') is True
-
+    assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is True
   elif operation == 'uninstalled':
     (code, result, error) = execute([
       "apt-get", "-y", "remove", package
     ])
     assert code == 0, "unable to uninstall with code {} and {} {}".format(code, result, error)
-    assert os.path.isfile('/etc/init/data-warehouse.conf') is False
+    assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is False
 
   else:
     assert False
+
 
 
 @given('systemctl contains following active units')
@@ -99,8 +99,8 @@ def unit_not_running(context, unit):
     "systemctl", "show", "-p", "SubState", unit
   ])
 
-  assert code == 0, code
-  assert 'SubState=dead' in result, result
+  assert code == 0, str(result) + ' ' + str(error)
+  assert 'SubState=dead' in result, str(result) + ' ' + str(error)
 
 
 @given('{operation} unit "{unit}"')
@@ -109,7 +109,7 @@ def operation_unit(context, operation, unit):
   (code, result, error) = execute([
     "systemctl", operation, unit
   ])
-  assert code == 0
+  assert code == 0, str(result) + ' ' + str(error)
 
   if operation == 'restart':
     unit_running(context, unit)

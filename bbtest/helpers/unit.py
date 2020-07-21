@@ -105,10 +105,10 @@ class UnitHelper(object):
     if params:
       options.update(params)
 
-    os.makedirs("/etc/init", exist_ok=True)
-    with open('/etc/init/data-warehouse.conf', 'w') as fd:
+    os.makedirs("/etc/data-warehouse/conf.d", exist_ok=True)
+    with open('/etc/data-warehouse/conf.d/init.conf', 'w') as fd:
       for k, v in sorted(options.items()):
-        fd.write('DWH_{}={}\n'.format(k, v))
+        fd.write('DATA_WAREHOUSE_{}={}\n'.format(k, v))
 
   def cleanup(self):
     (code, result, error) = execute([
