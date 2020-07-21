@@ -1,3 +1,3 @@
 bin/data-warehouse-linux-armhf/lib usr/share/openbank/data-warehouse
-bin/data-warehouse-linux-armhf usr/bin
+bin/data-warehouse-linux-armhf/bin/main usr/bin
 init.conf etc/data-warehouse/conf.d
