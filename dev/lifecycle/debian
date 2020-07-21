@@ -3,39 +3,24 @@
 set -eu
 trap exit INT TERM
 
+################################################################################
+
 VERSION=""
 SOURCE=""
 TARGET_ARCHITECTURE=""
-
+TARGET_PACKAGE=""
 while [ $# -gt 0 ] ; do
 key="$1"
-
 case $key in
-
-  --source)
-    SOURCE="$2"
-    shift
-    shift
-  ;;
-
-  --arch)
-    TARGET_ARCHITECTURE="$2"
-    shift
-    shift
-  ;;
-
-  --version)
-    VERSION="$2"
-    shift
-    shift
-  ;;
-
-  *)
-    shift
-  ;;
-
+  --source)   SOURCE="$2";              shift; shift; ;;
+  --arch)     TARGET_ARCHITECTURE="$2"; shift; shift; ;;
+  --pkg)      TARGET_PACKAGE="$2";      shift; shift; ;;
+  --version)  VERSION="$2";             shift; shift; ;;
+  *)                                    shift;        ;;
 esac
 done
+
+################################################################################
 
 if [ -z "${VERSION}" ] ; then
   (>&2 echo "version not provided")
@@ -47,96 +32,31 @@ if [ -z "${SOURCE}" ] ; then
   exit 1
 fi
 
+if [ -z "${TARGET_PACKAGE}" ] ; then
+  (>&2 echo "[error] target package not provided")
+  exit 1
+fi
+
 if [ -z "${TARGET_ARCHITECTURE}" ] ; then
   (>&2 echo "target architecture not provided (use e.g. --arch amd64)")
   exit 1
 fi
 
-DEB_SOURCES="${SOURCE}/debian_${TARGET_ARCHITECTURE}"
-BIN_SOURCES="${SOURCE}/bin"
+################################################################################
 
-if [ ! -d "${DEB_SOURCES}" ] ; then
-  (>&2 echo "packaging for ${TARGET_ARCHITECTURE} is not supported")
-  exit 1
-fi
+lifecycle::debian::generate_changelog() {
+  echo "[info] (${TARGET_PACKAGE}_${TARGET_ARCHITECTURE}) generating changelog"
 
-if [ ! -d "${BIN_SOURCES}/data-warehouse-linux-${TARGET_ARCHITECTURE}" ] ; then
-  (>&2 echo "did not found bundle to package at ${BIN_SOURCES}/data-warehouse-linux-${TARGET_ARCHITECTURE}")
-  exit 1
-fi
-
-mkdir -p ${DEB_SOURCES}/usr/share/openbank
-if [ -d "${DEB_SOURCES}/usr/share/openbank/data-warehouse" ] ; then
-  rm -rf ${DEB_SOURCES}/usr/share/openbank/data-warehouse/*
-else
-  mkdir -p ${DEB_SOURCES}/usr/share/openbank/data-warehouse
-fi
-
-mkdir -p ${DEB_SOURCES}/usr/bin
-if [ -f "${DEB_SOURCES}/usr/bin/data-warehouse-app" ] ; then
-  rm -f ${DEB_SOURCES}/usr/bin/data-warehouse-app
-fi
-
-generate_manpage() {
-  mkdir -p ${DEB_SOURCES}/usr/share/man/man8
-
-  target="${DEB_SOURCES}/usr/share/man/man8/data-warehouse.8"
+  target="${SOURCE}/debian/changelog"
 
   if [ -f ${target} ] ; then
     rm -f ${target}
-  fi
-
-  if [ -f ${target}.gz ] ; then
-    rm -f ${target}.gz
-  fi
-
-cat > ${target} <<EOL
-.TH DATA-WAREHOUSE 8 2019 "Data Warehouse" "OpenBank Data Warehouse"
-.SH NAME
-data-warehouse \- starts openbank data-warehouse service
-.SH DESCRIPTION
-The data warehouse provides secondary data mirror for analytics
-.EE
-EOL
-
-  cat ${target} | gzip -n -9 > ${target}.gz
-  rm ${target}
-}
-
-generate_changelog() {
-  mkdir -p ${DEB_SOURCES}/usr/share/doc/data-warehouse
-
-  target="${DEB_SOURCES}/usr/share/doc/data-warehouse/changelog"
-
-  if [ -f ${target} ] ; then
-    rm -f ${target}
-  fi
-
-  if [ -f ${target}.gz ] ; then
-    rm -f ${target}.gz
-  fi
-
-  if [ -f ${target}.Debian.gz ] ; then
-    rm -f ${target}.Debian.gz
   fi
 
   touch ${target}
 
-  VER="${VERSION}"
-  tag=HEAD
-  ADDS=$(echo ${VER} | sed -e 's/~.*//' | cut -s -d- -f2 | sed '/^[[:space:]]*$/d')
-
-  if [[ -z "${ADDS// }" ]] ; then
-    DATE=$(date '+%a, %-d %b %Y %H:%M:%S %z')
-    echo "data-warehouse (${VER}) unstable; urgency=low" >> ${target}
-    echo "" >> ${target}
-    echo "  * includes non-released commits" >> ${target}
-    echo "" >> ${target}
-    echo " -- Jan Cajthaml <jan.cajthaml@gmail.com>  ${DATE}" >> ${target}
-    echo "" >> ${target}
-  fi
-
   PAIRS=()
+  tag=HEAD
   prev_tag=HEAD
   for tag in $(git tag --sort=-v:refname | awk '{arr[i++]=$0} END {while (i>0) print arr[--i] }') ; do
     PAIRS+=("${prev_tag} ${tag}")
@@ -147,68 +67,63 @@ generate_changelog() {
   for ((i=${#idx[@]} - 1; i >= 0; i--)) ; do
     tag_from=${PAIRS[idx[i]]%% *}
     tag_to=${PAIRS[idx[i]]#* }
-
     DATE=$(git log -1 --format=%cD ${tag_to})
-
     commits=$(echo "$(git log --no-merges --pretty=oneline --pretty=format:%s ^${tag_from} ${tag_to})" | sed '/^[[:space:]]*$/d' | uniq)
-
     if [[ -n "${commits// }" ]] ; then
-
-      echo "data-warehouse (${tag_to#v}) stable; urgency=low" >> ${target}
+      echo "${TARGET_PACKAGE} (${tag_to#v}) stable; urgency=medium" >> ${target}
       echo "" >> ${target}
-
       echo "${commits}" | \
       while read note ; do
-        echo "  * $(tr '[:lower:]' '[:upper:]' <<< ${note:0:1})${note:1}" >> ${target}
+        line="$(tr '[:lower:]' '[:upper:]' <<< ${note:0:1})${note:1}"
+        echo "  * ${line:0:75}" >> ${target}
       done
-
       echo "" >> ${target}
-
       echo " -- Jan Cajthaml <jan.cajthaml@gmail.com>  ${DATE}" >> ${target}
       echo "" >> ${target}
     fi
   done
 
-  case "${VERSION}" in
-    *+*)
-      cat ${target} | gzip -n -9 > ${target}.Debian.gz
-      ;;
-    *)
-      cat ${target} | gzip -n -9 > ${target}.gz
-      ;;
-  esac
+  if [ ! -s ${target} ] ; then
+    DATE=$(git log -1 --format=%cD HEAD)
+    echo "${TARGET_PACKAGE} (0.0.0) unstable; urgency=medium" >> ${target}
+    echo "" >> ${target}
+    echo "  * contains unrelease commits" >> ${target}
+    echo "" >> ${target}
+    echo " -- Jan Cajthaml <jan.cajthaml@gmail.com>  ${DATE}" >> ${target}
+    echo "" >> ${target}
+  fi
 
-  rm ${target}
+  #echo "[info] (${TARGET_PACKAGE}_${TARGET_ARCHITECTURE}) checking misspell"
+
+  #/go/bin/misspell -q -locale US -source=text -w ${target}
 }
 
-check_files() {
-  chmod 0755 "${DEB_SOURCES}/DEBIAN/control"
-  chmod 0755 "${DEB_SOURCES}/DEBIAN/postinst"
-  chmod 0755 "${DEB_SOURCES}/DEBIAN/postrm"
-  chmod 0755 "${DEB_SOURCES}/DEBIAN/preinst"
+lifecycle::debian::package() {
+  echo "[info] (${TARGET_PACKAGE}_${TARGET_ARCHITECTURE}) running dpkg-buildpackage"
+  local CC=gcc
+  case ${TARGET_ARCHITECTURE} in
+    armhf) CC=arm-linux-gnueabihf-gcc ;;
+    arm64) CC=aarch64-linux-gnu-gcc   ;;
+    *)     CC=gcc                     ;;
+  esac
+
+  cd ${SOURCE} && \
+  \
+  CC=${CC} \
+    dpkg-buildpackage \
+    --host-arch=${TARGET_ARCHITECTURE} \
+    -tc -uc -b -rfakeroot
+
+  find ".." -name "${TARGET_PACKAGE}_*_${TARGET_ARCHITECTURE}.*" -exec mv {} bin/ \;
+}
+
+lifecycle::lintian() {
+  echo "[info] (${TARGET_PACKAGE}_${TARGET_ARCHITECTURE}) running lintian"
+  find bin -name "${TARGET_PACKAGE}_*_${TARGET_ARCHITECTURE}.deb" -exec fakeroot lintian --pedantic {} \;
 }
 
 ################################################################################
 
-cp -R \
-  "${BIN_SOURCES}/data-warehouse-linux-${TARGET_ARCHITECTURE}/lib/." \
-  "${DEB_SOURCES}/usr/share/openbank/data-warehouse/lib"
-cp \
-  "${BIN_SOURCES}/data-warehouse-linux-${TARGET_ARCHITECTURE}/bin/main" \
-  "${DEB_SOURCES}/usr/bin/data-warehouse-app"
-
-generate_changelog
-generate_manpage
-
-sed -i 's/Version.*/Version: '${VERSION#v}'/' "${DEB_SOURCES}/DEBIAN/control"
-
-find "${BIN_SOURCES}" -name "data-warehouse_*_${TARGET_ARCHITECTURE}.deb" -exec rm -f {} \;
-
-check_files
-
-dpkg-deb --build "${DEB_SOURCES}" "${BIN_SOURCES}"
-
-find "${BIN_SOURCES}" -name "data-warehouse_*_${TARGET_ARCHITECTURE}.deb" -exec fakeroot lintian --pedantic {} \;
-find "${BIN_SOURCES}" -name "data-warehouse_*_${TARGET_ARCHITECTURE}.deb" -exec du -hs {} \;
-
-exit 0
+lifecycle::debian::generate_changelog
+lifecycle::debian::package
+lifecycle::lintian

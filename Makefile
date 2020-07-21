@@ -15,8 +15,7 @@ all: bootstrap sync test package bbtest
 
 .PHONY: package
 package:
-	@$(MAKE) bundle-binaries-amd64
-	@$(MAKE) bundle-debian-amd64
+	@$(MAKE) package-amd64
 	@$(MAKE) bundle-docker
 
 .PHONY: package-%
@@ -30,7 +29,7 @@ bundle-binaries-%: %
 
 .PHONY: bundle-debian-%
 bundle-debian-%: %
-	@docker-compose run --rm debian --version $(VERSION)+$(META) --arch $^ --source /project/packaging
+	@docker-compose run --rm debian --version $(VERSION)+$(META) --arch $^ --pkg data-warehouse --source /project/packaging
 
 .PHONY: bundle-docker
 bundle-docker:
@@ -72,9 +71,8 @@ bbtest:
 			--link=dwh_postgres:postgres \
 			--name=dwh_bbtest_amd64 \
 			-e IMAGE_VERSION="$(VERSION)-$(META)" \
-			-e UNIT_VERSION="$(VERSION)+$(META)" \
+			-e UNIT_VERSION="$(VERSION)" \
 			-e UNIT_ARCH=amd64 \
-			-p 3000:80 \
 			-v /var/run/docker.sock:/var/run/docker.sock:rw \
 			-v /var/lib/docker/containers:/var/lib/docker/containers:rw \
 			-v /sys/fs/cgroup:/sys/fs/cgroup:ro \

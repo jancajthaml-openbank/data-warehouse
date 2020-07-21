@@ -1,0 +1,24 @@
+[Unit]
+Description=openbank data warehouse application namespace
+PartOf=data-warehouse.service
+After=data-warehouse.service
+ConditionPathExists=/etc/data-warehouse/conf.d/init.conf
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/data-warehouse/conf.d/init.conf
+Environment="PROG_HOME=/usr/share/openbank/data-warehouse"
+StartLimitBurst=0
+ExecStart=/usr/bin/data-warehouse
+StandardInput=null
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+Restart=always
+RestartSec=1
+KillSignal=SIGINT
+SuccessExitStatus=130
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

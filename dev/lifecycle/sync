@@ -3,41 +3,38 @@
 set -eu
 trap exit INT TERM
 
-TARGET_PACKAGE=""
+################################################################################
 
+TARGET_PACKAGE=""
 while [ $# -gt 0 ] ; do
 key="$1"
-
 case $key in
-
-  --pkg)
-    TARGET_PACKAGE="$2"
-    shift
-    shift
-  ;;
-
-  *)
-    shift
-  ;;
-
+  --pkg)  TARGET_PACKAGE="$2";  shift; shift; ;;
+  *)                            shift;        ;;
 esac
 done
+
+################################################################################
 
 if [ -z "${TARGET_PACKAGE}" ] ; then
   (>&2 echo "[error] target package not provided")
   exit 1
 fi
 
-cd /project/services/${TARGET_PACKAGE}
+################################################################################
 
-sbt \
-    -Dsbt.ivy.home=/project/services/${TARGET_PACKAGE}/.ivy \
-    clean
+lifecycle::scala::sync() {
+  local dir="$1"
+  if [ -z ${dir} -o ! -d ${dir} ] ; then
+    return
+  fi
 
-sbt \
-    -Dsbt.ivy.home=/project/services/${TARGET_PACKAGE}/.ivy \
-    update
+  cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy clean
+  cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy update
+  cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy evicted
+}
 
-sbt \
-    -Dsbt.ivy.home=/project/services/${TARGET_PACKAGE}/.ivy \
-    evicted
+################################################################################
+
+lifecycle::scala::sync \
+  /project/services/${TARGET_PACKAGE}

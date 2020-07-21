@@ -3,32 +3,20 @@
 set -e
 trap exit INT TERM
 
+################################################################################
+
 TARGET_PACKAGE=""
 OUTPUT=""
-
 while [ $# -gt 0 ] ; do
 key="$1"
-
 case $key in
-
-  --pkg)
-    TARGET_PACKAGE="$2"
-    shift
-    shift
-  ;;
-
-  --output)
-    OUTPUT="$2"
-    shift
-    shift
-  ;;
-
-  *)
-    shift
-  ;;
-
+  --pkg)    TARGET_PACKAGE="$2";  shift; shift; ;;
+  --output) OUTPUT="$2";          shift; shift; ;;
+  *)                              shift;        ;;
 esac
 done
+
+################################################################################
 
 if [ -z "${TARGET_PACKAGE}" ] ; then
   (>&2 echo "[error] target package not provided")
@@ -40,6 +28,20 @@ if [ -z "${OUTPUT}" ] ; then
   exit 1
 fi
 
-cd /project/services/${TARGET_PACKAGE}
+################################################################################
 
-echo "test NOT IMPLEMENTED"
+lifecycle::scala::test() {
+  local dir="$1"
+  if [ -z ${dir} -o ! -d ${dir} ] ; then
+    return
+  fi
+  local output="$2"
+
+  echo "notning to test at ${dir}"
+}
+
+################################################################################
+
+lifecycle::scala::test \
+  /project/services/${TARGET_PACKAGE} \
+  ${OUTPUT}/unit-tests
