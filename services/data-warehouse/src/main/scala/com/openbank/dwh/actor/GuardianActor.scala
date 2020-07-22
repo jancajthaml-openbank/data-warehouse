@@ -45,7 +45,10 @@ object GuardianActor extends StrictLogging {
 
       case RunPrimaryDataExploration =>
         getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
-          case Some(ref) => ref ! PrimaryDataExplorerActor.RunExploration
+          case Some(ref) => {
+            logger.info("Invoking Primary Data Exploration")
+            ref ! PrimaryDataExplorerActor.RunExploration
+          }
           case _ => logger.info("Cannot run primary data exploration")
         }
         Behaviors.same
