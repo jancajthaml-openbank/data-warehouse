@@ -17,7 +17,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
   sealed trait Command extends GuardianActor.Command
   case object RunExploration extends Command
-  case class PoisonPill(promise: Promise[Done]) extends Command
+  case class Shutdown(promise: Promise[Done]) extends Command
   case object Lock extends Command
   case object Free extends Command
 
@@ -26,7 +26,6 @@ object PrimaryDataExplorerActor extends StrictLogging {
   private lazy val delay = 5.seconds
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext) = {
-
     val props = BehaviorProps(primaryDataExplorationService)
 
     Behaviors
@@ -50,8 +49,8 @@ object PrimaryDataExplorerActor extends StrictLogging {
         logger.debug("active(Free)")
         idle(props)
 
-      case PoisonPill(promise) =>
-        logger.debug("active(PoisonPill)")
+      case Shutdown(promise) =>
+        logger.debug("active(Shutdown)")
         promise.completeWith(props.primaryDataExplorationService.killRunningWorkflow())
         Behaviors.stopped
 
@@ -101,8 +100,8 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
         Behaviors.same
 
-      case PoisonPill(promise) =>
-        logger.debug("idle(PoisonPill)")
+      case Shutdown(promise) =>
+        logger.debug("idle(Shutdown)")
         promise.success(Done)
         Behaviors.stopped
 
