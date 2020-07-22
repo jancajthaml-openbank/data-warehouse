@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import docker
@@ -63,8 +63,8 @@ class UnitHelper(object):
 
     temp = tempfile.NamedTemporaryFile(delete=True)
     try:
-      with open(temp.name, 'w') as f:
-        f.write(str(os.linesep).join([
+      with open(temp.name, 'w') as fd:
+        fd.write(str(os.linesep).join([
           'FROM alpine',
           'COPY --from={} {} {}'.format(image, package, target)
         ]))
@@ -73,8 +73,10 @@ class UnitHelper(object):
         if not 'stream' in chunk:
           continue
         for line in chunk['stream'].splitlines():
-          if len(line):
-            print(line.strip(os.linesep))
+          l = line.strip(os.linesep)
+          if not len(l):
+            continue
+          print(l)
 
       scratch = self.docker.create_container('bbtest_artifacts-scratch', '/bin/true')
 
@@ -94,8 +96,8 @@ class UnitHelper(object):
       if code != 0:
         raise RuntimeError('code: {}, stdout: [{}], stderr: [{}]'.format(code, result, error))
       else:
-        with open('/tmp/reports/blackbox-tests/logs/debian.data-warehouse.txt', 'w') as f:
-          f.write(result)
+        with open('/tmp/reports/blackbox-tests/meta/debian.data-warehouse.txt', 'w') as fd:
+          fd.write(result)
 
       self.docker.remove_container(scratch['Id'])
     finally:
@@ -116,7 +118,7 @@ class UnitHelper(object):
 
     os.makedirs("/etc/data-warehouse/conf.d", exist_ok=True)
     with open('/etc/data-warehouse/conf.d/init.conf', 'w') as fd:
-      f.write(str(os.linesep).join("{!s}={!s}".format(key, val) for (key, val) in config.items()))
+      fd.write(str(os.linesep).join("{!s}={!s}".format(key, val) for (key, val) in config.items()))
 
   def cleanup(self):
     (code, result, error) = execute(['systemctl', 'list-units', '--no-legend'])
@@ -127,8 +129,8 @@ class UnitHelper(object):
       (code, result, error) = execute(['journalctl', '-o', 'cat', '-u', unit, '--no-pager'])
       if code != 0 or not result:
         continue
-      with open('/tmp/reports/blackbox-tests/logs/{}.log'.format(unit), 'w') as f:
-        f.write(result)
+      with open('/tmp/reports/blackbox-tests/logs/{}.log'.format(unit), 'w') as fd:
+        fd.write(result)
 
   def teardown(self):
     (code, result, error) = execute(['systemctl', 'list-units', '--no-legend'])
