@@ -79,6 +79,8 @@ object PrimaryDataExplorerActor extends StrictLogging {
       case RunExploration =>
         logger.debug("idle(RunExploration)")
 
+        context.self ! Lock
+
         Future.successful(Done)
           .map {
             case _ if props.primaryDataExplorationService.isStoragePristine() =>
@@ -95,8 +97,6 @@ object PrimaryDataExplorerActor extends StrictLogging {
             logger.debug("Finished Primary Data Exploration")
             context.self ! Free
           }
-
-        context.self ! Lock
 
         Behaviors.same
 
