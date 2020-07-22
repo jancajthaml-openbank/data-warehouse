@@ -110,26 +110,16 @@ class UnitHelper(object):
     if params:
       options.update(params)
 
-    config = dict()
-    for k, v in options.items():
-      config['DATA_WAREHOUSE_{0}'.format(k)] = v
-
-    print('options to write are {} based on {}'.format(config, options))
-
     os.makedirs("/etc/data-warehouse/conf.d", exist_ok=True)
     with open('/etc/data-warehouse/conf.d/init.conf', 'w') as fd:
-      fd.write(str(os.linesep).join("{!s}={!s}".format(k, v) for (k, v) in config.items()))
+      fd.write(str(os.linesep).join("DATA_WAREHOUSE_{!s}={!s}".format(k, v) for (k, v) in options.items()))
 
     with open('/etc/data-warehouse/conf.d/init.conf', 'r') as fd:
       print('after configure config is')
       print(fd.read())
 
   def cleanup(self):
-    (code, result, error) = execute(['systemctl', 'list-units', '--no-legend'])
-    result = [item.split(' ')[0].strip() for item in result.split(os.linesep)]
-    result = [item for item in result if "data-warehouse" in item]
-
-    for unit in result:
+    for unit in self.__get_systemd_units():
       (code, result, error) = execute(['journalctl', '-o', 'cat', '-u', unit, '--no-pager'])
       if code != 0 or not result:
         continue
@@ -137,11 +127,12 @@ class UnitHelper(object):
         fd.write(result)
 
   def teardown(self):
+    for unit in self.__get_systemd_units():
+      execute(['systemctl', 'stop', unit])
+    self.cleanup()
+
+  def __get_systemd_units(self):
     (code, result, error) = execute(['systemctl', 'list-units', '--no-legend'])
     result = [item.split(' ')[0].strip() for item in result.split(os.linesep)]
     result = [item for item in result if "data-warehouse" in item]
-
-    for unit in result:
-      execute(['systemctl', 'stop', unit])
-
-    self.cleanup()
+    return result
