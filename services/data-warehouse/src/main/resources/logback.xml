@@ -14,7 +14,7 @@
 
   <logger name="slick" level="WARN" />
 
-  <root level="${DWH_LOG_LEVEL:-INFO}">
+  <root level="${DATA_WAREHOUSE_LOG_LEVEL:-INFO}">
     <appender-ref ref="STDOUT_SYNC"/>
   </root>
 

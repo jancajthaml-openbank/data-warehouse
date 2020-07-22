@@ -37,8 +37,9 @@ object GuardianActor extends StrictLogging {
     case StartActors =>
       getRunningActor(props.ctx, PrimaryDataExplorerActor.namespace) match {
         case None =>
-          logger.info("Starting PrimaryDataExplorerActor")
-          logger.debug("Starting PrimaryDataExplorerActor")
+          logger.debug("1 Starting PrimaryDataExplorerActor")
+          logger.info("2 Starting PrimaryDataExplorerActor")
+          logger.debug("3 Starting PrimaryDataExplorerActor")
           props.ctx.spawn(
             PrimaryDataExplorerActor(props.primaryDataExplorationService),
             PrimaryDataExplorerActor.namespace

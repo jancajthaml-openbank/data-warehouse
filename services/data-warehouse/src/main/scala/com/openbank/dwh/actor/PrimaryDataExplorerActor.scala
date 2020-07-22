@@ -39,7 +39,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
   }
 
   def active(props: BehaviorProps)(implicit ec: ExecutionContext): Behavior[Command] =
-    Behaviors.receive { (context, m) => m match {
+    Behaviors.receive { (_, m) => m match {
 
       case Lock =>
         logger.debug("active(Lock)")
@@ -66,7 +66,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
   }
 
   def idle(props: BehaviorProps)(implicit ec: ExecutionContext): Behavior[Command] =
-    Behaviors.receive { (context, m) => m match {
+    Behaviors.receive { (ctx, m) => m match {
 
       case Lock =>
         logger.debug("idle(Lock)")
@@ -79,7 +79,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
       case RunExploration =>
         logger.debug("idle(RunExploration)")
 
-        context.self ! Lock
+        ctx.self ! Lock
 
         Future.successful(Done)
           .map {
@@ -95,7 +95,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
           .recoverWith { case e: Exception => Future.successful(Done) }
           .onComplete { _ =>
             logger.debug("Finished Primary Data Exploration")
-            context.self ! Free
+            ctx.self ! Free
           }
 
         Behaviors.same

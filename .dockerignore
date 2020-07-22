@@ -2,3 +2,6 @@
 .github
 .circleci
 packaging/debian/target
+**/*/.ivy
+**/*/project/project
+**/*/target

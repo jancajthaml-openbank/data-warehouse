@@ -58,9 +58,6 @@ class UnitHelper(object):
     package = '/opt/artifacts/data-warehouse_{}_{}.deb'.format(self.debian_version, self.arch)
     target = '/tmp/packages/data-warehouse.deb'
 
-    execute(['docker', 'rmi', image])
-    execute(['docker', 'pull', image])
-
     temp = tempfile.NamedTemporaryFile(delete=True)
     try:
       with open(temp.name, 'w') as fd:
@@ -113,10 +110,6 @@ class UnitHelper(object):
     os.makedirs("/etc/data-warehouse/conf.d", exist_ok=True)
     with open('/etc/data-warehouse/conf.d/init.conf', 'w') as fd:
       fd.write(str(os.linesep).join("DATA_WAREHOUSE_{!s}={!s}".format(k, v) for (k, v) in options.items()))
-
-    with open('/etc/data-warehouse/conf.d/init.conf', 'r') as fd:
-      print('after configure config is')
-      print(fd.read())
 
   def cleanup(self):
     for unit in self.__get_systemd_units():
