@@ -460,13 +460,13 @@ jobs:
       - restore_cache:
           key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - run: docker pull jancajthaml/bbtest:amd64
+      - run: docker build -f /home/circleci/project/bbtest/postgres/Dockerfile -t dwh_postgres /home/circleci/project/bbtest/postgres
       - run:
           name: Run blackbox tests
           command: |
             IMAGE_VERSION=$(cat /home/circleci/project/DOCKER_VERSION)
             UNIT_VERSION=$(cat /home/circleci/project/TAG_VERSION)
 
-            docker build -f /home/circleci/project/bbtest/postgres/Dockerfile -t dwh_postgres /home/circleci/project/bbtest/postgres
             docker run -d --name=dwh_postgres dwh_postgres &> /dev/null
 
             docker exec -it $(\

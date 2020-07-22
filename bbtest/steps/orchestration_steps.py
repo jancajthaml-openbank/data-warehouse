@@ -14,8 +14,12 @@ def step_impl(context, seconds):
 
 @given('package {package} is {operation}')
 def step_impl(context, package, operation):
+  with open('/etc/data-warehouse/conf.d/init.conf', 'r') as fd:
+    print('before install conf file is')
+    print(fd.read())
+
   if operation == 'installed':
-    (code, result, error) = execute(["apt-get", "install", "-f", "-qq", "-o=Dpkg::Use-Pty=0", "-o=Dpkg::Options::=--force-confdef", "-o=Dpkg::Options::=--force-confnew", "/tmp/packages/{}.deb".format(package)])
+    (code, result, error) = execute(["apt-get", "install", "-f", "-qq", "-o=Dpkg::Use-Pty=0", "-o=Dpkg::Options::=--force-confdef", "-o=Dpkg::Options::=--force-confold", "/tmp/packages/{}.deb".format(package)])
     assert code == 0, "unable to install with code {} and {} {}".format(code, result, error)
     assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is True
   elif operation == 'uninstalled':
@@ -24,6 +28,11 @@ def step_impl(context, package, operation):
     assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is False
   else:
     assert False
+
+  with open('/etc/data-warehouse/conf.d/init.conf', 'r') as fd:
+    print('after install conf file is')
+    print(fd.read())
+    #fd.write(str(os.linesep).join("{!s}={!s}".format(key, val) for (key, val) in config.items()))
 
 
 
