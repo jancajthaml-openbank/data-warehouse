@@ -17,9 +17,9 @@ class UnitHelper(object):
   def default_config():
     return {
       "LOG_LEVEL": "DEBUG",
-      "SECRETS": "/opt/data-warehouse/secrets",
       "HTTP_PORT": "80",
-      "POSTGRES_URL": "jdbc:postgresql://postgres:5432/openbank"
+      "POSTGRES_URL": "jdbc:postgresql://postgres:5432/openbank",
+      "PRIMARY_STORAGE_PATH": "/data",
     }
 
   def get_arch(self):
@@ -32,11 +32,11 @@ class UnitHelper(object):
   def __init__(self, context):
     self.arch = self.get_arch()
 
-    self.store = {}
+    self.store = dict()
     self.image_version = None
     self.debian_version = None
-    self.units = {}
-    self.services = []
+    self.units = dict()
+    self.services = list()
     self.docker = docker.APIClient(base_url='unix://var/run/docker.sock')
     self.context = context
 
@@ -105,10 +105,15 @@ class UnitHelper(object):
     if params:
       options.update(params)
 
+    config = dict()
+    for k, v in options.items():
+      key = 'DATA_WAREHOUSE_{0}'.format(k)
+      if key in config:
+        config[key] = v
+
     os.makedirs("/etc/data-warehouse/conf.d", exist_ok=True)
     with open('/etc/data-warehouse/conf.d/init.conf', 'w') as fd:
-      for k, v in sorted(options.items()):
-        fd.write('DATA_WAREHOUSE_{}={}\n'.format(k, v))
+      f.write(str(os.linesep).join("{!s}={!s}".format(key, val) for (key, val) in config.items()))
 
   def cleanup(self):
     (code, result, error) = execute([
