@@ -28,7 +28,7 @@ object GuardianActor extends StrictLogging {
       .onFailure(SupervisorStrategy.restart.withStopChildren(false))
   }
 
-  def behaviour(context: ActorContext[Command]): Behavior[Command] = Behaviors.receiveMessagePartial {
+  def behaviour(context: ActorContext[Command])(implicit ec: ExecutionContext): Behavior[Command] = Behaviors.receiveMessagePartial {
 
     case StartActors =>
       getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
