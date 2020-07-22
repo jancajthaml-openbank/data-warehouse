@@ -60,17 +60,20 @@ class UnitHelper(object):
     package = 'data-warehouse_{}_{}'.format(self.debian_version, self.arch)
     scratch_docker_cmd.append('COPY --from={} /opt/artifacts/{}.deb /tmp/packages/data-warehouse.deb'.format(image, package))
 
+    execute(['docker', 'rmi', image])
+    execute(['docker', 'pull', image])
+
     temp = tempfile.NamedTemporaryFile(delete=True)
     try:
       with open(temp.name, 'w') as f:
         for item in scratch_docker_cmd:
-          f.write("%s\n" % item)
+          f.write(str(item) + os.linesep)
 
-      for chunk in self.docker.build(fileobj=temp, rm=True, decode=True, tag='bbtest_artifacts-scratch'):
+      for chunk in self.docker.build(fileobj=temp, rm=True, pull=False, decode=True, tag='bbtest_artifacts-scratch'):
         if 'stream' in chunk:
           for line in chunk['stream'].splitlines():
             if len(line):
-              print(line.strip('\r\n'))
+              print(line.strip(os.linesep))
 
       scratch = self.docker.create_container('bbtest_artifacts-scratch', '/bin/true')
 
@@ -119,7 +122,7 @@ class UnitHelper(object):
     (code, result, error) = execute([
       'systemctl', 'list-units', '--no-legend'
     ])
-    result = [item.split(' ')[0].strip() for item in result.split('\n')]
+    result = [item.split(' ')[0].strip() for item in result.split(os.linesep)]
     result = [item for item in result if ("data-warehouse" in item)]
 
     for unit in result:
@@ -135,7 +138,7 @@ class UnitHelper(object):
     (code, result, error) = execute([
       'systemctl', 'list-units', '--no-legend'
     ])
-    result = [item.split(' ')[0].strip() for item in result.split('\n')]
+    result = [item.split(' ')[0].strip() for item in result.split(os.linesep)]
     result = [item for item in result if "data-warehouse" in item]
 
     for unit in result:
