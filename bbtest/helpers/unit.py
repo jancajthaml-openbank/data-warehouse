@@ -112,13 +112,17 @@ class UnitHelper(object):
 
     config = dict()
     for k, v in options.items():
-      key = 'DATA_WAREHOUSE_{0}'.format(k)
-      if key in config:
-        config[key] = v
+      config[key] = 'DATA_WAREHOUSE_{0}'.format(k)
+
+    print('options to write are {} based on {}'.format(config, options))
 
     os.makedirs("/etc/data-warehouse/conf.d", exist_ok=True)
     with open('/etc/data-warehouse/conf.d/init.conf', 'w') as fd:
-      fd.write(str(os.linesep).join("{!s}={!s}".format(key, val) for (key, val) in config.items()))
+      fd.write(str(os.linesep).join("{!s}={!s}".format(k, v) for (k, v) in config.items()))
+
+    with open('/etc/data-warehouse/conf.d/init.conf', 'r') as fd:
+      print('after configure config is')
+      print(fd.read())
 
   def cleanup(self):
     (code, result, error) = execute(['systemctl', 'list-units', '--no-legend'])
