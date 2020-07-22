@@ -112,7 +112,7 @@ class UnitHelper(object):
 
     config = dict()
     for k, v in options.items():
-      config[key] = 'DATA_WAREHOUSE_{0}'.format(k)
+      config[key] = 'DATA_WAREHOUSE_{0}'.format(v)
 
     print('options to write are {} based on {}'.format(config, options))
 
