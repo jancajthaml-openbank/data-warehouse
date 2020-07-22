@@ -14,49 +14,10 @@ object GuardianActor extends StrictLogging {
 
   trait Command
   case object StartActors extends Command
-  case class ShutdownActors(promise: Promise[Done]) extends Command
+  case class ShutdownActors(ack: Promise[Done]) extends Command
   case object RunPrimaryDataExploration extends Command
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext): Behavior[Command] = {
-
-    def behaviour(context: ActorContext[Command]): Behavior[Command] = Behaviors.receiveMessagePartial {
-
-      case StartActors =>
-        getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
-          case None =>
-            logger.info("Starting PrimaryDataExplorerActor")
-            context.spawn(
-              PrimaryDataExplorerActor(primaryDataExplorationService),
-              PrimaryDataExplorerActor.namespace
-            )
-            context.self ! RunPrimaryDataExploration
-          case _ =>
-        }
-        Behaviors.same
-
-      case ShutdownActors(promise) =>
-        getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
-          case Some(ref) =>
-            logger.info("Stopping PrimaryDataExplorerActor")
-            ref ! PrimaryDataExplorerActor.PoisonPill(promise)
-          case _ =>
-        }
-        Behaviors.same
-
-      case RunPrimaryDataExploration =>
-        getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
-          case Some(ref) => {
-            logger.info("Invoking Primary Data Exploration")
-            ref ! PrimaryDataExplorerActor.RunExploration
-          }
-          case _ => logger.info("Cannot run primary data exploration")
-        }
-        Behaviors.same
-
-      case _ =>
-        Behaviors.unhandled
-
-    }
 
     Behaviors
       .supervise {
@@ -65,6 +26,42 @@ object GuardianActor extends StrictLogging {
         })
       }
       .onFailure(SupervisorStrategy.restart.withStopChildren(false))
+  }
+
+  def behaviour(context: ActorContext[Command]): Behavior[Command] = Behaviors.receiveMessagePartial {
+
+    case StartActors =>
+      getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
+        case None =>
+          logger.info("Starting PrimaryDataExplorerActor")
+          context.spawn(
+            PrimaryDataExplorerActor(primaryDataExplorationService),
+            PrimaryDataExplorerActor.namespace
+          )
+          context.self ! RunPrimaryDataExploration
+        case _ =>
+      }
+      Behaviors.same
+
+    case ShutdownActors(ack) =>
+      getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
+        case Some(ref) =>
+          logger.info("Stopping PrimaryDataExplorerActor")
+          ref ! PrimaryDataExplorerActor.PoisonPill(ack)
+        case _ =>
+      }
+      Behaviors.same
+
+    case RunPrimaryDataExploration =>
+      getRunningActor(context, PrimaryDataExplorerActor.namespace) match {
+        case Some(ref) => ref ! PrimaryDataExplorerActor.RunExploration
+        case _ => logger.info("Cannot run primary data exploration")
+      }
+      Behaviors.same
+
+    case _ =>
+      Behaviors.unhandled
+
   }
 
   private def getRunningActor(context: ActorContext[Command], name: String): Option[ActorRef[Command]] = {

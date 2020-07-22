@@ -21,44 +21,76 @@ object PrimaryDataExplorerActor extends StrictLogging {
   case object Lock extends Command
   case object Free extends Command
 
+  case class BehaviorProps(primaryDataExplorationService: PrimaryDataExplorationService)
+
   private lazy val delay = 5.seconds
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext) = {
 
-    def active(): Behavior[Command] = Behaviors.receive { (context, m) => m match {
+    val props = BehaviorProps(primaryDataExplorationService)
+
+    Behaviors
+      .supervise {
+        Behaviors.withTimers[Command] { timer =>
+          timer.startTimerWithFixedDelay(RunExploration, delay)
+          idle(props)
+        }
+      }
+      .onFailure[Exception](SupervisorStrategy.restart.withLimit(Int.MaxValue, delay))
+  }
+
+  def active(props: BehaviorProps)(implicit ec: ExecutionContext): Behavior[Command] =
+    Behaviors.receive { (context, m) => m match {
+
+      case Lock =>
+        logger.debug("active(Lock)")
+        Behaviors.same
 
       case Free =>
-        idle()
+        logger.debug("active(Free)")
+        idle(props)
 
       case PoisonPill(promise) =>
-        promise.completeWith(primaryDataExplorationService.killRunningWorkflow())
+        logger.debug("active(PoisonPill)")
+        promise.completeWith(props.primaryDataExplorationService.killRunningWorkflow())
         Behaviors.stopped
 
       case RunExploration =>
+        logger.debug("active(RunExploration)")
         Behaviors.same
 
-      case _ =>
+      case msg =>
+        logger.debug(s"active(${msg})")
         Behaviors.unhandled
 
-    } }
+    }
+  }
 
-    def idle(): Behavior[Command] = Behaviors.receive { (context, m) => m match {
+  def idle(props: BehaviorProps)(implicit ec: ExecutionContext): Behavior[Command] =
+    Behaviors.receive { (context, m) => m match {
 
       case Lock =>
-        active()
+        logger.debug("idle(Lock)")
+        active(props)
+
+      case Free =>
+        logger.debug("idle(Free)")
+        Behaviors.same
 
       case RunExploration =>
+        logger.debug("idle(RunExploration)")
+
         Future.successful(Done)
           .map {
-            case _ if primaryDataExplorationService.isStoragePristine() =>
+            case _ if props.primaryDataExplorationService.isStoragePristine() =>
               logger.debug("Skipping Primary Data Exploration")
               throw PrimaryStoragePristine
             case _ =>
               logger.debug("Running Primary Data Exploration")
               Done
           }
-          .flatMap { _ => primaryDataExplorationService.exploreAccounts() }
-          .flatMap { _ => primaryDataExplorationService.exploreTransfers() }
+          .flatMap { _ => props.primaryDataExplorationService.exploreAccounts() }
+          .flatMap { _ => props.primaryDataExplorationService.exploreTransfers() }
           .recoverWith { case e: Exception => Future.successful(Done) }
           .onComplete { _ =>
             logger.debug("Finished Primary Data Exploration")
@@ -70,22 +102,15 @@ object PrimaryDataExplorerActor extends StrictLogging {
         Behaviors.same
 
       case PoisonPill(promise) =>
+        logger.debug("idle(PoisonPill)")
         promise.success(Done)
         Behaviors.stopped
 
-      case _ =>
+      case msg =>
+        logger.debug(s"idle(${msg})")
         Behaviors.unhandled
 
-    } }
-
-    Behaviors
-      .supervise {
-        Behaviors.withTimers[Command] { timer =>
-          timer.startTimerWithFixedDelay(RunExploration, delay)
-          idle()
-        }
-      }
-      .onFailure[Exception](SupervisorStrategy.restart.withLimit(Int.MaxValue, delay))
+    }
   }
 
 }
