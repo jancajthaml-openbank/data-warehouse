@@ -38,6 +38,7 @@ object GuardianActor extends StrictLogging {
       getRunningActor(props.ctx, PrimaryDataExplorerActor.namespace) match {
         case None =>
           logger.info("Starting PrimaryDataExplorerActor")
+          logger.debug("Starting PrimaryDataExplorerActor")
           props.ctx.spawn(
             PrimaryDataExplorerActor(props.primaryDataExplorationService),
             PrimaryDataExplorerActor.namespace
@@ -58,7 +59,11 @@ object GuardianActor extends StrictLogging {
 
     case RunPrimaryDataExploration =>
       getRunningActor(props.ctx, PrimaryDataExplorerActor.namespace) match {
-        case Some(ref) => ref ! PrimaryDataExplorerActor.RunExploration
+        case Some(ref) => {
+          logger.info("Invoking PrimaryDataExplorerActor.RunExploration")
+          logger.debug("Invoking PrimaryDataExplorerActor.RunExploration")
+          ref ! PrimaryDataExplorerActor.RunExploration
+        }
         case _ => logger.info("Cannot run primary data exploration")
       }
       Behaviors.same
