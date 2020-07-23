@@ -178,13 +178,16 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   def getAccountEventsFlow: Graph[FlowShape[Tuple2[PersistentAccount, PersistentAccountSnapshot], Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]], NotUsed] = {
     Flow[Tuple2[PersistentAccount, PersistentAccountSnapshot]]
       .map { case (account, snapshot) =>
-        // FIXME possible null pointer here
-        primaryStorage
+        val files = primaryStorage
           .getAccountEventsPath(account.tenant, account.name, snapshot.version)
           .toFile
           .listFiles()
-          .filterNot(_ == null)
-          .map { file => (account, snapshot, file.getName) }
+
+        if (files == null) {
+          Array.empty[Tuple3[PersistentAccount, PersistentAccountSnapshot, String]]
+        } else {
+          files.map { file => (account, snapshot, file.getName) }
+        }
       }
       .buffer(parallelism * 4, OverflowStrategy.backpressure)
       .filterNot { events =>
