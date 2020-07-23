@@ -23,7 +23,12 @@ libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick-hikaricp" % "3.2.0",
   "org.sangria-graphql" %% "sangria" % "2.0.0",
   "org.sangria-graphql" %% "sangria-spray-json" % "1.0.2",
-  "org.sangria-graphql" %% "sangria-akka-streams" % "1.0.2"
+  "org.sangria-graphql" %% "sangria-akka-streams" % "1.0.2",
+
+  "org.scalatest" %% "scalatest" % "3.1.1" % Test,
+  "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
+  "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,
+  "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test
 )
 
 enablePlugins(PackPlugin)

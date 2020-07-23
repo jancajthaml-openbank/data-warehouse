@@ -63,13 +63,11 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   def getTenansFlow: Graph[FlowShape[Path, PersistentTenant], NotUsed] = {
     Flow[Path]
       .flatMapConcat { path =>
-        Source {
-          path
-            .toFile
-            .listFiles(_.getName.matches("t_.+"))
-            .filterNot(_ == null)
-            .map(_.getName.stripPrefix("t_"))
-            .toIndexedSeq
+        val files = path.toFile.listFiles(_.getName.matches("t_.+"))
+        if (files == null) {
+          Source.empty
+        } else {
+          Source(files.map(_.getName.stripPrefix("t_")).toIndexedSeq)
         }
       }
       .buffer(parallelism * 2, OverflowStrategy.backpressure)
@@ -103,14 +101,15 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   def getAccountsFlow: Graph[FlowShape[PersistentTenant, PersistentAccount], NotUsed] = {
     Flow[PersistentTenant]
       .flatMapConcat { tenant =>
-        Source {
-          primaryStorage
-            .getAccountsPath(tenant.name)
-            .toFile
-            .listFiles()
-            .filterNot(_ == null)
-            .map { file => (tenant, file.getName) }
-            .toIndexedSeq
+        val files = primaryStorage.getAccountsPath(tenant.name).toFile.listFiles()
+        if (files == null) {
+          Source.empty
+        } else {
+          Source {
+            files
+              .map { file => (tenant, file.getName) }
+              .toIndexedSeq
+          }
         }
       }
       .buffer(parallelism * 2, OverflowStrategy.backpressure)
@@ -147,19 +146,23 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   def getAccountSnapshotsFlow: Graph[FlowShape[PersistentAccount, Tuple2[PersistentAccount, PersistentAccountSnapshot]], NotUsed] = {
     Flow[PersistentAccount]
       .flatMapConcat { account =>
-        Source {
-          primaryStorage
-            .getAccountSnapshotsPath(account.tenant, account.name)
-            .toFile
-            .listFiles()
-            .filterNot(_ == null)
-            .map(_.getName.toInt)
-            .filter(_ >= account.lastSynchronizedSnapshot)
-            .sortWith(_ < _)
-            .toIndexedSeq
+        val files = primaryStorage
+          .getAccountSnapshotsPath(account.tenant, account.name)
+          .toFile
+          .listFiles()
+        if (files == null) {
+          Source.empty
+        } else {
+          Source {
+            files
+              .map(_.getName.toInt)
+              .filter(_ >= account.lastSynchronizedSnapshot)
+              .sortWith(_ < _)
+              .toIndexedSeq
+          }
+          .take(2)
+          .map { version => (account, version) }
         }
-        .take(2)
-        .map { version => (account, version) }
       }
       .buffer(1, OverflowStrategy.backpressure)
       .mapAsync(parallelism * 2) { case (account, version) => {
@@ -175,6 +178,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
   def getAccountEventsFlow: Graph[FlowShape[Tuple2[PersistentAccount, PersistentAccountSnapshot], Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]], NotUsed] = {
     Flow[Tuple2[PersistentAccount, PersistentAccountSnapshot]]
       .map { case (account, snapshot) =>
+        // FIXME possible null pointer here
         primaryStorage
           .getAccountEventsPath(account.tenant, account.name, snapshot.version)
           .toFile
