@@ -67,7 +67,11 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
         if (files == null) {
           Source.empty
         } else {
-          Source(files.map(_.getName.stripPrefix("t_")).toIndexedSeq)
+          Source {
+            files
+              .map(_.getName.stripPrefix("t_"))
+              .toIndexedSeq
+          }
         }
       }
       .buffer(parallelism * 2, OverflowStrategy.backpressure)
@@ -82,6 +86,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           case (None, Some(b)) =>
             Future.successful(Some(b))
           case (Some(a), None) =>
+            logger.info(s"Discovered new Tenant %{a}")
             secondaryStorage
               .updateTenant(a)
               .map { _ => Some(a) }
@@ -125,6 +130,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           case (None, Some(b)) =>
             Future.successful(Some(b))
           case (Some(a), None) =>
+            logger.info(s"Discovered new Account %{a}")
             secondaryStorage
               .updateAccount(a)
               .map { _ =>

@@ -172,38 +172,6 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       .map(_.headOption)
   }
 
-  def getAccounts(tenant: String): DatabasePublisher[PersistentAccount] = {
-
-    val query = sql"""
-      SELECT
-        tenant,
-        name,
-        format,
-        currency,
-        last_syn_snapshot,
-        last_syn_event
-      FROM
-        account
-      WHERE
-        tenant = ${tenant}
-      ORDER BY
-        name ASC
-      ;
-    """.as[PersistentAccount]
-
-    persistence
-      .database
-      .stream(
-        query
-          .withStatementParameters(
-            rsType = ResultSetType.ForwardOnly,
-            rsConcurrency = ResultSetConcurrency.ReadOnly,
-            fetchSize = 100
-          )
-          .transactionally
-      )
-  }
-
   def getTenant(name: String): Future[Option[PersistentTenant]] = {
 
     val query = sql"""
@@ -227,31 +195,6 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
           )
       )
       .map(_.headOption)
-  }
-
-  def getTenants(): DatabasePublisher[PersistentTenant] = {
-
-    val query = sql"""
-      SELECT
-        name
-      FROM
-        tenant
-      ORDER BY
-        name ASC
-      ;
-    """.as[PersistentTenant]
-
-    persistence
-      .database
-      .stream(
-        query
-          .withStatementParameters(
-            rsType = ResultSetType.ForwardOnly,
-            rsConcurrency = ResultSetConcurrency.ReadOnly,
-            fetchSize = 10
-          )
-          .transactionally
-      )
   }
 
   private implicit def asAccount: GetResult[PersistentAccount] = GetResult(r =>
