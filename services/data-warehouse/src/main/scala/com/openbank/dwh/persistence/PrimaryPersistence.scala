@@ -26,9 +26,6 @@ object PrimaryPersistence {
 // FIXME split into interface and impl for better testing
 class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends StrictLogging {
 
-  def getLastModificationTime(): Long =
-    Paths.get(rootStorage).toFile.lastModified()
-
   def getRootPath(): Path =
     Paths.get(rootStorage)
 
@@ -151,8 +148,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
           debitAccount = parts(4),
           amount = BigDecimal.exact(parts(6)),
           currency = parts(7),
-          valueDate = ZonedDateTime.parse(parts(5)),
-          isPristine = false
+          valueDate = ZonedDateTime.parse(parts(5))
         )
       }
       .runWith(Sink.asPublisher(fanout = false))

@@ -42,6 +42,5 @@ case class PersistentTransfer(
   debitAccount: String,
   amount: BigDecimal,
   currency: String,
-  valueDate: ZonedDateTime,
-  isPristine: Boolean
+  valueDate: ZonedDateTime
 )

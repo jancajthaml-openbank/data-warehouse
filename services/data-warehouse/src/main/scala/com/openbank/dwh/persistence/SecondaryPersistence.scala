@@ -276,8 +276,7 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       debitAccount = r.nextString(),
       amount = r.nextBigDecimal(),
       currency = r.nextString(),
-      valueDate = ZonedDateTime.ofInstant(r.nextTimestamp().toInstant(), ZoneOffset.UTC),
-      isPristine = true
+      valueDate = ZonedDateTime.ofInstant(r.nextTimestamp().toInstant(), ZoneOffset.UTC)
     )
   )
 

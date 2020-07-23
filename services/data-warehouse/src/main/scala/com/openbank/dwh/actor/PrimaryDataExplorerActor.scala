@@ -9,8 +9,6 @@ import scala.concurrent.duration._
 import com.openbank.dwh.service._
 
 
-case object PrimaryStoragePristine extends Exception("", None.orNull)
-
 object PrimaryDataExplorerActor extends StrictLogging {
 
   val namespace = "primary-data-explorer"
@@ -23,7 +21,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
   case class BehaviorProps(primaryDataExplorationService: PrimaryDataExplorationService)
 
-  private lazy val delay = 5.seconds
+  private lazy val delay = 2.seconds
 
   def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext) = {
     val props = BehaviorProps(primaryDataExplorationService)
@@ -82,14 +80,6 @@ object PrimaryDataExplorerActor extends StrictLogging {
         ctx.self ! Lock
 
         Future.successful(Done)
-          .map {
-            case _ if props.primaryDataExplorationService.isStoragePristine() =>
-              logger.debug("Skipping Primary Data Exploration")
-              throw PrimaryStoragePristine
-            case _ =>
-              logger.debug("Running Primary Data Exploration")
-              Done
-          }
           .flatMap { _ => props.primaryDataExplorationService.exploreAccounts() }
           .flatMap { _ => props.primaryDataExplorationService.exploreTransfers() }
           .recoverWith { case e: Exception => Future.successful(Done) }

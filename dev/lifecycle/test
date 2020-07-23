@@ -37,7 +37,7 @@ lifecycle::scala::test() {
   fi
   local output="$2"
 
-  echo "notning to test at ${dir}"
+  cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy test
 }
 
 ################################################################################
