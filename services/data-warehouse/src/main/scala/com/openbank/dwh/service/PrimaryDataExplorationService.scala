@@ -86,7 +86,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           case (None, Some(b)) =>
             Future.successful(Some(b))
           case (Some(a), None) =>
-            logger.info(s"Discovered new Tenant %{a}")
+            logger.info(s"Discovered new Tenant ${a}")
             secondaryStorage
               .updateTenant(a)
               .map { _ => Some(a) }
@@ -130,7 +130,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           case (None, Some(b)) =>
             Future.successful(Some(b))
           case (Some(a), None) =>
-            logger.info(s"Discovered new Account %{a}")
+            logger.info(s"Discovered new Account ${a}")
             secondaryStorage
               .updateAccount(a)
               .map { _ =>
