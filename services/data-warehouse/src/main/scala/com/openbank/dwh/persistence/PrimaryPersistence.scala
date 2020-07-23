@@ -148,8 +148,7 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
           debitAccount = parts(4),
           amount = BigDecimal.exact(parts(6)),
           currency = parts(7),
-          valueDate = ZonedDateTime.parse(parts(5)),
-          isPristine = false
+          valueDate = ZonedDateTime.parse(parts(5))
         )
       }
       .runWith(Sink.asPublisher(fanout = false))

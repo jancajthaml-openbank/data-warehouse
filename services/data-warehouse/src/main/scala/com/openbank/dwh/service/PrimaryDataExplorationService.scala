@@ -28,16 +28,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
     Future.successful(Done)
   }
 
-  def isStoragePristine(): Boolean = {
-    val nextModTime = primaryStorage.getLastModificationTime()
-    if (lastModTime.longValue() < nextModTime) {
-      lastModTime.set(nextModTime)
-      return false
-    } else {
-      return true
-    }
-  }
-
   def exploreAccounts(): Future[Done] = {
     val (switch, result) = Source
       .single(primaryStorage.getRootPath())
@@ -55,10 +45,9 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
 
   def exploreTransfers(): Future[Done] = {
     val (switch, result) = Source
-      .fromPublisher(secondaryStorage.getTenants())
-      .flatMapConcat { tenant =>
-        Source.fromPublisher(secondaryStorage.getAccounts(tenant.name))
-      }
+      .single(primaryStorage.getRootPath())
+      .via(getTenansFlow)
+      .via(getAccountsFlow)
       .via(getAccountSnapshotsFlow)
       .via(getAccountEventsFlow)
       .via(getTransfersFlow)
