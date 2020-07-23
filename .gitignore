@@ -1,11 +1,8 @@
 .DS_Store
-__pycache__
 *.pyc
 data
 database.json
 **/*/project/project
 **/*/target
 reports
-coverage
-*.pyc
 *.ivy
