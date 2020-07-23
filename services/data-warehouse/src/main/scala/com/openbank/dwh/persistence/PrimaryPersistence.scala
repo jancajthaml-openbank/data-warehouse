@@ -26,9 +26,6 @@ object PrimaryPersistence {
 // FIXME split into interface and impl for better testing
 class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends StrictLogging {
 
-  def getLastModificationTime(): Long =
-    Paths.get(rootStorage).toFile.lastModified()
-
   def getRootPath(): Path =
     Paths.get(rootStorage)
 

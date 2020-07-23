@@ -28,10 +28,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
     Future.successful(Done)
   }
 
-  private val lastModTime = new AtomicLong(0L)
-
-  private def markAsDirty() = lastModTime.set(0L)
-
   def isStoragePristine(): Boolean = {
     val nextModTime = primaryStorage.getLastModificationTime()
     if (lastModTime.longValue() < nextModTime) {
@@ -101,10 +97,7 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
           case (Some(a), None) =>
             secondaryStorage
               .updateTenant(a)
-              .map { _ =>
-                markAsDirty()
-                Some(a)
-              }
+              .map { _ => Some(a) }
           case (Some(a), Some(_)) =>
             Future.successful(Some(a))
         }
@@ -112,7 +105,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception =>
         logger.warn("Failed to get tenant caused by", e)
-        markAsDirty()
         None
       }
       .collect { case Some(tenant) => tenant }
@@ -148,7 +140,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
             secondaryStorage
               .updateAccount(a)
               .map { _ =>
-                markAsDirty()
                 Some(a)
               }
           case (Some(a), Some(_)) =>
@@ -158,7 +149,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .async
       .recover { case e: Exception =>
         logger.warn("Failed to get account caused by", e)
-        markAsDirty()
         None
       }
       .collect { case Some(data) => data }
@@ -261,7 +251,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
                 .map(_ => transfer)
             })
             .map { transfers =>
-              markAsDirty()
               (account, snapshot, event, transfers)
             }
 
@@ -270,7 +259,6 @@ class PrimaryDataExplorationService(primaryStorage: PrimaryPersistence, secondar
       .buffer(1, OverflowStrategy.backpressure)
       .mapAsync(1) {
         case (account, snapshot, event, transfers) => {
-          markAsDirty()
           val nextAccount = account.copy(
             lastSynchronizedSnapshot = snapshot.version,
             lastSynchronizedEvent = event.version
