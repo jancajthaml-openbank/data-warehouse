@@ -164,6 +164,7 @@ jobs:
     working_directory: /home/circleci/project
     steps:
       - checkout
+      - run: rm /home/circleci/project/.dockerignore
       - save_cache:
           key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
           paths:
@@ -311,7 +312,6 @@ jobs:
           key: bundle-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run: rm /home/circleci/project/.dockerignore
       - run:
           name: Package for debian
           command: |
@@ -342,7 +342,6 @@ jobs:
           key: bundle-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run: rm /home/circleci/project/.dockerignore
       - run:
           name: Package for debian
           command: |
@@ -374,7 +373,6 @@ jobs:
           key: bundle-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run: rm /home/circleci/project/.dockerignore
       - run:
           name: Package for debian
           command: |
