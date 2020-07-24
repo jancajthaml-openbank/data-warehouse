@@ -164,18 +164,18 @@ class PrimaryDataExplorationService(
           .getAccountSnapshotsPath(account.tenant, account.name)
           .toFile
           .listFiles() match {
-            case null => Source.empty
-            case files =>
-              Source {
-                files
-                  .map(_.getName.toInt)
-                  .filter(_ >= account.lastSynchronizedSnapshot)
-                  .sortWith(_ < _)
-                  .toIndexedSeq
-              }
-                .take(2)
-                .map { version => (account, version) }
-          }
+          case null => Source.empty
+          case files =>
+            Source {
+              files
+                .map(_.getName.toInt)
+                .filter(_ >= account.lastSynchronizedSnapshot)
+                .sortWith(_ < _)
+                .toIndexedSeq
+            }
+              .take(2)
+              .map { version => (account, version) }
+        }
       }
       .buffer(1, OverflowStrategy.backpressure)
       .mapAsync(parallelism * 2) {
@@ -205,11 +205,13 @@ class PrimaryDataExplorationService(
             )
             .toFile
             .listFiles() match {
-              case null =>
-                Array.empty[Tuple3[PersistentAccount, PersistentAccountSnapshot, String]]
-              case files =>
-                files.map { file => (account, snapshot, file.getName) }
-            }
+            case null =>
+              Array.empty[
+                Tuple3[PersistentAccount, PersistentAccountSnapshot, String]
+              ]
+            case files =>
+              files.map { file => (account, snapshot, file.getName) }
+          }
       }
       .buffer(parallelism * 4, OverflowStrategy.backpressure)
       .filterNot { events =>

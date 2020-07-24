@@ -28,25 +28,25 @@ object PrimaryPersistence {
 }
 
 // FIXME split into interface and impl for better testing
-class PrimaryPersistence(val `~`: String)(
+class PrimaryPersistence(val root: String)(
     implicit ec: ExecutionContext,
     implicit val mat: Materializer
 ) extends StrictLogging {
 
   def getRootPath(): Path =
-    Paths.get(`~`)
+    Paths.get(root)
 
   def getTenantPath(tenant: String): Path =
-    Paths.get(s"${`~`}/t_${tenant}")
+    Paths.get(s"${root}/t_${tenant}")
 
   def getAccountsPath(tenant: String): Path =
-    Paths.get(s"${`~`}/t_${tenant}/account")
+    Paths.get(s"${root}/t_${tenant}/account")
 
   def getTransactionsPath(tenant: String): Path =
-    Paths.get(s"${`~`}/t_${tenant}/transaction")
+    Paths.get(s"${root}/t_${tenant}/transaction")
 
   def getAccountSnapshotsPath(tenant: String, account: String): Path =
-    Paths.get(f"${`~`}/t_${tenant}/account/${account}/snapshot")
+    Paths.get(f"${root}/t_${tenant}/account/${account}/snapshot")
 
   def getAccountSnapshotPath(
       tenant: String,
@@ -54,7 +54,7 @@ class PrimaryPersistence(val `~`: String)(
       version: Int
   ): Path =
     Paths.get(
-      f"${`~`}/t_${tenant}/account/${account}/snapshot/${version}%010d"
+      f"${root}/t_${tenant}/account/${account}/snapshot/${version}%010d"
     )
 
   def getAccountEventsPath(
@@ -62,9 +62,7 @@ class PrimaryPersistence(val `~`: String)(
       account: String,
       version: Int
   ): Path =
-    Paths.get(
-      f"${`~`}/t_${tenant}/account/${account}/events/${version}%010d"
-    )
+    Paths.get(f"${root}/t_${tenant}/account/${account}/events/${version}%010d")
 
   def getAccountEventPath(
       tenant: String,
@@ -73,11 +71,11 @@ class PrimaryPersistence(val `~`: String)(
       event: String
   ): Path =
     Paths.get(
-      f"${`~`}/t_${tenant}/account/${account}/events/${version}%010d/${event}"
+      f"${root}/t_${tenant}/account/${account}/events/${version}%010d/${event}"
     )
 
   def getTransactionPath(tenant: String, transaction: String): Path =
-    Paths.get(f"${`~`}/t_${tenant}/transaction/${transaction}")
+    Paths.get(f"${root}/t_${tenant}/transaction/${transaction}")
 
   def getTenant(tenant: String): Future[Option[PersistentTenant]] = {
     if (!Files.exists(getTenantPath(tenant))) {
