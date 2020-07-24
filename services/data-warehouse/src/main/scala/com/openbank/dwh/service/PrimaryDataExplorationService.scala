@@ -24,7 +24,7 @@ class PrimaryDataExplorationService(
   // on topic of streams
   // http://beyondthelines.net/computing/akka-streams-patterns/
 
-  private lazy val parallelism = 2
+  private lazy val parallelism = 10
 
   @volatile private var killSwitch: Option[UniqueKillSwitch] = None
 
@@ -75,7 +75,7 @@ class PrimaryDataExplorationService(
               .toIndexedSeq
           }
       })
-      .buffer(parallelism * 2, OverflowStrategy.backpressure)
+      .buffer(parallelism, OverflowStrategy.backpressure)
       .mapAsync(parallelism) { name =>
         (
           primaryStorage.getTenant(name)
@@ -119,7 +119,7 @@ class PrimaryDataExplorationService(
           }
         }
       }
-      .buffer(parallelism * 2, OverflowStrategy.backpressure)
+      .buffer(parallelism, OverflowStrategy.backpressure)
       .mapAsync(parallelism) {
         case (tenant, name) => {
           (
@@ -177,8 +177,8 @@ class PrimaryDataExplorationService(
               .map { version => (account, version) }
         }
       }
-      .buffer(1, OverflowStrategy.backpressure)
-      .mapAsync(parallelism * 2) {
+      .buffer(parallelism, OverflowStrategy.backpressure)
+      .mapAsync(parallelism) {
         case (account, version) => {
           primaryStorage
             .getAccountSnapshot(account.tenant, account.name, version)
