@@ -14,7 +14,7 @@ import sangria.ast.StringValue
 
 class GraphQLService(graphStorage: GraphQLPersistence)(implicit
     ec: ExecutionContext
-) extends /*SprayJsonSupport with*/ StrictLogging {
+) extends StrictLogging {
 
   import sangria.marshalling.sprayJson._
   import spray.json._
