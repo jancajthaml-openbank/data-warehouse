@@ -13,45 +13,71 @@ import java.time.ZonedDateTime
 import com.typesafe.scalalogging.StrictLogging
 import org.reactivestreams.Publisher
 
-
 object PrimaryPersistence {
 
-  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): PrimaryPersistence = {
-    new PrimaryPersistence(config.getString("data-exploration.primary.directory"))(ec, mat)
+  def forConfig(
+      config: Config,
+      ec: ExecutionContext,
+      mat: Materializer
+  ): PrimaryPersistence = {
+    new PrimaryPersistence(
+      config.getString("data-exploration.primary.directory")
+    )(ec, mat)
   }
 
 }
 
-
 // FIXME split into interface and impl for better testing
-class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends StrictLogging {
+class PrimaryPersistence(val `~`: String)(
+    implicit ec: ExecutionContext,
+    implicit val mat: Materializer
+) extends StrictLogging {
 
   def getRootPath(): Path =
-    Paths.get(rootStorage)
+    Paths.get(`~`)
 
   def getTenantPath(tenant: String): Path =
-    Paths.get(s"${rootStorage}/t_${tenant}")
+    Paths.get(s"${`~`}/t_${tenant}")
 
   def getAccountsPath(tenant: String): Path =
-    Paths.get(s"${rootStorage}/t_${tenant}/account")
+    Paths.get(s"${`~`}/t_${tenant}/account")
 
   def getTransactionsPath(tenant: String): Path =
-    Paths.get(s"${rootStorage}/t_${tenant}/transaction")
+    Paths.get(s"${`~`}/t_${tenant}/transaction")
 
   def getAccountSnapshotsPath(tenant: String, account: String): Path =
-    Paths.get(f"${rootStorage}/t_${tenant}/account/${account}/snapshot")
+    Paths.get(f"${`~`}/t_${tenant}/account/${account}/snapshot")
 
-  def getAccountSnapshotPath(tenant: String, account: String, version: Int): Path =
-    Paths.get(f"${rootStorage}/t_${tenant}/account/${account}/snapshot/${version}%010d")
+  def getAccountSnapshotPath(
+      tenant: String,
+      account: String,
+      version: Int
+  ): Path =
+    Paths.get(
+      f"${`~`}/t_${tenant}/account/${account}/snapshot/${version}%010d"
+    )
 
-  def getAccountEventsPath(tenant: String, account: String, version: Int): Path =
-    Paths.get(f"${rootStorage}/t_${tenant}/account/${account}/events/${version}%010d")
+  def getAccountEventsPath(
+      tenant: String,
+      account: String,
+      version: Int
+  ): Path =
+    Paths.get(
+      f"${`~`}/t_${tenant}/account/${account}/events/${version}%010d"
+    )
 
-  def getAccountEventPath(tenant: String, account: String, version: Int, event: String): Path =
-    Paths.get(f"${rootStorage}/t_${tenant}/account/${account}/events/${version}%010d/${event}")
+  def getAccountEventPath(
+      tenant: String,
+      account: String,
+      version: Int,
+      event: String
+  ): Path =
+    Paths.get(
+      f"${`~`}/t_${tenant}/account/${account}/events/${version}%010d/${event}"
+    )
 
   def getTransactionPath(tenant: String, transaction: String): Path =
-    Paths.get(f"${rootStorage}/t_${tenant}/transaction/${transaction}")
+    Paths.get(f"${`~`}/t_${tenant}/transaction/${transaction}")
 
   def getTenant(tenant: String): Future[Option[PersistentTenant]] = {
     if (!Files.exists(getTenantPath(tenant))) {
@@ -65,76 +91,122 @@ class PrimaryPersistence(val rootStorage: String)(implicit ec: ExecutionContext,
       return Future.successful(None)
     }
     return Future.successful(
-      Some(PersistentTenant(
-        name = tenant
-      ))
+      Some(
+        PersistentTenant(
+          name = tenant
+        )
+      )
     )
   }
 
-  def getAccountSnapshot(tenant: String, account: String, version: Int): Future[Option[PersistentAccountSnapshot]] = {
+  def getAccountSnapshot(
+      tenant: String,
+      account: String,
+      version: Int
+  ): Future[Option[PersistentAccountSnapshot]] = {
     if (!Files.exists(getAccountSnapshotPath(tenant, account, version))) {
-      logger.warn(s"account snapshot ${tenant}/${account}/${version} does not exists in primary storage")
+      logger.warn(
+        s"account snapshot ${tenant}/${account}/${version} does not exists in primary storage"
+      )
       return Future.successful(None)
     }
-    return Future.successful(Some(PersistentAccountSnapshot(tenant, account, version)))
+    return Future.successful(
+      Some(PersistentAccountSnapshot(tenant, account, version))
+    )
   }
 
-  def getAccountEvent(tenant: String, account: String, version: Int, event: String): Future[Option[PersistentAccountEvent]] = {
+  def getAccountEvent(
+      tenant: String,
+      account: String,
+      version: Int,
+      event: String
+  ): Future[Option[PersistentAccountEvent]] = {
     val file = getAccountEventPath(tenant, account, version, event)
     if (!Files.exists(file)) {
-      logger.warn(s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage")
+      logger.warn(
+        s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage"
+      )
       return Future.successful(None)
     }
 
-    FileIO.fromPath(file)
-      .via(Framing.delimiter(ByteString(System.lineSeparator()), 256, true).map(_.utf8String))
+    FileIO
+      .fromPath(file)
+      .via(
+        Framing
+          .delimiter(ByteString(System.lineSeparator()), 256, true)
+          .map(_.utf8String)
+      )
       .take(1)
       .map { line =>
         val parts = event.split("_", 3)
-        Some(PersistentAccountEvent(
-          tenant = tenant,
-          account = account,
-          status = parts(0).toShort,
-          transaction = parts(2),
-          snapshotVersion = version,
-          version = line.toInt
-        ))
+        Some(
+          PersistentAccountEvent(
+            tenant = tenant,
+            account = account,
+            status = parts(0).toShort,
+            transaction = parts(2),
+            snapshotVersion = version,
+            version = line.toInt
+          )
+        )
       }
       .runWith(Sink.reduce[Option[PersistentAccountEvent]]((_, last) => last))
   }
 
-  def getAccount(tenant: String, account: String): Future[Option[PersistentAccount]] = {
+  def getAccount(
+      tenant: String,
+      account: String
+  ): Future[Option[PersistentAccount]] = {
     val file = getAccountSnapshotPath(tenant, account, 0)
     if (!Files.exists(file)) {
-      logger.warn(s"account ${tenant}/${account} does not exists in primary storage")
+      logger.warn(
+        s"account ${tenant}/${account} does not exists in primary storage"
+      )
       return Future.successful(None)
     }
 
-    FileIO.fromPath(file)
-      .via(Framing.delimiter(ByteString(System.lineSeparator()), 256, true).map(_.utf8String))
+    FileIO
+      .fromPath(file)
+      .via(
+        Framing
+          .delimiter(ByteString(System.lineSeparator()), 256, true)
+          .map(_.utf8String)
+      )
       .take(1)
       .map { line =>
-        Some(PersistentAccount(
-          tenant = tenant,
-          name = account,
-          currency = line.substring(0, 3),
-          format = line.substring(4, line.size - 2),
-          lastSynchronizedSnapshot = 0,
-          lastSynchronizedEvent = 0
-        ))
+        Some(
+          PersistentAccount(
+            tenant = tenant,
+            name = account,
+            currency = line.substring(0, 3),
+            format = line.substring(4, line.size - 2),
+            lastSynchronizedSnapshot = 0,
+            lastSynchronizedEvent = 0
+          )
+        )
       }
       .runWith(Sink.reduce[Option[PersistentAccount]]((_, last) => last))
   }
 
-  def getTransfers(tenant: String, transaction: String): Publisher[PersistentTransfer] = {
+  def getTransfers(
+      tenant: String,
+      transaction: String
+  ): Publisher[PersistentTransfer] = {
     val file = getTransactionPath(tenant, transaction)
     if (!Files.exists(file)) {
-      logger.warn(s"transaction ${tenant}/${transaction} does not exists in primary storage")
+      logger.warn(
+        s"transaction ${tenant}/${transaction} does not exists in primary storage"
+      )
       return Source.empty.runWith(Sink.asPublisher(fanout = false))
     }
 
-    FileIO.fromPath(file)
-      .via(Framing.delimiter(ByteString(System.lineSeparator()), 256, true).map(_.utf8String))
+    FileIO
+      .fromPath(file)
+      .via(
+        Framing
+          .delimiter(ByteString(System.lineSeparator()), 256, true)
+          .map(_.utf8String)
+      )
       .drop(1)
       .map { line =>
         val parts = line.split(' ')

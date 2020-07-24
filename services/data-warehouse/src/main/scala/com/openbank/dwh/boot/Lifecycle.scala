@@ -4,7 +4,6 @@ import akka.Done
 import scala.concurrent.Future
 import com.typesafe.scalalogging.StrictLogging
 
-
 trait Lifecycle {
 
   def setup(): Future[Done]
@@ -14,7 +13,6 @@ trait Lifecycle {
   def stop(): Future[Done]
 
 }
-
 
 class ProgramLifecycle extends Lifecycle {
   self: StrictLogging =>
@@ -34,4 +32,3 @@ class ProgramLifecycle extends Lifecycle {
   }
 
 }
-

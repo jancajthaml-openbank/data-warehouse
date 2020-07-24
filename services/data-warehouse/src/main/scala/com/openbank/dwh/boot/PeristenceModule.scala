@@ -8,13 +8,13 @@ import slick.jdbc.JdbcBackend.Database
 import com.openbank.dwh.persistence._
 import scala.util.control.NonFatal
 
-
 trait PersistenceModule extends Lifecycle {
   self: AkkaModule with TypedActorModule with ConfigModule with StrictLogging =>
 
   abstract override def stop(): Future[Done] = {
     super.stop().flatMap { _ =>
-      Future.successful(Done)
+      Future
+        .successful(Done)
         .flatMap(_ => Future.fromTry(Try(graphStorage.persistence.close())))
         .recover {
           case NonFatal(e) =>
@@ -35,9 +35,17 @@ trait PersistenceModule extends Lifecycle {
     GraphQLPersistence.forConfig(config, graphQLExecutionContext)
 
   lazy val primaryStorage: PrimaryPersistence =
-    PrimaryPersistence.forConfig(config, dataExplorationExecutionContext, materializer)
+    PrimaryPersistence.forConfig(
+      config,
+      dataExplorationExecutionContext,
+      materializer
+    )
 
   lazy val secondaryStorage: SecondaryPersistence =
-    SecondaryPersistence.forConfig(config, dataExplorationExecutionContext, materializer)
+    SecondaryPersistence.forConfig(
+      config,
+      dataExplorationExecutionContext,
+      materializer
+    )
 
 }

@@ -20,9 +20,8 @@ override_dh_systemd_start:
 
 override_dh_installinit:
 	dh_installinit -pdata-warehouse --noscripts
-	@mv \
-		debian/target/${DEB_HOST_ARCH}/usr/bin/main \
-		debian/target/${DEB_HOST_ARCH}/usr/bin/data-warehouse
+
+override_dh_strip_nondeterminism:
 
 override_dh_strip:
 

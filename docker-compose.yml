@@ -1,4 +1,4 @@
-version: '3.7'
+version: '2.1'
 
 # ---------------------------------------------------------------------------- #
 
@@ -9,12 +9,9 @@ services:
   scala: &scala
     image: jancajthaml/scala:amd64
     volumes:
-      - type: bind
-        source: .
-        target: /project
+      - .:/project
     working_dir: /project
-    entrypoint: ["sbt"]
-    privileged: true
+    tty: true
 
   # -------------------------------------------------------------------------- #
 

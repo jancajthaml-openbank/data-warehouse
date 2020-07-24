@@ -8,7 +8,6 @@ import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
 import com.openbank.dwh.service._
 
-
 object PrimaryDataExplorerActor extends StrictLogging {
 
   val namespace = "primary-data-explorer"
@@ -19,84 +18,99 @@ object PrimaryDataExplorerActor extends StrictLogging {
   case object Lock extends Command
   case object Free extends Command
 
-  case class BehaviorProps(primaryDataExplorationService: PrimaryDataExplorationService)
+  case class BehaviorProps(
+      primaryDataExplorationService: PrimaryDataExplorationService
+  )
 
   private lazy val delay = 2.seconds
 
-  def apply(primaryDataExplorationService: PrimaryDataExplorationService)(implicit ec: ExecutionContext) = {
+  def apply(
+      primaryDataExplorationService: PrimaryDataExplorationService
+  )(implicit ec: ExecutionContext) = {
     val props = BehaviorProps(primaryDataExplorationService)
 
     Behaviors
       .supervise {
         Behaviors.withTimers[Command] { timer =>
-          timer.startTimerWithFixedDelay(RunExploration, delay)
+          timer.startTimerAtFixedRate(RunExploration, delay)
           idle(props)
         }
       }
-      .onFailure[Exception](SupervisorStrategy.restart.withLimit(Int.MaxValue, delay))
+      .onFailure[Exception](
+        SupervisorStrategy.restart.withLimit(Int.MaxValue, delay)
+      )
   }
 
-  def active(props: BehaviorProps)(implicit ec: ExecutionContext): Behavior[Command] =
-    Behaviors.receive { (_, m) => m match {
+  def active(
+      props: BehaviorProps
+  )(implicit ec: ExecutionContext): Behavior[Command] =
+    Behaviors.receive {
 
-      case Lock =>
+      case (_, Lock) =>
         logger.debug("active(Lock)")
         Behaviors.same
 
-      case Free =>
+      case (_, Free) =>
         logger.debug("active(Free)")
         idle(props)
 
-      case Shutdown(promise) =>
+      case (_, Shutdown(promise)) =>
         logger.debug("active(Shutdown)")
-        promise.completeWith(props.primaryDataExplorationService.killRunningWorkflow())
+        promise.completeWith(
+          props.primaryDataExplorationService.killRunningWorkflow()
+        )
         Behaviors.stopped
 
-      case RunExploration =>
+      case (_, RunExploration) =>
         logger.debug("active(RunExploration)")
         Behaviors.same
 
-      case msg =>
+      case (_, msg) =>
         logger.debug(s"active(${msg})")
         Behaviors.unhandled
 
     }
-  }
 
-  def idle(props: BehaviorProps)(implicit ec: ExecutionContext): Behavior[Command] =
-    Behaviors.receive { (ctx, m) => m match {
+  def idle(
+      props: BehaviorProps
+  )(implicit ec: ExecutionContext): Behavior[Command] =
+    Behaviors.receive {
 
-      case Lock =>
+      case (_, Lock) =>
         logger.debug("idle(Lock)")
         active(props)
 
-      case Free =>
+      case (_, Free) =>
         logger.debug("idle(Free)")
         Behaviors.same
 
-      case RunExploration =>
+      case (ctx, RunExploration) =>
         logger.debug("idle(RunExploration)")
 
         ctx.self ! Lock
 
-        Future.successful(Done)
-          .flatMap { _ => props.primaryDataExplorationService.exploreAccounts() }
-          .flatMap { _ => props.primaryDataExplorationService.exploreTransfers() }
+        Future
+          .successful(Done)
+          .flatMap { _ =>
+            props.primaryDataExplorationService.exploreAccounts()
+          }
+          .flatMap { _ =>
+            props.primaryDataExplorationService.exploreTransfers()
+          }
           .recoverWith { case e: Exception => Future.successful(Done) }
           .onComplete { _ => ctx.self ! Free }
 
         Behaviors.same
 
-      case Shutdown(promise) =>
+      case (_, Shutdown(promise)) =>
         logger.debug("idle(Shutdown)")
         promise.success(Done)
         Behaviors.stopped
 
-      case msg =>
+      case (_, msg) =>
         logger.debug(s"idle(${msg})")
         Behaviors.unhandled
 
     }
-  }
 
 }

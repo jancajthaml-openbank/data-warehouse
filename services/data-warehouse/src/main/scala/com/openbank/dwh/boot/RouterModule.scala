@@ -9,7 +9,6 @@ import akka.http.scaladsl.server.Directives._
 import scala.concurrent.Future
 import scala.util.Success
 
-
 trait RouterModule extends Lifecycle {
   self: AkkaModule with ConfigModule with ServiceModule with StrictLogging =>
 
@@ -28,7 +27,8 @@ trait RouterModule extends Lifecycle {
       Http()
         .bindAndHandle(routes, bindToLocation, bintToPort)
         .andThen {
-          case Success(binding) => logger.info(s"Listening on ${binding.localAddress}")
+          case Success(binding) =>
+            logger.info(s"Listening on ${binding.localAddress}")
         }
         .map(_ => Done)
     }

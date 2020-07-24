@@ -15,18 +15,25 @@ import slick.basic.DatabasePublisher
 import akka.stream._
 import akka.stream.scaladsl._
 
-
 object SecondaryPersistence {
 
-  def forConfig(config: Config, ec: ExecutionContext, mat: Materializer): SecondaryPersistence = {
-    new SecondaryPersistence(Postgres.forConfig(config, "data-exploration.postgresql"))(ec, mat)
+  def forConfig(
+      config: Config,
+      ec: ExecutionContext,
+      mat: Materializer
+  ): SecondaryPersistence = {
+    new SecondaryPersistence(
+      Postgres.forConfig(config, "data-exploration.postgresql")
+    )(ec, mat)
   }
 
 }
 
-
 // FIXME split into interface and impl for better testing
-class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionContext, implicit val mat: Materializer) extends StrictLogging {
+class SecondaryPersistence(val persistence: Postgres)(
+    implicit ec: ExecutionContext,
+    implicit val mat: Materializer
+) extends StrictLogging {
 
   import persistence.profile.api._
 
@@ -42,8 +49,7 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       ;
     """
 
-    persistence
-      .database
+    persistence.database
       .run(query)
       .map(_ => Done)
       .recoverWith {
@@ -71,8 +77,7 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       ;
     """
 
-    persistence
-      .database
+    persistence.database
       .run(query)
       .map(_ => Done)
       .recoverWith {
@@ -88,14 +93,16 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       INSERT INTO
         transfer(tenant, transaction, transfer, credit_tenant, credit_name, debit_tenant, debit_name, amount, currency, value_date)
       VALUES
-        (${item.tenant}, ${item.transaction}, ${item.transfer}, ${item.creditTenant}, ${item.creditAccount}, ${item.debitTenant}, ${item.debitAccount}, ${item.amount}, ${item.currency}, ${Timestamp.valueOf(item.valueDate.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)})
+        (${item.tenant}, ${item.transaction}, ${item.transfer}, ${item.creditTenant}, ${item.creditAccount}, ${item.debitTenant}, ${item.debitAccount}, ${item.amount}, ${item.currency}, ${Timestamp
+      .valueOf(
+        item.valueDate.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime
+      )})
       ON CONFLICT (tenant, transaction, transfer)
       DO NOTHING
       ;
     """
 
-    persistence
-      .database
+    persistence.database
       .run(query)
       .map(_ => Done)
       .recoverWith {
@@ -105,7 +112,11 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       }
   }
 
-  def getTransfer(tenant: String, transaction: String, transfer: String): Future[Option[PersistentTransfer]] = {
+  def getTransfer(
+      tenant: String,
+      transaction: String,
+      transfer: String
+  ): Future[Option[PersistentTransfer]] = {
 
     val query = sql"""
       SELECT
@@ -128,8 +139,7 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       ;
     """.as[PersistentTransfer]
 
-    persistence
-      .database
+    persistence.database
       .run(
         query
           .withStatementParameters(
@@ -141,7 +151,10 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       .map(_.headOption)
   }
 
-  def getAccount(tenant: String, name: String): Future[Option[PersistentAccount]] = {
+  def getAccount(
+      tenant: String,
+      name: String
+  ): Future[Option[PersistentAccount]] = {
 
     val query = sql"""
       SELECT
@@ -159,8 +172,7 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       ;
     """.as[PersistentAccount]
 
-    persistence
-      .database
+    persistence.database
       .run(
         query
           .withStatementParameters(
@@ -184,8 +196,7 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       ;
     """.as[PersistentTenant]
 
-    persistence
-      .database
+    persistence.database
       .run(
         query
           .withStatementParameters(
@@ -197,36 +208,40 @@ class SecondaryPersistence(val persistence: Postgres)(implicit ec: ExecutionCont
       .map(_.headOption)
   }
 
-  private implicit def asAccount: GetResult[PersistentAccount] = GetResult(r =>
-    PersistentAccount(
-      tenant = r.nextString(),
-      name = r.nextString(),
-      format = r.nextString(),
-      currency = r.nextString(),
-      lastSynchronizedSnapshot = r.nextInt(),
-      lastSynchronizedEvent = r.nextInt()
+  private implicit def asAccount: GetResult[PersistentAccount] =
+    GetResult(r =>
+      PersistentAccount(
+        tenant = r.nextString(),
+        name = r.nextString(),
+        format = r.nextString(),
+        currency = r.nextString(),
+        lastSynchronizedSnapshot = r.nextInt(),
+        lastSynchronizedEvent = r.nextInt()
+      )
     )
-  )
 
-  private implicit def asTransfer: GetResult[PersistentTransfer] = GetResult(r =>
-    PersistentTransfer(
-      tenant = r.nextString(),
-      transaction = r.nextString(),
-      transfer = r.nextString(),
-      creditTenant = r.nextString(),
-      creditAccount = r.nextString(),
-      debitTenant = r.nextString(),
-      debitAccount = r.nextString(),
-      amount = r.nextBigDecimal(),
-      currency = r.nextString(),
-      valueDate = ZonedDateTime.ofInstant(r.nextTimestamp().toInstant(), ZoneOffset.UTC)
+  private implicit def asTransfer: GetResult[PersistentTransfer] =
+    GetResult(r =>
+      PersistentTransfer(
+        tenant = r.nextString(),
+        transaction = r.nextString(),
+        transfer = r.nextString(),
+        creditTenant = r.nextString(),
+        creditAccount = r.nextString(),
+        debitTenant = r.nextString(),
+        debitAccount = r.nextString(),
+        amount = r.nextBigDecimal(),
+        currency = r.nextString(),
+        valueDate =
+          ZonedDateTime.ofInstant(r.nextTimestamp().toInstant(), ZoneOffset.UTC)
+      )
     )
-  )
 
-  private implicit def asTenant: GetResult[PersistentTenant] = GetResult(r =>
-    PersistentTenant(
-      name = r.nextString()
+  private implicit def asTenant: GetResult[PersistentTenant] =
+    GetResult(r =>
+      PersistentTenant(
+        name = r.nextString()
+      )
     )
-  )
 
 }

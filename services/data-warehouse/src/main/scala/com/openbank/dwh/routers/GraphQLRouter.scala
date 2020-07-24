@@ -5,7 +5,6 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.openbank.dwh.service.GraphQLService
 import sangria.parser.{QueryParser, SyntaxError}
-
 import akka.http.scaladsl.model.StatusCodes._
 import java.nio.charset.Charset
 import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller}
@@ -22,7 +21,6 @@ import scala.util.control.NonFatal
 import scala.collection.immutable.Seq
 import scala.util.Try
 import scala.concurrent.ExecutionContext
-
 
 class GraphQLRouter(service: GraphQLService) extends SprayJsonSupport {
 
@@ -41,26 +39,27 @@ class GraphQLRouter(service: GraphQLService) extends SprayJsonSupport {
             .collect { case JsString(op) => op }
           val vars = fields
             .get("variables") match {
-              case Some(obj: JsObject) => obj
-              case _ => JsObject.empty
-            }
+            case Some(obj: JsObject) => obj
+            case _                   => JsObject.empty
+          }
 
           complete(service.execute(query, operation, vars))
         }
       } ~
-      get {
-        parameters('query, 'operation.?) { (query, operation) ⇒
-          complete(service.execute(query, operation))
+        get {
+          parameters(Symbol("query"), Symbol("operation").?) {
+            (query, operation) =>
+              complete(service.execute(query, operation))
+          }
         }
-      }
     } ~
-    pathPrefix("graphiql") {
-      pathPrefix("static") {
-        getFromResourceDirectory("graphiql/static")
-      } ~
-      pathEndOrSingleSlash {
-        getFromResource("graphiql/index.html")
+      pathPrefix("graphiql") {
+        pathPrefix("static") {
+          getFromResourceDirectory("graphiql/static")
+        } ~
+          pathEndOrSingleSlash {
+            getFromResource("graphiql/index.html")
+          }
       }
-    }
 
 }

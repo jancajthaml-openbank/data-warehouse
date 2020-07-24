@@ -28,7 +28,6 @@ lifecycle::scala::sec() {
   if [ -z ${dir} -o ! -d ${dir} ] ; then
     return
   fi
-  #gosec -exclude=G104,G302 "${dir}/..."
   echo "nothing to sec at ${dir}"
 }
 
