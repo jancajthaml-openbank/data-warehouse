@@ -7,19 +7,18 @@ import scala.concurrent.{ExecutionContext, Future, Await}
 import scala.concurrent.duration._
 import scala.sys
 
-
 object Main extends App with StrictLogging {
 
   object Program
-    extends ProgramLifecycle
-    with ModulesLifecycle
-    with GlobalConfigModule
-    with TypedActorModule
-    with ServiceModule
-    with PersistenceModule
-    with RouterModule
-    with AkkaModule
-    with StrictLogging
+      extends ProgramLifecycle
+      with ModulesLifecycle
+      with GlobalConfigModule
+      with TypedActorModule
+      with ServiceModule
+      with PersistenceModule
+      with RouterModule
+      with AkkaModule
+      with StrictLogging
 
   try {
     Await.result(Program.setup(), 10.minutes)

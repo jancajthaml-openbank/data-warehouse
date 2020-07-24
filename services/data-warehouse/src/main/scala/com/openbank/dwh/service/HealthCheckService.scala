@@ -2,26 +2,22 @@ package com.openbank.dwh.service
 
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
-import scala.util.control.NonFatal
-import com.openbank.dwh.persistence.GraphQLPersistence
 
+class HealthCheckService(graphQL: GraphQLService)(implicit ec: ExecutionContext)
+    extends StrictLogging {
 
-class HealthCheckService(graphqlPersistence: GraphQLPersistence)(implicit ec: ExecutionContext) extends StrictLogging {
+  import spray.json._
 
-  def isSecondaryStorageHealthy: Future[Boolean] = {
-    import graphqlPersistence.persistence.profile.api._
+  def isGraphQLHealthy: Future[Boolean] = {
+    val query = "query { tenants(limit: 1, offset: 0) { name } }"
 
-    Future
-      .fromTry(Try(graphqlPersistence.persistence.database))
-      .flatMap {
-        _.run(sql"SELECT 1".as[Int]).map(_.contains(1))
-      }
-      .recover {
-        case NonFatal(err) =>
-          logger.error("Failed health check", err)
-          false
-      }
+    graphQL
+      .execute(query, None)
+      .map(_.asJsObject.getFields("data") match {
+        case Seq(_) => true
+        case _      => false
+      })
+      .recover { case e: Exception => false }
   }
 
 }

@@ -28,9 +28,10 @@ lifecycle::scala::lint() {
   if [ -z ${dir} -o ! -d ${dir} ] ; then
     return
   fi
-  echo "nothing to lint at ${dir}"
+  cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy scalafmtAll
 }
 
 ################################################################################
 
-lifecycle::scala::lint ${TARGET_PACKAGE}
+lifecycle::scala::lint \
+  /project/services/${TARGET_PACKAGE}

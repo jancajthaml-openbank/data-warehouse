@@ -6,7 +6,6 @@ import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{Future, Promise}
 import com.openbank.dwh.actor
 
-
 trait TypedActorModule extends Lifecycle {
   self: AkkaModule with ServiceModule with StrictLogging =>
 
@@ -26,7 +25,8 @@ trait TypedActorModule extends Lifecycle {
   }
 
   abstract override def stop(): Future[Done] = {
-    Future.successful(Done)
+    Future
+      .successful(Done)
       .flatMap {
         case _ if typedSystem != null =>
           val wait = Promise[Done]()
@@ -46,4 +46,3 @@ trait TypedActorModule extends Lifecycle {
   }
 
 }
-

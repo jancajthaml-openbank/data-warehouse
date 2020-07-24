@@ -11,7 +11,6 @@ class StreamSpec extends AkkaSpecBase("stream") with ScalaFutures {
   import akka.Done
 
   it should "not throw null pointer exception on non existant path" in {
-
     val result = Source
       .single(Paths.get("neverthere"))
       .flatMapConcat { path =>
