@@ -21,8 +21,6 @@ override_dh_systemd_start:
 override_dh_installinit:
 	dh_installinit -pdata-warehouse --noscripts
 
-override_dh_strip_nondeterminism:
-
 override_dh_strip:
 
 override_dh_gencontrol:
@@ -31,5 +29,6 @@ override_dh_gencontrol:
 clean:
 	rm -f debian/debhelper-build-stamp || :
 	rm -f debian/files || :
+	rm -rf debian/target/${DEB_HOST_ARCH} || :
 	rm -rf debian/*.debhelper* || :
 	rm -rf debian/*.substvars || :

@@ -8,15 +8,11 @@ Feature: Properly behaving units
       | data-warehouse-app | service |
     And unit "data-warehouse-app.service" is running
 
-    Then I sleep for 120 seconds
-
     When stop unit "data-warehouse-app.service"
     Then unit "data-warehouse-app.service" is not running
 
     When start unit "data-warehouse-app.service"
     Then unit "data-warehouse-app.service" is running
-    And I sleep for 5 seconds
 
     When restart unit "data-warehouse-app.service"
     Then unit "data-warehouse-app.service" is running
-    And I sleep for 10 seconds

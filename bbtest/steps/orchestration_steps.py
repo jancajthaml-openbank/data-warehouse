@@ -6,12 +6,6 @@ import json
 import urllib.request
 
 
-@then('I sleep for {seconds} seconds')
-def step_impl(context, seconds):
-  import time
-  time.sleep(int(seconds))
-
-
 @given('package {package} is {operation}')
 def step_impl(context, package, operation):
   if operation == 'installed':

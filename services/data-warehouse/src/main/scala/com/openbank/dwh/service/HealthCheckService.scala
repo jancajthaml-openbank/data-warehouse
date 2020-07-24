@@ -13,10 +13,6 @@ class HealthCheckService(graphQL: GraphQLService)(implicit ec: ExecutionContext)
 
     graphQL
       .execute(query, None)
-      .map { data =>
-        logger.info(s"graphql returned <${data}>")
-        data
-      }
       .map(_.asJsObject.getFields("data") match {
         case Seq(_) => true
         case _      => false
