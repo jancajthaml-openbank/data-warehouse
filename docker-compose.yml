@@ -69,4 +69,30 @@ services:
       context: .
     image: openbank/data-warehouse
 
+  # -------------------------------------------------------------------------- #
+
+  postgres:
+    hostname: postgres
+    build:
+      dockerfile: Dockerfile
+      context: bbtest/postgres
+
+  # -------------------------------------------------------------------------- #
+
+  bbtest:
+    image: jancajthaml/bbtest:amd64
+    environment:
+      IMAGE_VERSION: ${VERSION:-latest}-${META:-master}
+      UNIT_VERSION: ${VERSION:-latest}
+      UNIT_ARCH: amd64
+    depends_on:
+      - postgres
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /var/lib/docker/containers:/var/lib/docker/containers:rw
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ./bbtest:/opt/app
+      - ./reports:/tmp/reports
+    working_dir: /opt/app
+
 # ---------------------------------------------------------------------------- #
