@@ -14,6 +14,7 @@
 
   <logger name="slick" level="WARN" />
   <logger name="com.github.tminglei.slickpg" level="WARN" />
+  <logger name="com.zaxxer.hikari" level="WARN" />
 
   <root level="${DATA_WAREHOUSE_LOG_LEVEL:-INFO}">
     <appender-ref ref="STDOUT_SYNC"/>
