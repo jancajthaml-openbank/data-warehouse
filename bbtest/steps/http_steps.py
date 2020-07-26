@@ -63,7 +63,7 @@ def check_http_response(context):
       assert type(a) == type(b), 'types differ at {} expected: {} actual: {}'.format(path, type(a), type(b))
       assert a == b, 'values differ at {} expected: {} actual: {}'.format(path, a, b)
 
-  @eventually(20)
+  @eventually(30)
   def wait_for_correct_response():
     if 'status' in options:
       assert response['status'] == options['status'], 'expected status {} actual {}'.format(options['status'], response)
