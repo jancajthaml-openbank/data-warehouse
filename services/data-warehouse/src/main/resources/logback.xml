@@ -13,8 +13,8 @@
   </appender>
 
   <logger name="slick" level="WARN" />
-  <logger name="c.o.d.persistence.Postgres" level="WARN" />
   <logger name="com.zaxxer.hikari" level="WARN" />
+  <logger name="com.openbank.dwh.persistence.Postgres" level="WARN" />
 
   <root level="${DATA_WAREHOUSE_LOG_LEVEL:-INFO}">
     <appender-ref ref="STDOUT_SYNC"/>
