@@ -89,6 +89,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
         ctx.self ! Lock
 
+        // FIXME try in single flow
         Future
           .successful(Done)
           .flatMap { _ =>

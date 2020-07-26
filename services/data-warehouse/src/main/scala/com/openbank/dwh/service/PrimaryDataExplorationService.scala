@@ -67,7 +67,8 @@ class PrimaryDataExplorationService(
   def getTenansFlow: Graph[FlowShape[Path, PersistentTenant], NotUsed] = {
     Flow[Path]
       .flatMapConcat(_.toFile.listFiles(_.getName.matches("t_.+")) match {
-        case null => Source.empty
+        case null =>
+          Source.empty
         case files =>
           Source {
             files

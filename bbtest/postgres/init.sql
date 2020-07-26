@@ -22,7 +22,10 @@ CREATE TABLE account
   last_syn_event    INTEGER,
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  FOREIGN KEY (tenant) REFERENCES tenant(name),
+  FOREIGN KEY (tenant) REFERENCES tenant(name)
+                       ON DELETE RESTRICT
+                       ON UPDATE NO ACTION,
+
   PRIMARY KEY (tenant, name)
 );
 
@@ -42,9 +45,18 @@ CREATE TABLE transfer
   value_date        TIMESTAMPTZ NOT NULL,
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  FOREIGN KEY (tenant) REFERENCES tenant(name),
-  FOREIGN KEY (credit_tenant, credit_name) REFERENCES account(tenant, name),
-  FOREIGN KEY (debit_tenant, debit_name) REFERENCES account(tenant, name),
+  FOREIGN KEY (tenant) REFERENCES tenant(name)
+                       ON DELETE RESTRICT
+                       ON UPDATE NO ACTION,
+
+  FOREIGN KEY (credit_tenant, credit_name) REFERENCES account(tenant, name)
+                                           ON DELETE RESTRICT
+                                           ON UPDATE NO ACTION,
+
+  FOREIGN KEY (debit_tenant, debit_name) REFERENCES account(tenant, name)
+                                         ON DELETE RESTRICT
+                                         ON UPDATE NO ACTION,
+
   PRIMARY KEY (tenant, transaction, transfer)
 );
 

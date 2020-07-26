@@ -40,12 +40,7 @@ class UnitHelper(object):
     self.context = context
 
   def download(self):
-    try:
-      os.mkdir("/tmp/packages")
-    except OSError as exc:
-      if exc.errno != errno.EEXIST:
-        raise
-      pass
+    os.makedirs("/tmp/packages", exist_ok=True)
 
     self.image_version = os.environ.get('IMAGE_VERSION', '')
     self.debian_version = os.environ.get('UNIT_VERSION', '')
