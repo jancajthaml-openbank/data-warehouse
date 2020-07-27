@@ -82,12 +82,6 @@ class PrimaryPersistence(val root: String)(
       logger.warn(s"tenant ${tenant} does not exists in primary storage")
       return Future.successful(None)
     }
-    if (!Files.exists(getTransactionsPath(tenant))) {
-      return Future.successful(None)
-    }
-    if (!Files.exists(getAccountsPath(tenant))) {
-      return Future.successful(None)
-    }
     return Future.successful(
       Some(
         PersistentTenant(
@@ -148,7 +142,7 @@ class PrimaryPersistence(val root: String)(
           )
         )
       }
-      .runWith(Sink.reduce[Option[PersistentAccountEvent]]((_, last) => last))
+      .runWith(Sink.last)
   }
 
   def getAccount(

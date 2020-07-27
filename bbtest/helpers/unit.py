@@ -19,7 +19,7 @@ class UnitHelper(object):
       "LOG_LEVEL": "DEBUG",
       "HTTP_PORT": "80",
       "POSTGRES_URL": "jdbc:postgresql://postgres:5432/openbank",
-      "PRIMARY_STORAGE_PATH": "/data",
+      "PRIMARY_STORAGE_PATH": "/tmp/reports/blackbox-tests/meta",
     }
 
   def get_arch(self):
@@ -40,12 +40,7 @@ class UnitHelper(object):
     self.context = context
 
   def download(self):
-    try:
-      os.mkdir("/tmp/packages")
-    except OSError as exc:
-      if exc.errno != errno.EEXIST:
-        raise
-      pass
+    os.makedirs("/tmp/packages", exist_ok=True)
 
     self.image_version = os.environ.get('IMAGE_VERSION', '')
     self.debian_version = os.environ.get('UNIT_VERSION', '')

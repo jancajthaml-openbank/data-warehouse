@@ -2,7 +2,7 @@ package com.openbank.dwh.actor
 
 import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{Behavior, SupervisorStrategy}
+import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
@@ -10,11 +10,11 @@ import com.openbank.dwh.service._
 
 object PrimaryDataExplorerActor extends StrictLogging {
 
-  val namespace = "primary-data-explorer"
+  val name = "primary-data-explorer"
 
   sealed trait Command extends GuardianActor.Command
   case object RunExploration extends Command
-  case class Shutdown(promise: Promise[Done]) extends Command
+  case class Shutdown(replyTo: ActorRef[Done]) extends Command
   case object Lock extends Command
   case object Free extends Command
 
@@ -54,12 +54,14 @@ object PrimaryDataExplorerActor extends StrictLogging {
         logger.debug("active(Free)")
         idle(props)
 
-      case (_, Shutdown(promise)) =>
+      case (_, Shutdown(replyTo)) =>
         logger.debug("active(Shutdown)")
-        promise.completeWith(
-          props.primaryDataExplorationService.killRunningWorkflow()
-        )
-        Behaviors.stopped
+        Behaviors.stopped { () =>
+          props
+            .primaryDataExplorationService
+            .killRunningWorkflow()
+            .onComplete { _ => replyTo ! Done }
+        }
 
       case (_, RunExploration) =>
         logger.debug("active(RunExploration)")
@@ -89,6 +91,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
         ctx.self ! Lock
 
+        // FIXME try in single flow
         Future
           .successful(Done)
           .flatMap { _ =>
@@ -102,10 +105,11 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
         Behaviors.same
 
-      case (_, Shutdown(promise)) =>
+      case (_, Shutdown(replyTo)) =>
         logger.debug("idle(Shutdown)")
-        promise.success(Done)
-        Behaviors.stopped
+        Behaviors.stopped { () =>
+          replyTo ! Done
+        }
 
       case (_, msg) =>
         logger.debug(s"idle(${msg})")

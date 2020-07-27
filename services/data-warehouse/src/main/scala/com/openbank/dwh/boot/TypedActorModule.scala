@@ -2,6 +2,9 @@ package com.openbank.dwh.boot
 
 import akka.Done
 import akka.actor.typed.ActorSystem
+import akka.util.Timeout
+import scala.concurrent.duration._
+import akka.actor.typed.scaladsl.AskPattern._
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{Future, Promise}
 import com.openbank.dwh.actor
@@ -11,14 +14,12 @@ trait TypedActorModule extends Lifecycle {
 
   private var typedSystem: ActorSystem[actor.GuardianActor.Command] = null
 
-  // FIXME need new "analytics-batch" actor that will update daily balance changes
-  // on accounts based on new transactions and will run in a loop
   abstract override def setup(): Future[Done] = {
     super.setup().flatMap { _ =>
-      logger.info("Starting Typed Actor Module")
+      logger.info("Starting Guardian Actor")
       typedSystem = ActorSystem(
         actor.GuardianActor(primaryDataExplorationService),
-        actor.GuardianActor.namespace
+        actor.GuardianActor.name
       )
       Future.successful(Done)
     }
@@ -29,9 +30,12 @@ trait TypedActorModule extends Lifecycle {
       .successful(Done)
       .flatMap {
         case _ if typedSystem != null =>
-          val wait = Promise[Done]()
-          typedSystem ! actor.GuardianActor.ShutdownActors(wait)
-          wait.future
+          logger.info("Stopping Guardian Actor")
+          typedSystem.ask[Done](actor.GuardianActor.StopActors)(Timeout(1.minutes), typedSystem.scheduler)
+          .map { _ =>
+            logger.info("Guardian Actor finished coordinatedshutdown")
+            Done
+          }
         case _ =>
           Future.successful(Done)
       }
