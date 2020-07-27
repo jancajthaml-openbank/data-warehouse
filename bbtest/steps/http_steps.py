@@ -16,25 +16,11 @@ def perform_http_request(context, uri):
     for row in context.table:
       options[row['key']] = row['value']
 
-  ctx = ssl.create_default_context()
-  ctx.check_hostname = False
-  ctx.verify_mode = ssl.CERT_NONE
-
-  request = urllib.request.Request(method=options['method'], url=uri)
-  request.add_header('Accept', 'application/json')
+  context.http_request = urllib.request.Request(method=options['method'], url=uri)
+  context.http_request.add_header('Accept', 'application/json')
   if context.text:
-    request.add_header('Content-Type', 'application/json')
-    request.data = context.text.encode('utf-8')
-
-  context.http_response = dict()
-
-  try:
-    response = urllib.request.urlopen(request, timeout=10, context=ctx)
-    context.http_response['status'] = str(response.status)
-    context.http_response['body'] = response.read().decode('utf-8')
-  except urllib.error.HTTPError as err:
-    context.http_response['status'] = str(err.code)
-    context.http_response['body'] = err.read().decode('utf-8')
+    context.http_request.add_header('Content-Type', 'application/json')
+    context.http_request.data = context.text.encode('utf-8')
 
 
 @then('HTTP response is')
@@ -43,10 +29,6 @@ def check_http_response(context):
   if context.table:
     for row in context.table:
       options[row['key']] = row['value']
-
-  assert context.http_response
-  response = context.http_response
-  del context.http_response
 
   def diff(path, a, b):
     if type(a) == list:
@@ -65,9 +47,22 @@ def check_http_response(context):
 
   @eventually(30)
   def wait_for_correct_response():
+    http_response = dict()
+
+    try:
+      ctx = ssl.create_default_context()
+      ctx.check_hostname = False
+      ctx.verify_mode = ssl.CERT_NONE
+      response = urllib.request.urlopen(context.http_request, timeout=10, context=ctx)
+      http_response['status'] = str(response.status)
+      http_response['body'] = response.read().decode('utf-8')
+    except urllib.error.HTTPError as err:
+      http_response['status'] = str(err.code)
+      http_response['body'] = err.read().decode('utf-8')
+
     if 'status' in options:
-      assert response['status'] == options['status'], 'expected status {} actual {}'.format(options['status'], response)
+      assert http_response['status'] == options['status'], 'expected status {} actual {}'.format(options['status'], response)
     if context.text:
-      diff('', json.loads(context.text), json.loads(response['body']))
+      diff('', json.loads(context.text), json.loads(http_response['body']))
 
   wait_for_correct_response()

@@ -19,7 +19,7 @@ class UnitHelper(object):
       "LOG_LEVEL": "DEBUG",
       "HTTP_PORT": "80",
       "POSTGRES_URL": "jdbc:postgresql://postgres:5432/openbank",
-      "PRIMARY_STORAGE_PATH": "/data",
+      "PRIMARY_STORAGE_PATH": "/tmp/reports/blackbox-tests/meta",
     }
 
   def get_arch(self):

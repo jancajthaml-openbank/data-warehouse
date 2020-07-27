@@ -15,7 +15,7 @@ class RootRouter(routes: Route*) extends SprayJsonSupport {
   import sangria.marshalling.sprayJson._
 
   def route: Route =
-    logRequestResult("access-debug", LogLevels.Debug) {
+    logRequestResult("access", LogLevels.Debug) {
       handleExceptions(exceptionHandler) {
         concat(routes: _*)
       }
