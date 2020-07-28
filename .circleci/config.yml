@@ -303,7 +303,7 @@ jobs:
 
   debian-amd64:
     docker:
-      - image: jancajthaml/scala:amd64
+      - image: jancajthaml/debian-packager:latest
     working_directory: /home/circleci/project
     steps:
       - restore_cache:
@@ -331,7 +331,7 @@ jobs:
 
   debian-armhf:
     docker:
-      - image: jancajthaml/scala:amd64
+      - image: jancajthaml/debian-packager:latest
     working_directory: /home/circleci/project
     steps:
       - setup_remote_docker:
@@ -362,7 +362,7 @@ jobs:
 
   debian-arm64:
     docker:
-      - image: jancajthaml/scala:amd64
+      - image: jancajthaml/debian-packager:latest
     working_directory: /home/circleci/project
     steps:
       - setup_remote_docker:

@@ -57,8 +57,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
       case (_, Shutdown(replyTo)) =>
         logger.debug("active(Shutdown)")
         Behaviors.stopped { () =>
-          props
-            .primaryDataExplorationService
+          props.primaryDataExplorationService
             .killRunningWorkflow()
             .onComplete { _ => replyTo ! Done }
         }

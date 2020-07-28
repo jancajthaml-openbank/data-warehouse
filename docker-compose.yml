@@ -15,6 +15,15 @@ services:
 
   # -------------------------------------------------------------------------- #
 
+  debian:
+    image: jancajthaml/debian-packager
+    volumes:
+      - .:/project
+    working_dir: /project
+    tty: true
+
+  # -------------------------------------------------------------------------- #
+
   sync:
     <<: *scala
     entrypoint: ["/project/dev/lifecycle/sync"]
@@ -51,8 +60,10 @@ services:
 
   # -------------------------------------------------------------------------- #
 
-  debian:
-    <<: *scala
+  debian-package:
+    <<: *debian
+    environment:
+      VERSION: ${VERSION:-latest}-${META:-master}
     entrypoint: ["/project/dev/lifecycle/debian"]
 
   # -------------------------------------------------------------------------- #
