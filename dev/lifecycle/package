@@ -5,23 +5,24 @@ trap exit INT TERM
 
 ################################################################################
 
-TARGET_ARCHITECTURE="linux/amd64"
-TARGET_PACKAGE=""
+ARCH="amd64"
+PLATFORM="linux"
+SOURCE=""
 OUTPUT=""
 while [ $# -gt 0 ] ; do
 key="$1"
 case $key in
-  --arch)   TARGET_ARCHITECTURE="$2"; shift; shift; ;;
-  --pkg)    TARGET_PACKAGE="$2";      shift; shift; ;;
-  --output) OUTPUT="$2";              shift; shift; ;;
-  *)                                  shift;        ;;
+  --arch)   ARCH=${2#*/}; PLATFORM=${2%%/*}; shift; shift; ;;
+  --source) SOURCE="$2";                     shift; shift; ;;
+  --output) OUTPUT="$2";                     shift; shift; ;;
+  *)                                         shift;        ;;
 esac
 done
 
 ################################################################################
 
-if [ -z "${TARGET_PACKAGE}" ] ; then
-  (>&2 echo "[error] target package not provided")
+if [ -z "${SOURCE}" ] ; then
+  (>&2 echo "[error] source package not provided")
   exit 1
 fi
 
@@ -29,6 +30,9 @@ if [ -z "${OUTPUT}" ] ; then
   (>&2 echo "[error] output not provided")
   exit 1
 fi
+
+
+OUTPUT_FILE=${OUTPUT}/$(basename ${SOURCE})-${PLATFORM}-${ARCH}
 
 ################################################################################
 
@@ -38,11 +42,16 @@ lifecycle::scala::pack() {
     return
   fi
 
-  local arch=${TARGET_ARCHITECTURE#*/}
-  local platform=${TARGET_ARCHITECTURE%%/*}
-  local output=${OUTPUT}/${TARGET_PACKAGE}-${platform}-${arch}
+  local output="$2"
+  if [ -z ${output} ] ; then
+    return
+  fi
 
-  echo "[info] (${platform}/${arch}) packaging ${TARGET_PACKAGE}"
+  if [ -f ${output} ] ; then
+    rm -f ${output}
+  fi
+
+
   cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy pack
 
   if [ -f ${output} ] ; then
@@ -52,13 +61,14 @@ lifecycle::scala::pack() {
   cp -R ${dir}/target/pack/bin ${output}
   cp -R ${dir}/target/pack/lib ${output}
 
-  echo "[info] (${platform}/${arch}) check"
-  du -hs ${output}
+  echo "[info] ${output} packed"
 
-  echo "[info] (${platform}/${arch}) done"
+  du -hs ${output}
 }
+
 
 ################################################################################
 
 lifecycle::scala::pack \
-  /project/services/${TARGET_PACKAGE}
+  ${SOURCE} \
+  ${OUTPUT_FILE}
