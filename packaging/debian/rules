@@ -10,7 +10,7 @@ xxx:
 	@echo $(DEB_BUILD_OPTIONS)
 
 %:
-	+dh $@ -P debian/target/${DEB_HOST_ARCH} --parallel --with=systemd
+	+dh $@ -P debian/target/${DEB_HOST_ARCH} --with=systemd
 
 override_dh_systemd_enable:
 	dh_systemd_enable -pdata-warehouse --name=data-warehouse data-warehouse.path
