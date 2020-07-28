@@ -31,11 +31,15 @@ trait TypedActorModule extends Lifecycle {
       .flatMap {
         case _ if typedSystem != null =>
           logger.info("Stopping Guardian Actor")
-          typedSystem.ask[Done](actor.GuardianActor.StopActors)(Timeout(1.minutes), typedSystem.scheduler)
-          .map { _ =>
-            logger.info("Guardian Actor finished coordinatedshutdown")
-            Done
-          }
+          typedSystem
+            .ask[Done](actor.GuardianActor.StopActors)(
+              Timeout(1.minutes),
+              typedSystem.scheduler
+            )
+            .map { _ =>
+              logger.info("Guardian Actor finished coordinatedshutdown")
+              Done
+            }
         case _ =>
           Future.successful(Done)
       }

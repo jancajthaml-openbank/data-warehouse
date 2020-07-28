@@ -62,11 +62,15 @@ object GuardianActor extends StrictLogging {
           .sequence {
             props.ctx.children.toSeq.map {
 
-              case ref: ActorRef[Nothing] if ref.path.name == PrimaryDataExplorerActor.name =>
+              case ref: ActorRef[Nothing]
+                  if ref.path.name == PrimaryDataExplorerActor.name =>
                 logger.info("Stopping PrimaryDataExplorerActor")
                 ref
                   .asInstanceOf[ActorRef[Command]]
-                  .ask[Done](PrimaryDataExplorerActor.Shutdown)(Timeout(5.seconds), props.ctx.system.scheduler)
+                  .ask[Done](PrimaryDataExplorerActor.Shutdown)(
+                    Timeout(5.seconds),
+                    props.ctx.system.scheduler
+                  )
                   .recoverWith {
                     case e: Exception =>
                       props.ctx.stop(ref)
