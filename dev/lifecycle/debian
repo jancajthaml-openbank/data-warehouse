@@ -100,15 +100,14 @@ lifecycle::debian::package() {
   cd ${SOURCE} && \
   dpkg-buildpackage \
   --host-arch=${TARGET_ARCHITECTURE} \
-  -tc -uc -b -rfakeroot
+  -rfakeroot -tc -uc -b
 
   find ".." -name "${TARGET_PACKAGE}_*_${TARGET_ARCHITECTURE}.*" -exec mv {} bin/ \;
 }
 
 lifecycle::lintian() {
   echo "[info] (${TARGET_PACKAGE}_${TARGET_ARCHITECTURE}) running lintian"
-  find bin -name "${TARGET_PACKAGE}_*_${TARGET_ARCHITECTURE}.deb" \
-  | xargs --no-run-if-empty fakeroot lintian --pedantic
+  fakeroot find bin -name "${TARGET_PACKAGE}_*_${TARGET_ARCHITECTURE}.deb" -exec lintian --pedantic {} \;
 }
 
 ################################################################################

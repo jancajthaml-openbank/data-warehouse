@@ -15,7 +15,7 @@ services:
 
   # -------------------------------------------------------------------------- #
 
-  debian:
+  debian: &debian
     image: jancajthaml/debian-packager
     volumes:
       - .:/project
@@ -62,8 +62,6 @@ services:
 
   debian-package:
     <<: *debian
-    environment:
-      VERSION: ${VERSION:-latest}-${META:-master}
     entrypoint: ["/project/dev/lifecycle/debian"]
 
   # -------------------------------------------------------------------------- #
