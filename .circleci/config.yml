@@ -499,7 +499,7 @@ jobs:
 
   release:
     docker:
-      - image: jancajthaml/scala:amd64
+      - image: jancajthaml/debian-packager:latest
     working_directory: /home/circleci/project
     steps:
       - restore_cache:
