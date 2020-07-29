@@ -2,7 +2,7 @@ Feature: Graphql
 
   Scenario: Tenants Query
 
-    Given Directory /tmp/reports/blackbox-tests/meta/t_demo exists
+    Given Directory reports/blackbox-tests/meta/t_demo exists
 
     When I request HTTP http://127.0.0.1/graphql
       | key    | value |

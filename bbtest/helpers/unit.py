@@ -19,7 +19,7 @@ class UnitHelper(object):
       "LOG_LEVEL": "DEBUG",
       "HTTP_PORT": "80",
       "POSTGRES_URL": "jdbc:postgresql://postgres:5432/openbank",
-      "PRIMARY_STORAGE_PATH": "/tmp/reports/blackbox-tests/meta",
+      "PRIMARY_STORAGE_PATH": "{}/reports/blackbox-tests/meta".format(os.getcwd()),
     }
 
   def get_arch(self):
@@ -36,17 +36,21 @@ class UnitHelper(object):
     self.image_version = None
     self.debian_version = None
     self.units = list()
-    self.docker = docker.APIClient(base_url='unix://var/run/docker.sock')
+    self.docker = docker.from_env()
     self.context = context
 
   def download(self):
-    os.makedirs("/tmp/packages", exist_ok=True)
+    failure = None
+    os.makedirs('/tmp/packages', exist_ok=True)
 
     self.image_version = os.environ.get('IMAGE_VERSION', '')
     self.debian_version = os.environ.get('UNIT_VERSION', '')
 
     if self.debian_version.startswith('v'):
       self.debian_version = self.debian_version[1:]
+
+    assert self.image_version, 'IMAGE_VERSION not provided'
+    assert self.debian_version, 'UNIT_VERSION not provided'
 
     image = 'openbank/data-warehouse:{}'.format(self.image_version)
     package = '/opt/artifacts/data-warehouse_{}_{}.deb'.format(self.debian_version, self.arch)
@@ -60,7 +64,8 @@ class UnitHelper(object):
           'COPY --from={} {} {}'.format(image, package, target)
         ]))
 
-      for chunk in self.docker.build(fileobj=temp, rm=True, pull=False, decode=True, tag='bbtest_artifacts-scratch'):
+      image, stream = self.docker.images.build(fileobj=temp, rm=True, pull=False, tag='bbtest_artifacts-scratch')
+      for chunk in stream:
         if not 'stream' in chunk:
           continue
         for line in chunk['stream'].splitlines():
@@ -69,16 +74,13 @@ class UnitHelper(object):
             continue
           print(l)
 
-      scratch = self.docker.create_container('bbtest_artifacts-scratch', '/bin/true')
-
-      if scratch['Warnings']:
-        raise Exception(scratch['Warnings'])
+      scratch = self.docker.containers.run('bbtest_artifacts-scratch', ['/bin/true'], detach=True)
 
       tar_name = tempfile.NamedTemporaryFile(delete=True)
-      with open(tar_name.name, 'wb') as destination:
-        tar_stream, stat = self.docker.get_archive(scratch['Id'], target)
-        for chunk in tar_stream:
-          destination.write(chunk)
+      with open(tar_name.name, 'wb') as fd:
+        bits, stat = scratch.get_archive(target)
+        for chunk in bits:
+          fd.write(chunk)
 
       archive = tarfile.TarFile(tar_name.name)
       archive.extract(os.path.basename(target), os.path.dirname(target))
@@ -87,18 +89,26 @@ class UnitHelper(object):
       if code != 0:
         raise RuntimeError('code: {}, stdout: [{}], stderr: [{}]'.format(code, result, error))
       else:
-        with open('/tmp/reports/blackbox-tests/meta/debian.data-warehouse.txt', 'w') as fd:
+        with open('reports/blackbox-tests/meta/debian.data-warehouse.txt', 'w') as fd:
           fd.write(result)
 
         result = [item for item in result.split(os.linesep)]
-        result = [item.rsplit('/', 1)[-1].strip() for item in result if "/lib/systemd/system/cnb-rates" in item]
+        result = [item.rsplit('/', 1)[-1].strip() for item in result if "/lib/systemd/system/data-warehouse" in item]
 
         self.units = result
 
-      self.docker.remove_container(scratch['Id'])
+      scratch.remove()
+    except Exception as ex:
+      failure = ex
     finally:
       temp.close()
-      self.docker.remove_image('bbtest_artifacts-scratch', force=True)
+      try:
+        self.docker.images.remove('bbtest_artifacts-scratch', force=True)
+      except:
+        pass
+
+    if failure:
+      raise failure
 
   def configure(self, params = None):
     options = dict()
@@ -106,7 +116,7 @@ class UnitHelper(object):
     if params:
       options.update(params)
 
-    os.makedirs("/etc/data-warehouse/conf.d", exist_ok=True)
+    os.makedirs('/etc/data-warehouse/conf.d', exist_ok=True)
     with open('/etc/data-warehouse/conf.d/init.conf', 'w') as fd:
       fd.write(str(os.linesep).join("DATA_WAREHOUSE_{!s}={!s}".format(k, v) for (k, v) in options.items()))
 
@@ -115,7 +125,7 @@ class UnitHelper(object):
       (code, result, error) = execute(['journalctl', '-o', 'cat', '-u', unit, '--no-pager'])
       if code != 0 or not result:
         continue
-      with open('/tmp/reports/blackbox-tests/logs/{}.log'.format(unit), 'w') as fd:
+      with open('reports/blackbox-tests/logs/{}.log'.format(unit), 'w') as fd:
         fd.write(result)
 
   def teardown(self):
