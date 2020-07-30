@@ -103,11 +103,8 @@ lifecycle::debian::package() {
     *)     CC=gcc                     ;;
   esac
 
-
-
   cd ${SOURCE} && \
   \
-  SOURCE_VERSION=${VERSION} \
   CC=${CC} \
     dpkg-buildpackage \
     --host-arch=${TARGET_ARCHITECTURE} \
