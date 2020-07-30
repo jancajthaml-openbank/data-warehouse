@@ -69,7 +69,7 @@ lifecycle::release::upload_asset() {
   if [ -z ${file} -o ! -f ${file} ] ; then
     return
   fi
-  if [ ${file: -4} != ".deb" -a ! -x ${file} ] ; then
+  if [ ${file: -4} != ".deb" -a ! -d ${file} ] ; then
     return
   fi
 
