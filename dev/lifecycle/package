@@ -35,24 +35,7 @@ OUTPUT_FILE=${OUTPUT}/$(basename ${SOURCE})-${PLATFORM}-${ARCH}
 
 ################################################################################
 
-lifecycle::go::clean() {
-  local source="$1"
-  if [ -z ${source} -o ! -d ${source} ] ; then
-    return
-  fi
-  local output="$2"
-  if [ -z ${output} -o ! -d ${output} ] ; then
-    return
-  fi
-
-  find "${output}" -name "$(basename ${source})*${ARCH}*" -exec rm -f {} \;
-  echo "[info] ${output} cleaned"
-
-  cd ${source} && go clean
-  echo "[info] ${source} cleaned"
-}
-
-lifecycle::go::build() {
+lifecycle::scala::pack() {
   local source="$1"
   if [ -z ${source} -o ! -d ${source} ] ; then
     return
@@ -63,107 +46,24 @@ lifecycle::go::build() {
     return
   fi
 
-
-
-  case ${ARCH} in
-
-    armhf)
-      cd ${source} && \
-      \
-      GOOS=${PLATFORM} \
-      GOARM=7 \
-      GOARCH=arm \
-      CGO_ENABLED=1 \
-      GOFLAGS=-buildmode=pie \
-      CC=arm-linux-gnueabihf-gcc \
-      \
-      go build -a -o ${output} || {
-        (>&2 echo "[error] ${output} unable to build")
-        exit 1
-      }
-    ;;
-
-    arm64)
-      cd ${source} && \
-      \
-      GOOS=${PLATFORM} \
-      GOARCH=arm64 \
-      CGO_ENABLED=1 \
-      GOFLAGS=-buildmode=pie \
-      CC=aarch64-linux-gnu-gcc \
-      \
-      go build -a -o ${output} || {
-        (>&2 echo "[error] ${output} unable to build")
-        exit 1
-      }
-    ;;
-
-    amd64)
-      cd ${source} && \
-      \
-      GOOS=${PLATFORM} \
-      GOARCH=amd64 \
-      CGO_ENABLED=1 \
-      GOFLAGS=-buildmode=pie \
-      CC=gcc \
-      \
-      go build -a -o ${output} || {
-        (>&2 echo "[error] ${output} unable to build")
-        exit 1
-      }
-    ;;
-
-    *)
-      (>&2 echo "[error] ${output} unsupported target")
-      exit 1
-    ;;
-
-  esac
-
-  chmod +x ${output}
-
-  echo "[info] ${output} compiled"
-}
-
-lifecycle::go::strip() {
-  local output="$1"
-  if [ -z ${output} -o ! -f ${output} ] ; then
-    return
+  if [ -f ${output} ] ; then
+    rm -f ${output}
   fi
 
-  case ${ARCH} in
+  cd ${source} && sbt -Dsbt.ivy.home=${source}/.ivy pack
 
-    armhf)
-      arm-linux-gnueabihf-objcopy --strip-unneeded ${output}
-    ;;
+  mkdir -p ${output}
 
-    arm64)
-      aarch64-linux-gnu-objcopy --strip-unneeded ${output}
-    ;;
+  cp -R ${source}/target/pack/bin ${output}
+  cp -R ${source}/target/pack/lib ${output}
 
-    amd64)
-      objcopy --strip-unneeded ${output}
-    ;;
-
-    *)
-    ;;
-
-  esac
-
-  echo "[info] ${output} stripped"
+  echo "[info] ${output} packed"
 }
 
 ################################################################################
 
-lifecycle::go::clean \
+lifecycle::scala::pack \
   ${SOURCE} \
-  ${OUTPUT}
-
-lifecycle::go::build \
-  ${SOURCE} \
-  ${OUTPUT_FILE}
-
-lifecycle::go::strip \
   ${OUTPUT_FILE}
 
 du -hs ${OUTPUT_FILE}
