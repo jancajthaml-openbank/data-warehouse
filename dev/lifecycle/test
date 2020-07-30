@@ -35,13 +35,6 @@ lifecycle::scala::test() {
   if [ -z ${dir} -o ! -d ${dir} ] ; then
     return
   fi
-  #local output="$2"
-  #local target=$(basename $dir)
-
-  #coverage_out=$(tempfile)
-  #test_out=$(tempfile)
-
-  #mkdir -p ${output}
 
   cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy test
 }
