@@ -72,8 +72,8 @@ CREATE VIEW account_balance_change AS (
   (
     (
       SELECT
-        account.tenant AS tenant,
-        account.name AS name,
+        account.tenant,
+        account.name,
         date_trunc('day', transfer.value_date) AS value_date,
         transfer.amount
       FROM account
@@ -81,11 +81,11 @@ CREATE VIEW account_balance_change AS (
       ON
         (account.tenant = transfer.credit_tenant AND account.name = transfer.credit_name)
     )
-    UNION
+    UNION ALL
     (
       SELECT
-        account.tenant AS tenant,
-        account.name AS name,
+        account.tenant,
+        account.name,
         date_trunc('day', transfer.value_date) AS value_date,
         -transfer.amount
       FROM account
