@@ -2,7 +2,6 @@ package com.openbank.dwh.boot
 
 import com.openbank.dwh.service._
 
-// FIXME add GraphqQL module
 trait ServiceModule {
   self: AkkaModule with PersistenceModule =>
 
