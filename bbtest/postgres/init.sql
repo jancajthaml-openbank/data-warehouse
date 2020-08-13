@@ -64,17 +64,36 @@ GRANT ALL PRIVILEGES ON TABLE transfer TO postgres;
 
 CREATE VIEW account_balance_change AS (
   SELECT
-    account.tenant,
-    account.name,
-    date_trunc('day', transfer.value_date) as value_date,
-    SUM(transfer.amount) as amount
-  FROM account
-  INNER JOIN transfer
-  ON
+    c.tenant,
+    c.name,
+    c.value_date,
+    SUM(c.amount)
+  FROM
   (
-    (account.tenant = transfer.credit_tenant AND account.name = transfer.credit_name) OR
-    (account.tenant = transfer.debit_tenant AND account.name = transfer.debit_name)
-  )
+    (
+      SELECT
+        account.tenant,
+        account.name,
+        date_trunc('day', transfer.value_date) AS value_date,
+        transfer.amount
+      FROM account
+      INNER JOIN transfer
+      ON
+        (account.tenant = transfer.credit_tenant AND account.name = transfer.credit_name)
+    )
+    UNION ALL
+    (
+      SELECT
+        account.tenant,
+        account.name,
+        date_trunc('day', transfer.value_date) AS value_date,
+        -transfer.amount
+      FROM account
+      INNER JOIN transfer
+      ON
+        (account.tenant = transfer.debit_tenant AND account.name = transfer.debit_name)
+    )
+  ) AS c
   GROUP BY
-    (account.tenant, account.name, transfer.value_date)
+    (c.tenant, c.name, c.value_date)
 );
