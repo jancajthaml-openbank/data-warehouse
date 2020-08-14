@@ -67,7 +67,7 @@ CREATE VIEW account_balance_change AS (
     c.tenant,
     c.name,
     c.value_date,
-    SUM(c.amount)
+    SUM(c.amount) as amount
   FROM
   (
     (
