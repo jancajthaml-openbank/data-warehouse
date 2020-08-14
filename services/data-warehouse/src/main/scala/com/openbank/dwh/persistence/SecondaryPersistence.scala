@@ -51,10 +51,13 @@ class SecondaryPersistence(val persistence: Postgres)(
 
     persistence.database
       .run(query)
-      .map(_ => Done)
+      .map { _ =>
+        logger.debug(s"update tenant ${item}")
+        Done
+      }
       .recoverWith {
         case e: Exception =>
-          logger.error(s"failed to upsert tenant", e)
+          logger.error(s"failed to update tenant", e)
           Future.failed(e)
       }
   }
@@ -79,10 +82,13 @@ class SecondaryPersistence(val persistence: Postgres)(
 
     persistence.database
       .run(query)
-      .map(_ => Done)
+      .map { _ =>
+        logger.debug(s"update account ${item}")
+        Done
+      }
       .recoverWith {
         case e: Exception =>
-          logger.error(s"failed to upsert account", e)
+          logger.error(s"failed to update account", e)
           Future.failed(e)
       }
   }
@@ -104,10 +110,13 @@ class SecondaryPersistence(val persistence: Postgres)(
 
     persistence.database
       .run(query)
-      .map(_ => Done)
+      .map { _ =>
+        logger.debug(s"update transfer ${item}")
+        Done
+      }
       .recoverWith {
         case e: Exception =>
-          logger.error(s"failed to upsert transfer", e)
+          logger.error(s"failed to update transfer", e)
           Future.failed(e)
       }
   }

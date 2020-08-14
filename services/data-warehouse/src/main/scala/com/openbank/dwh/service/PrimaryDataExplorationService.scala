@@ -24,7 +24,7 @@ class PrimaryDataExplorationService(
   // on topic of streams
   // http://beyondthelines.net/computing/akka-streams-patterns/
 
-  private lazy val parallelism = 10
+  private lazy val parallelism = 5
 
   @volatile private var killSwitch: Option[UniqueKillSwitch] = None
 
@@ -76,12 +76,11 @@ class PrimaryDataExplorationService(
               .toIndexedSeq
           }
       })
-      .buffer(parallelism, OverflowStrategy.backpressure)
       .mapAsync(parallelism) { name =>
         (
           primaryStorage.getTenant(name)
             zip
-              secondaryStorage.getTenant(name)
+          secondaryStorage.getTenant(name)
         ).flatMap {
           case (None, None) =>
             Future.successful(None)
@@ -103,7 +102,6 @@ class PrimaryDataExplorationService(
           None
       }
       .collect { case Some(tenant) => tenant }
-      .buffer(parallelism * 2, OverflowStrategy.backpressure)
   }
 
   def getAccountsFlow
@@ -120,13 +118,12 @@ class PrimaryDataExplorationService(
           }
         }
       }
-      .buffer(parallelism, OverflowStrategy.backpressure)
       .mapAsync(parallelism) {
         case (tenant, name) => {
           (
             primaryStorage.getAccount(tenant.name, name)
               zip
-                secondaryStorage.getAccount(tenant.name, name)
+            secondaryStorage.getAccount(tenant.name, name)
           )
             .flatMap {
               case (None, None) =>
@@ -152,7 +149,6 @@ class PrimaryDataExplorationService(
           None
       }
       .collect { case Some(data) => data }
-      .buffer(parallelism * 2, OverflowStrategy.backpressure)
   }
 
   def getAccountSnapshotsFlow: Graph[FlowShape[
@@ -178,7 +174,6 @@ class PrimaryDataExplorationService(
               .map { version => (account, version) }
         }
       }
-      .buffer(parallelism, OverflowStrategy.backpressure)
       .mapAsync(parallelism) {
         case (account, version) => {
           primaryStorage
@@ -188,7 +183,6 @@ class PrimaryDataExplorationService(
       }
       .async
       .collect { case Some(data) => data }
-      .buffer(1, OverflowStrategy.backpressure)
   }
 
   def getAccountEventsFlow: Graph[FlowShape[
@@ -214,7 +208,6 @@ class PrimaryDataExplorationService(
               files.map { file => (account, snapshot, file.getName) }
           }
       }
-      .buffer(parallelism * 4, OverflowStrategy.backpressure)
       .filterNot { events =>
         events.isEmpty ||
         (
@@ -222,10 +215,9 @@ class PrimaryDataExplorationService(
           events.last._1.lastSynchronizedEvent >= events.size
         )
       }
-      .buffer(parallelism * 4, OverflowStrategy.backpressure)
       .mapAsync(parallelism * 4) { events =>
         Source(events.toIndexedSeq)
-          .mapAsync(1000) {
+          .mapAsync(100) {
             case (account, snapshot, event) =>
               primaryStorage
                 .getAccountEvent(
@@ -240,7 +232,6 @@ class PrimaryDataExplorationService(
           .map(_.flatten.sortWith(_._3.version < _._3.version))
       }
       .async
-      .buffer(parallelism * 4, OverflowStrategy.backpressure)
       .flatMapConcat(Source.apply)
   }
 
@@ -276,7 +267,6 @@ class PrimaryDataExplorationService(
           Source
             .single((account, snapshot, event, Seq.empty[PersistentTransfer]))
       }
-      .buffer(parallelism, OverflowStrategy.backpressure)
       .mapAsync(parallelism) {
 
         case (account, snapshot, event, transfers) if transfers.isEmpty =>
@@ -286,19 +276,22 @@ class PrimaryDataExplorationService(
             }
 
         case (account, snapshot, event, transfers) =>
+          logger.info(s"Discovered new Transaction ${transfers(0).transaction}")
+
           Future
-            .sequence(transfers.map { transfer =>
-              secondaryStorage
-                .updateTransfer(transfer)
-                .map(_ => transfer)
-            })
+            .fold {
+              transfers
+                .map { transfer =>
+                  secondaryStorage
+                    .updateTransfer(transfer)
+                    .map(_ => transfer)
+                }
+            }(Seq.empty[PersistentTransfer])(_ :+ _)
             .map { transfers =>
               (account, snapshot, event, transfers)
             }
-
       }
       .async
-      .buffer(1, OverflowStrategy.backpressure)
       .mapAsync(1) {
         case (account, snapshot, event, transfers) => {
           val nextAccount = account.copy(

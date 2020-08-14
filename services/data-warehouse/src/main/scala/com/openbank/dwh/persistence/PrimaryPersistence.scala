@@ -177,7 +177,7 @@ class PrimaryPersistence(val root: String)(
           )
         )
       }
-      .runWith(Sink.reduce[Option[PersistentAccount]]((_, last) => last))
+      .runWith(Sink.last)
   }
 
   def getTransfers(
