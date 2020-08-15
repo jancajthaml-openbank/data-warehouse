@@ -20,9 +20,6 @@ class PrimaryDataExplorationService(
 )(implicit ec: ExecutionContext, implicit val mat: Materializer)
     extends StrictLogging {
 
-  // on topic of streams
-  // http://beyondthelines.net/computing/akka-streams-patterns/
-
   @volatile private var killSwitch: Option[UniqueKillSwitch] = None
 
   def killRunningWorkflow(): Future[Done] =
@@ -189,7 +186,7 @@ class PrimaryDataExplorationService(
       (account: PersistentAccount, snapshot: PersistentAccountSnapshot) =>
         Source
           .single((account, snapshot))
-          .map {
+          .flatMapConcat {
             case (account, snapshot) =>
               val path = primaryStorage
                 .getAccountEventsPath(
@@ -206,9 +203,7 @@ class PrimaryDataExplorationService(
 
               events
           }
-          .flatMapConcat { eventsStream =>
-            Source.future(eventsStream.runWith(Sink.seq))
-          }
+          .fold(Seq.empty[Tuple3[PersistentAccount, PersistentAccountSnapshot, String]])(_ :+ _)
           .filterNot { data =>
             data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
             data.last._1.lastSynchronizedEvent >= data.size
@@ -286,31 +281,24 @@ class PrimaryDataExplorationService(
           Source
             .single((account, snapshot, event, Seq.empty[PersistentTransfer]))
       }
-      .mapAsync(1) {
+      .flatMapConcat {
 
         case (account, snapshot, event, transfers) if transfers.isEmpty =>
-          Future
-            .successful {
-              (account, snapshot, event, transfers)
-            }
+          Source.single((account, snapshot, event, transfers))
 
         case (account, snapshot, event, transfers) =>
-          logger.info(s"Discovered new Transaction ${transfers(0).transaction}")
+          logger.info(s"Discovered new transaction ${transfers(0).transaction}")
 
-          Future
-            .foldLeft {
-              transfers
-                .map { transfer =>
-                  secondaryStorage
-                    .updateTransfer(transfer)
-                    .map(_ => transfer)
-                }
-            }(Seq.empty[PersistentTransfer])(_ :+ _)
-            .map { transfers =>
-              (account, snapshot, event, transfers)
+          Source(transfers)
+            .mapAsync(1) { transfer =>
+              secondaryStorage
+                .updateTransfer(transfer)
+                .map(_ => transfer)
             }
+            .async
+            .fold(Seq.empty[PersistentTransfer])(_ :+ _)
+            .map { transfers => (account, snapshot, event, transfers) }
       }
-      .async
       .mapAsync(1) {
         case (account, snapshot, event, transfers) => {
           val nextAccount = account.copy(
