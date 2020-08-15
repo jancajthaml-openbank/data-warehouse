@@ -36,6 +36,7 @@ CREATE TABLE transfer
   tenant            VARCHAR(50) NOT NULL,
   transaction       VARCHAR(100) NOT NULL,
   transfer          VARCHAR(100) NOT NULL,
+  status            SMALLINT NOT NULL,
   credit_tenant     VARCHAR(50) NOT NULL,
   credit_name       VARCHAR(50) NOT NULL,
   debit_tenant      VARCHAR(50) NOT NULL,
@@ -79,6 +80,7 @@ CREATE VIEW account_balance_change AS (
       FROM account
       INNER JOIN transfer
       ON
+        transfer.status = 1 AND
         (account.tenant = transfer.credit_tenant AND account.name = transfer.credit_name)
     )
     UNION ALL
@@ -91,6 +93,7 @@ CREATE VIEW account_balance_change AS (
       FROM account
       INNER JOIN transfer
       ON
+        transfer.status = 1 AND
         (account.tenant = transfer.debit_tenant AND account.name = transfer.debit_name)
     )
   ) AS c

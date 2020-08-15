@@ -85,6 +85,7 @@ class GraphQLPersistence(val persistence: Postgres)(implicit
     def tenant = column[String]("tenant")
     def transaction = column[String]("transaction")
     def transfer = column[String]("transfer")
+    def status = column[Int]("status")
     def creditTenant = column[String]("credit_tenant")
     def creditAccount = column[String]("credit_name")
     def debitTenant = column[String]("debit_tenant")
@@ -97,6 +98,7 @@ class GraphQLPersistence(val persistence: Postgres)(implicit
         tenant,
         transaction,
         transfer,
+        status,
         creditTenant,
         creditAccount,
         debitTenant,
@@ -206,6 +208,7 @@ class GraphQLPersistence(val persistence: Postgres)(implicit
       (
           tenant: Rep[String],
           currency: Rep[Option[String]],
+          status: Rep[Option[Int]],
           amountGte: Rep[Option[BigDecimal]],
           amountLte: Rep[Option[BigDecimal]],
           valueDateGte: Rep[Option[DateTime]],
@@ -240,6 +243,11 @@ class GraphQLPersistence(val persistence: Postgres)(implicit
               .asColumnOf[Option[String]])
               .isEmpty || row.currency >= currency
           }
+          .filter { row =>
+            (status
+              .asColumnOf[Option[Int]])
+              .isEmpty || row.status === status
+          }
           .sortBy { row => (row.transaction, row.transfer) }
           .drop(offset)
           .take(limit)
@@ -248,6 +256,7 @@ class GraphQLPersistence(val persistence: Postgres)(implicit
     (
         tenant: String,
         currency: Option[String],
+        status: Option[Int],
         amountGte: Option[BigDecimal],
         amountLte: Option[BigDecimal],
         valueDateGte: Option[DateTime],
@@ -259,6 +268,7 @@ class GraphQLPersistence(val persistence: Postgres)(implicit
         query(
           tenant,
           currency,
+          status,
           amountGte,
           amountLte,
           valueDateGte,

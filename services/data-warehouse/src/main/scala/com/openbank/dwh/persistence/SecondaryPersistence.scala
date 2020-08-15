@@ -235,6 +235,7 @@ class SecondaryPersistence(val persistence: Postgres)(
         tenant = r.nextString(),
         transaction = r.nextString(),
         transfer = r.nextString(),
+        status = r.nextInt(),
         creditTenant = r.nextString(),
         creditAccount = r.nextString(),
         debitTenant = r.nextString(),

@@ -124,6 +124,7 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit
         resolve = (ctx) => ctx.value.transaction
       ),
       Field("transfer", StringType, resolve = (ctx) => ctx.value.transfer),
+      Field("status", IntType, resolve = (ctx) => ctx.value.status),
       Field(
         "credit",
         OptionType(AccountType),
@@ -147,6 +148,8 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit
   val FilterName = Argument("name", StringType)
 
   val FilterCurrency = Argument("currency", OptionInputType(StringType))
+
+  val FilterStatus = Argument("status", OptionInputType(IntType))
 
   val FilterFofmat = Argument("format", OptionInputType(StringType))
 
@@ -233,6 +236,7 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit
         ListType(TransferType),
         arguments = FilterTenant ::
           FilterCurrency ::
+          FilterStatus ::
           FilterAmountFrom ::
           FilterAmountTo ::
           FilterValueDateFrom ::
@@ -244,6 +248,7 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit
           query.ctx.allTransfers(
             query.arg(FilterTenant),
             query.arg(FilterCurrency),
+            query.arg(FilterStatus),
             query.arg(FilterAmountFrom),
             query.arg(FilterAmountTo),
             query.arg(FilterValueDateFrom),
