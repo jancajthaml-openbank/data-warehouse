@@ -57,7 +57,6 @@ class PrimaryPersistence(val root: String)(
       case Success(st) =>
         Source.fromIterator(() => st)
       case Failure(ex) =>
-        logger.warn(s"Unable to obtain files of ${path}")
         Source.empty
     }
   }
