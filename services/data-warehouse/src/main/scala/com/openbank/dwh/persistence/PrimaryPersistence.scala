@@ -1,10 +1,12 @@
 package com.openbank.dwh.persistence
 
+import scala.collection.AbstractIterator
 import com.typesafe.config.Config
 import akka.util.ByteString
-import java.nio.file.{Paths, Files, Path}
+import java.nio.file.{Paths, Files, Path, DirectoryStream}
 import com.openbank.dwh.model._
 import akka.stream.Materializer
+import akka.stream.IOResult
 import scala.concurrent.{ExecutionContext, Future}
 import akka.stream.scaladsl._
 import collection.immutable.Seq
@@ -12,6 +14,8 @@ import scala.math.BigDecimal
 import java.time.ZonedDateTime
 import com.typesafe.scalalogging.StrictLogging
 import org.reactivestreams.Publisher
+import scala.util.{Try, Success, Failure}
+import akka.NotUsed
 
 object PrimaryPersistence {
 
@@ -27,11 +31,36 @@ object PrimaryPersistence {
 
 }
 
+class DirectoryIterator(stream: DirectoryStream[Path])
+    extends AbstractIterator[Path] {
+  private lazy val it = stream.iterator()
+  override def hasNext: Boolean =
+    it.hasNext() match {
+      case true => true
+      case false =>
+        stream.close()
+        false
+    }
+  override def next(): Path = it.next()
+}
+
 // FIXME split into interface and impl for better testing
 class PrimaryPersistence(val root: String)(
     implicit ec: ExecutionContext,
     implicit val mat: Materializer
 ) extends StrictLogging {
+
+  def listFiles(path: Path): Source[Path, NotUsed] = {
+    Try {
+      new DirectoryIterator(Files.newDirectoryStream(path))
+    } match {
+      case Success(st) =>
+        Source.fromIterator(() => st)
+      case Failure(ex) =>
+        logger.warn(s"Unable to obtain files of ${path}")
+        Source.empty
+    }
+  }
 
   def getRootPath(): Path =
     Paths.get(root)
@@ -77,34 +106,32 @@ class PrimaryPersistence(val root: String)(
   def getTransactionPath(tenant: String, transaction: String): Path =
     Paths.get(f"${root}/t_${tenant}/transaction/${transaction}")
 
-  def getTenant(tenant: String): Future[Option[PersistentTenant]] = {
-    if (!Files.exists(getTenantPath(tenant))) {
-      logger.warn(s"tenant ${tenant} does not exists in primary storage")
-      return Future.successful(None)
-    }
-    return Future.successful(
-      Some(
-        PersistentTenant(
-          name = tenant
+  def getTenant(tenant: String): Future[PersistentTenant] = {
+    Files.exists(getTenantPath(tenant)) match {
+      case false =>
+        Future.failed(
+          new Exception(s"tenant ${tenant} does not exists in primary storage")
         )
-      )
-    )
+      case true =>
+        Future.successful(PersistentTenant(name = tenant))
+    }
   }
 
   def getAccountSnapshot(
       tenant: String,
       account: String,
       version: Int
-  ): Future[Option[PersistentAccountSnapshot]] = {
-    if (!Files.exists(getAccountSnapshotPath(tenant, account, version))) {
-      logger.warn(
-        s"account snapshot ${tenant}/${account}/${version} does not exists in primary storage"
-      )
-      return Future.successful(None)
+  ): Future[PersistentAccountSnapshot] = {
+    Files.exists(getAccountSnapshotPath(tenant, account, version)) match {
+      case false =>
+        Future.failed(
+          new Exception(
+            s"account snapshot ${tenant}/${account}/${version} does not exists in primary storage"
+          )
+        )
+      case true =>
+        Future.successful(PersistentAccountSnapshot(tenant, account, version))
     }
-    return Future.successful(
-      Some(PersistentAccountSnapshot(tenant, account, version))
-    )
   }
 
   def getAccountEvent(
@@ -112,110 +139,113 @@ class PrimaryPersistence(val root: String)(
       account: String,
       version: Int,
       event: String
-  ): Future[Option[PersistentAccountEvent]] = {
-    val file = getAccountEventPath(tenant, account, version, event)
-    if (!Files.exists(file)) {
-      logger.warn(
-        s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage"
-      )
-      return Future.successful(None)
-    }
-
-    FileIO
-      .fromPath(file)
-      .via(
-        Framing
-          .delimiter(ByteString(System.lineSeparator()), 256, true)
-          .map(_.utf8String)
-      )
-      .take(1)
-      .map { line =>
-        val parts = event.split("_", 3)
-        Some(
-          PersistentAccountEvent(
-            tenant = tenant,
-            account = account,
-            status = parts(0).toShort,
-            transaction = parts(2),
-            snapshotVersion = version,
-            version = line.toInt
+  ): Future[PersistentAccountEvent] = {
+    Try {
+      FileIO.fromPath(getAccountEventPath(tenant, account, version, event))
+    } match {
+      case Success(stream) =>
+        stream
+          .via(
+            Framing
+              .delimiter(ByteString(System.lineSeparator()), 256, true)
+              .map(_.utf8String)
+          )
+          .take(1)
+          .map { line =>
+            val parts = event.split("_", 3)
+            PersistentAccountEvent(
+              tenant = tenant,
+              account = account,
+              status = parts(0).toShort,
+              transaction = parts(2),
+              snapshotVersion = version,
+              version = line.toInt
+            )
+          }
+          .runWith(Sink.last)
+      case Failure(ex) =>
+        Future.failed(
+          new Exception(
+            s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage"
           )
         )
-      }
-      .runWith(Sink.last)
+    }
   }
 
   def getAccount(
       tenant: String,
       account: String
-  ): Future[Option[PersistentAccount]] = {
-    val file = getAccountSnapshotPath(tenant, account, 0)
-    if (!Files.exists(file)) {
-      logger.warn(
-        s"account ${tenant}/${account} does not exists in primary storage"
-      )
-      return Future.successful(None)
-    }
-
-    FileIO
-      .fromPath(file)
-      .via(
-        Framing
-          .delimiter(ByteString(System.lineSeparator()), 256, true)
-          .map(_.utf8String)
-      )
-      .take(1)
-      .map { line =>
-        Some(
-          PersistentAccount(
-            tenant = tenant,
-            name = account,
-            currency = line.substring(0, 3),
-            format = line.substring(4, line.size - 2),
-            lastSynchronizedSnapshot = 0,
-            lastSynchronizedEvent = 0
+  ): Future[PersistentAccount] = {
+    Try {
+      FileIO.fromPath(getAccountSnapshotPath(tenant, account, 0))
+    } match {
+      case Success(stream) =>
+        stream
+          .via(
+            Framing
+              .delimiter(ByteString(System.lineSeparator()), 256, true)
+              .map(_.utf8String)
+          )
+          .take(1)
+          .map { line =>
+            PersistentAccount(
+              tenant = tenant,
+              name = account,
+              currency = line.substring(0, 3),
+              format = line.substring(4, line.size - 2),
+              lastSynchronizedSnapshot = 0,
+              lastSynchronizedEvent = 0
+            )
+          }
+          .runWith(Sink.last)
+      case Failure(ex) =>
+        Future.failed(
+          new Exception(
+            s"account ${tenant}/${account} does not exists in primary storage"
           )
         )
-      }
-      .runWith(Sink.last)
+    }
   }
 
   def getTransfers(
       tenant: String,
       transaction: String
-  ): Publisher[PersistentTransfer] = {
-    val file = getTransactionPath(tenant, transaction)
-    if (!Files.exists(file)) {
-      logger.warn(
-        s"transaction ${tenant}/${transaction} does not exists in primary storage"
-      )
-      return Source.empty.runWith(Sink.asPublisher(fanout = false))
-    }
-
-    FileIO
-      .fromPath(file)
-      .via(
-        Framing
-          .delimiter(ByteString(System.lineSeparator()), 256, true)
-          .map(_.utf8String)
-      )
-      .drop(1)
-      .map { line =>
-        val parts = line.split(' ')
-        PersistentTransfer(
-          tenant = tenant,
-          transaction = transaction,
-          transfer = parts(0),
-          creditTenant = parts(1),
-          creditAccount = parts(2),
-          debitTenant = parts(3),
-          debitAccount = parts(4),
-          amount = BigDecimal.exact(parts(6)),
-          currency = parts(7),
-          valueDate = ZonedDateTime.parse(parts(5))
+  ): Source[PersistentTransfer, NotUsed] = {
+    Try {
+      FileIO.fromPath(getTransactionPath(tenant, transaction))
+    } match {
+      case Success(stream) =>
+        Source.fromPublisher {
+          stream
+            .via(
+              Framing
+                .delimiter(ByteString(System.lineSeparator()), 256, true)
+                .map(_.utf8String)
+            )
+            .drop(1)
+            .map { line =>
+              val parts = line.split(' ')
+              PersistentTransfer(
+                tenant = tenant,
+                transaction = transaction,
+                transfer = parts(0),
+                creditTenant = parts(1),
+                creditAccount = parts(2),
+                debitTenant = parts(3),
+                debitAccount = parts(4),
+                amount = BigDecimal.exact(parts(6)),
+                currency = parts(7),
+                valueDate = ZonedDateTime.parse(parts(5))
+              )
+            }
+            .runWith(Sink.asPublisher(fanout = false))
+        }
+      case Failure(ex) =>
+        logger.warn(
+          s"transaction ${tenant}/${transaction} does not exists in primary storage"
         )
-      }
-      .runWith(Sink.asPublisher(fanout = false))
+        return Source.empty
+    }
   }
 
 }

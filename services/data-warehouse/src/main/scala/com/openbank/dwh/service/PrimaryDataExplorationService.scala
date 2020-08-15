@@ -1,8 +1,7 @@
 package com.openbank.dwh.service
 
 import java.nio.file.{Paths, Files, Path}
-import akka.Done
-import akka.NotUsed
+import akka.{Done, NotUsed}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.mutable.Builder
@@ -21,11 +20,6 @@ class PrimaryDataExplorationService(
 )(implicit ec: ExecutionContext, implicit val mat: Materializer)
     extends StrictLogging {
 
-  // on topic of streams
-  // http://beyondthelines.net/computing/akka-streams-patterns/
-
-  private lazy val parallelism = 5
-
   @volatile private var killSwitch: Option[UniqueKillSwitch] = None
 
   def killRunningWorkflow(): Future[Done] =
@@ -38,7 +32,7 @@ class PrimaryDataExplorationService(
   def exploreAccounts(): Future[Done] = {
     val (switch, result) = Source
       .single(primaryStorage.getRootPath())
-      .via(getTenansFlow)
+      .via(getTenantsFlow)
       .via(getAccountsFlow)
       .viaMat(KillSwitches.single)(Keep.right)
       .toMat(Sink.ignore)(Keep.both)
@@ -51,7 +45,7 @@ class PrimaryDataExplorationService(
   def exploreTransfers(): Future[Done] = {
     val (switch, result) = Source
       .single(primaryStorage.getRootPath())
-      .via(getTenansFlow)
+      .via(getTenantsFlow)
       .via(getAccountsFlow)
       .via(getAccountSnapshotsFlow)
       .via(getAccountEventsFlow)
@@ -64,35 +58,29 @@ class PrimaryDataExplorationService(
     result
   }
 
-  def getTenansFlow: Graph[FlowShape[Path, PersistentTenant], NotUsed] = {
+  def getTenantsFlow: Graph[FlowShape[Path, PersistentTenant], NotUsed] = {
     Flow[Path]
-      .flatMapConcat(_.toFile.listFiles(_.getName.matches("t_.+")) match {
-        case null =>
-          Source.empty
-        case files =>
-          Source {
-            files
-              .map(_.getName.stripPrefix("t_"))
-              .toIndexedSeq
-          }
-      })
-      .mapAsync(parallelism) { name =>
+      .flatMapConcat { path =>
+        primaryStorage
+          .listFiles(path)
+          .map(_.getFileName.toString)
+          .filterNot(_.isEmpty)
+          .filter(_.matches("t_.+"))
+          .map(_.stripPrefix("t_"))
+      }
+      .mapAsync(1) { name =>
         (
           primaryStorage.getTenant(name)
             zip
           secondaryStorage.getTenant(name)
         ).flatMap {
-          case (None, None) =>
-            Future.successful(None)
-          case (None, Some(b)) =>
+          case (a, Some(b)) =>
             Future.successful(Some(b))
-          case (Some(a), None) =>
+          case (a, None) =>
             logger.info(s"Discovered new Tenant ${a}")
             secondaryStorage
               .updateTenant(a)
               .map { _ => Some(a) }
-          case (Some(a), Some(_)) =>
-            Future.successful(Some(a))
         }
       }
       .async
@@ -108,17 +96,16 @@ class PrimaryDataExplorationService(
       : Graph[FlowShape[PersistentTenant, PersistentAccount], NotUsed] = {
     Flow[PersistentTenant]
       .flatMapConcat { tenant =>
-        val files =
-          primaryStorage.getAccountsPath(tenant.name).toFile.listFiles()
-        if (files == null) {
-          Source.empty
-        } else {
-          Source {
-            files.map { file => (tenant, file.getName) }.toIndexedSeq
-          }
-        }
+        val path = primaryStorage
+          .getAccountsPath(tenant.name)
+
+        primaryStorage
+          .listFiles(path)
+          .map(_.getFileName.toString)
+          .filterNot(_.isEmpty)
+          .map { file => (tenant, file) }
       }
-      .mapAsync(parallelism) {
+      .mapAsync(1) {
         case (tenant, name) => {
           (
             primaryStorage.getAccount(tenant.name, name)
@@ -126,19 +113,13 @@ class PrimaryDataExplorationService(
             secondaryStorage.getAccount(tenant.name, name)
           )
             .flatMap {
-              case (None, None) =>
-                Future.successful(None)
-              case (None, Some(b)) =>
+              case (a, Some(b)) =>
                 Future.successful(Some(b))
-              case (Some(a), None) =>
+              case (a, None) =>
                 logger.info(s"Discovered new Account ${a}")
                 secondaryStorage
                   .updateAccount(a)
-                  .map { _ =>
-                    Some(a)
-                  }
-              case (Some(a), Some(_)) =>
-                Future.successful(Some(a))
+                  .map { _ => Some(a) }
             }
         }
       }
@@ -156,32 +137,43 @@ class PrimaryDataExplorationService(
     Tuple2[PersistentAccount, PersistentAccountSnapshot]
   ], NotUsed] = {
     Flow[PersistentAccount]
-      .flatMapConcat { account =>
-        primaryStorage
+      .mapAsync(1) { account =>
+        val path = primaryStorage
           .getAccountSnapshotsPath(account.tenant, account.name)
-          .toFile
-          .listFiles() match {
-          case null => Source.empty
-          case files =>
-            Source {
-              files
-                .map(_.getName.toInt)
-                .filter(_ >= account.lastSynchronizedSnapshot)
-                .sortWith(_ < _)
-                .toIndexedSeq
-            }
+
+        val snapshots = primaryStorage
+          .listFiles(path)
+          .map(_.getFileName.toString)
+          .filterNot(_.isEmpty)
+          .map(_.toInt)
+          .filter(_ >= account.lastSynchronizedSnapshot)
+          .runWith(Sink.seq)
+          .map { result =>
+            result
+              .sortWith(_ < _)
               .take(2)
               .map { version => (account, version) }
-        }
+              .toIndexedSeq
+          }
+
+        snapshots
       }
-      .mapAsync(parallelism) {
+      .async
+      .flatMapConcat(Source.apply)
+      .mapAsync(1) {
         case (account, version) => {
           primaryStorage
             .getAccountSnapshot(account.tenant, account.name, version)
-            .map(_.map { snapshot => (account, snapshot) })
+            .map { snapshot => (account, snapshot) }
+            .map { data => Some(data) }
         }
       }
       .async
+      .recover {
+        case e: Exception =>
+          logger.warn("Failed to get account snapshot caused by", e)
+          None
+      }
       .collect { case Some(data) => data }
   }
 
@@ -189,35 +181,35 @@ class PrimaryDataExplorationService(
     Tuple2[PersistentAccount, PersistentAccountSnapshot],
     Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]
   ], NotUsed] = {
-    Flow[Tuple2[PersistentAccount, PersistentAccountSnapshot]]
-      .map {
-        case (account, snapshot) =>
-          primaryStorage
-            .getAccountEventsPath(
-              account.tenant,
-              account.name,
-              snapshot.version
-            )
-            .toFile
-            .listFiles() match {
-            case null =>
-              Array.empty[
-                Tuple3[PersistentAccount, PersistentAccountSnapshot, String]
-              ]
-            case files =>
-              files.map { file => (account, snapshot, file.getName) }
+
+    val substream =
+      (account: PersistentAccount, snapshot: PersistentAccountSnapshot) =>
+        Source
+          .single((account, snapshot))
+          .flatMapConcat {
+            case (account, snapshot) =>
+              val path = primaryStorage
+                .getAccountEventsPath(
+                  account.tenant,
+                  account.name,
+                  snapshot.version
+                )
+
+              val events = primaryStorage
+                .listFiles(path)
+                .map(_.getFileName.toString)
+                .filterNot(_.isEmpty)
+                .map { file => (account, snapshot, file) }
+
+              events
           }
-      }
-      .filterNot { events =>
-        events.isEmpty ||
-        (
-          events.last._1.lastSynchronizedSnapshot == events.last._2.version &&
-          events.last._1.lastSynchronizedEvent >= events.size
-        )
-      }
-      .mapAsync(parallelism * 4) { events =>
-        Source(events.toIndexedSeq)
-          .mapAsync(100) {
+          .fold(Seq.empty[Tuple3[PersistentAccount, PersistentAccountSnapshot, String]])(_ :+ _)
+          .filterNot { data =>
+            data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
+            data.last._1.lastSynchronizedEvent >= data.size
+          }
+          .flatMapConcat(Source.apply)
+          .mapAsync(1) {
             case (account, snapshot, event) =>
               primaryStorage
                 .getAccountEvent(
@@ -226,15 +218,39 @@ class PrimaryDataExplorationService(
                   snapshot.version,
                   event
                 )
-                .map(_.map { event => (account, snapshot, event) })
+                .map { event => (account, snapshot, event) }
           }
+          .async
           .runWith(Sink.seq)
-          .map(_.flatten.sortWith(_._3.version < _._3.version))
+
+    Flow[Tuple2[PersistentAccount, PersistentAccountSnapshot]]
+      .mapAsync(1) {
+        case (account, snapshot) =>
+          substream(account, snapshot)
+            .map { result =>
+              result
+                .filterNot { event =>
+                  event._1.lastSynchronizedSnapshot == event._2.version &&
+                  event._1.lastSynchronizedEvent <= event._3.version
+                }
+                .sortWith(_._3.version < _._3.version)
+                .toIndexedSeq
+            }
       }
       .async
+      .recover {
+        case e: Exception =>
+          logger.warn("Failed to get account events caused by", e)
+          IndexedSeq[Tuple3[
+            PersistentAccount,
+            PersistentAccountSnapshot,
+            PersistentAccountEvent
+          ]]()
+      }
       .flatMapConcat(Source.apply)
   }
 
+  // FIXME improve flow
   def getTransfersFlow: Graph[FlowShape[Tuple3[
     PersistentAccount,
     PersistentAccountSnapshot,
@@ -252,10 +268,8 @@ class PrimaryDataExplorationService(
     ]]
       .flatMapConcat {
         case (account, snapshot, event) if event.status == 1 =>
-          Source
-            .fromPublisher(
-              primaryStorage.getTransfers(account.tenant, event.transaction)
-            )
+          primaryStorage
+            .getTransfers(account.tenant, event.transaction)
             .filter { transfer =>
               (transfer.creditTenant == account.tenant && transfer.creditAccount == account.name) ||
               (transfer.debitTenant == account.tenant && transfer.debitAccount == account.name)
@@ -267,31 +281,24 @@ class PrimaryDataExplorationService(
           Source
             .single((account, snapshot, event, Seq.empty[PersistentTransfer]))
       }
-      .mapAsync(parallelism) {
+      .flatMapConcat {
 
         case (account, snapshot, event, transfers) if transfers.isEmpty =>
-          Future
-            .successful {
-              (account, snapshot, event, transfers)
-            }
+          Source.single((account, snapshot, event, transfers))
 
         case (account, snapshot, event, transfers) =>
-          logger.info(s"Discovered new Transaction ${transfers(0).transaction}")
+          logger.info(s"Discovered new transaction ${transfers(0).transaction}")
 
-          Future
-            .fold {
-              transfers
-                .map { transfer =>
-                  secondaryStorage
-                    .updateTransfer(transfer)
-                    .map(_ => transfer)
-                }
-            }(Seq.empty[PersistentTransfer])(_ :+ _)
-            .map { transfers =>
-              (account, snapshot, event, transfers)
+          Source(transfers)
+            .mapAsync(1) { transfer =>
+              secondaryStorage
+                .updateTransfer(transfer)
+                .map(_ => transfer)
             }
+            .async
+            .fold(Seq.empty[PersistentTransfer])(_ :+ _)
+            .map { transfers => (account, snapshot, event, transfers) }
       }
-      .async
       .mapAsync(1) {
         case (account, snapshot, event, transfers) => {
           val nextAccount = account.copy(
