@@ -31,6 +31,7 @@ case class Transfer(
     tenant: String,
     transaction: String,
     transfer: String,
+    status: Int,
     creditTenant: String,
     creditAccount: String,
     debitTenant: String,

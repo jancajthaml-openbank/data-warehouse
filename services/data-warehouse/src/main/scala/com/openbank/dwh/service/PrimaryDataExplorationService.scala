@@ -276,13 +276,20 @@ class PrimaryDataExplorationService(
       PersistentAccountEvent
     ]]
       .flatMapConcat {
-        case (account, snapshot, event) if event.status == 1 =>
+        case (account, snapshot, event) if event.status != 0 =>
           primaryStorage
             .getTransfers(account.tenant, event.transaction)
             .filter { transfer =>
               (transfer.creditTenant == account.tenant && transfer.creditAccount == account.name) ||
               (transfer.debitTenant == account.tenant && transfer.debitAccount == account.name)
             }
+            .map {
+              case transfer if transfer.status != event.status =>
+                throw new Exception(s"Expected ${event.status} vs actual ${transfer.status} transfer status mismatch")
+              case transfer =>
+                transfer
+            }
+            .async
             .fold(Seq.empty[PersistentTransfer])(_ :+ _)
             .map { transfers =>
               logger.debug(s"${transfers.size} transfers discovered from ${event}")
@@ -298,7 +305,6 @@ class PrimaryDataExplorationService(
 
         case (account, snapshot, event, transfers) if transfers.isEmpty =>
           logger.debug(s"0 transfers in ${snapshot.version}/${event.version} for ${account}")
-
           Source.single((account, snapshot, event, transfers))
 
         case (account, snapshot, event, transfers) =>

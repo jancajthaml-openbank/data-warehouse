@@ -221,21 +221,39 @@ class PrimaryPersistence(val root: String)(
                 .delimiter(ByteString(System.lineSeparator()), 256, true)
                 .map(_.utf8String)
             )
-            .drop(1)
-            .map { line =>
-              val parts = line.split(' ')
-              PersistentTransfer(
-                tenant = tenant,
-                transaction = transaction,
-                transfer = parts(0),
-                creditTenant = parts(1),
-                creditAccount = parts(2),
-                debitTenant = parts(3),
-                debitAccount = parts(4),
-                amount = BigDecimal.exact(parts(6)),
-                currency = parts(7),
-                valueDate = ZonedDateTime.parse(parts(5))
-              )
+            .statefulMapConcat { () =>
+              var firstLine = true
+              var status = 0
+
+              {
+                case line if firstLine =>
+                  status = line match {
+                    case "committed" => 1
+                    case "rollbacked" => 2
+                    case _ => 0
+                  }
+                  firstLine = false
+                  Nil
+
+                case line =>
+                  val parts = line.split(' ')
+                  val transfer = PersistentTransfer(
+                    tenant = tenant,
+                    transaction = transaction,
+                    transfer = parts(0),
+                    status = status,
+                    creditTenant = parts(1),
+                    creditAccount = parts(2),
+                    debitTenant = parts(3),
+                    debitAccount = parts(4),
+                    amount = BigDecimal.exact(parts(6)),
+                    currency = parts(7),
+                    valueDate = ZonedDateTime.parse(parts(5))
+                  )
+
+                  transfer :: Nil
+
+              }
             }
             .runWith(Sink.asPublisher(fanout = false))
         }
