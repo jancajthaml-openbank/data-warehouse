@@ -249,6 +249,14 @@ class PrimaryDataExplorationService(
           ]]()
       }
       .flatMapConcat(Source.apply)
+      .map {
+        case (account, snapshot, event) =>
+          val nextAccount = account.copy(
+            lastSynchronizedSnapshot = snapshot.version,
+            lastSynchronizedEvent = event.version
+          )
+          (nextAccount, snapshot, event)
+      }
   }
 
   // FIXME improve flow
@@ -276,9 +284,13 @@ class PrimaryDataExplorationService(
               (transfer.debitTenant == account.tenant && transfer.debitAccount == account.name)
             }
             .fold(Seq.empty[PersistentTransfer])(_ :+ _)
-            .map { transfers => (account, snapshot, event, transfers) }
+            .map { transfers =>
+              logger.debug(s"${transfers.size} transfers discovered from ${event}")
+              (account, snapshot, event, transfers)
+            }
 
         case (account, snapshot, event) =>
+          logger.debug(s"no transfers to discover from ${event}")
           Source
             .single((account, snapshot, event, Seq.empty[PersistentTransfer]))
       }
@@ -305,12 +317,8 @@ class PrimaryDataExplorationService(
       }
       .mapAsync(1) {
         case (account, snapshot, event, transfers) => {
-          val nextAccount = account.copy(
-            lastSynchronizedSnapshot = snapshot.version,
-            lastSynchronizedEvent = event.version
-          )
           secondaryStorage
-            .updateAccount(nextAccount)
+            .updateAccount(account)
             .map { _ => (nextAccount, snapshot, event, transfers) }
         }
       }
