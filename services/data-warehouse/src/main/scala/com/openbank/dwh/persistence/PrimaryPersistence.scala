@@ -31,14 +31,16 @@ object PrimaryPersistence {
 
 }
 
-class DirectoryIterator(stream: DirectoryStream[Path]) extends AbstractIterator[Path] {
+class DirectoryIterator(stream: DirectoryStream[Path])
+    extends AbstractIterator[Path] {
   private lazy val it = stream.iterator()
-  override def hasNext: Boolean = it.hasNext() match {
-    case true => true
-    case false =>
-      stream.close()
-      false
-  }
+  override def hasNext: Boolean =
+    it.hasNext() match {
+      case true => true
+      case false =>
+        stream.close()
+        false
+    }
   override def next(): Path = it.next()
 }
 
@@ -107,7 +109,9 @@ class PrimaryPersistence(val root: String)(
   def getTenant(tenant: String): Future[PersistentTenant] = {
     Files.exists(getTenantPath(tenant)) match {
       case false =>
-        Future.failed(new Exception(s"tenant ${tenant} does not exists in primary storage"))
+        Future.failed(
+          new Exception(s"tenant ${tenant} does not exists in primary storage")
+        )
       case true =>
         Future.successful(PersistentTenant(name = tenant))
     }
@@ -120,7 +124,11 @@ class PrimaryPersistence(val root: String)(
   ): Future[PersistentAccountSnapshot] = {
     Files.exists(getAccountSnapshotPath(tenant, account, version)) match {
       case false =>
-        Future.failed(new Exception(s"account snapshot ${tenant}/${account}/${version} does not exists in primary storage"))
+        Future.failed(
+          new Exception(
+            s"account snapshot ${tenant}/${account}/${version} does not exists in primary storage"
+          )
+        )
       case true =>
         Future.successful(PersistentAccountSnapshot(tenant, account, version))
     }
@@ -156,7 +164,11 @@ class PrimaryPersistence(val root: String)(
           }
           .runWith(Sink.last)
       case Failure(ex) =>
-        Future.failed(new Exception(s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage"))
+        Future.failed(
+          new Exception(
+            s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage"
+          )
+        )
     }
   }
 
@@ -187,7 +199,11 @@ class PrimaryPersistence(val root: String)(
           }
           .runWith(Sink.last)
       case Failure(ex) =>
-        Future.failed(new Exception(s"account ${tenant}/${account} does not exists in primary storage"))
+        Future.failed(
+          new Exception(
+            s"account ${tenant}/${account} does not exists in primary storage"
+          )
+        )
     }
   }
 

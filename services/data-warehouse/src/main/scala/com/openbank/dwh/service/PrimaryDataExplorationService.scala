@@ -75,7 +75,7 @@ class PrimaryDataExplorationService(
         (
           primaryStorage.getTenant(name)
             zip
-          secondaryStorage.getTenant(name)
+              secondaryStorage.getTenant(name)
         ).flatMap {
           case (a, Some(b)) =>
             Future.successful(Some(b))
@@ -113,7 +113,7 @@ class PrimaryDataExplorationService(
           (
             primaryStorage.getAccount(tenant.name, name)
               zip
-            secondaryStorage.getAccount(tenant.name, name)
+                secondaryStorage.getAccount(tenant.name, name)
           )
             .flatMap {
               case (a, Some(b)) =>
@@ -185,63 +185,70 @@ class PrimaryDataExplorationService(
     Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]
   ], NotUsed] = {
 
-    val substream = (account: PersistentAccount, snapshot: PersistentAccountSnapshot) =>
-      Source.single((account, snapshot))
-        .map {
-          case (account, snapshot) =>
-            val path = primaryStorage
-              .getAccountEventsPath(
-                account.tenant,
-                account.name,
-                snapshot.version
-              )
+    val substream =
+      (account: PersistentAccount, snapshot: PersistentAccountSnapshot) =>
+        Source
+          .single((account, snapshot))
+          .map {
+            case (account, snapshot) =>
+              val path = primaryStorage
+                .getAccountEventsPath(
+                  account.tenant,
+                  account.name,
+                  snapshot.version
+                )
 
-            val events = primaryStorage
-              .listFiles(path)
-              .map(_.getFileName.toString)
-              .filterNot(_.isEmpty)
-              .map { file => (account, snapshot, file) }
+              val events = primaryStorage
+                .listFiles(path)
+                .map(_.getFileName.toString)
+                .filterNot(_.isEmpty)
+                .map { file => (account, snapshot, file) }
 
-            events
-        }
-        .flatMapConcat { eventsStream =>
-          Source.future(eventsStream.runWith(Sink.seq))
-        }
-        .filterNot(_.isEmpty)
-        .filterNot { data =>
-          data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
-          data.last._1.lastSynchronizedEvent >= data.size
-        }
-        .flatMapConcat(Source.apply)
-        .mapAsync(1) {
-          case (account, snapshot, event) =>
-            primaryStorage
-              .getAccountEvent(
-                account.tenant,
-                account.name,
-                snapshot.version,
-                event
-              )
-              .map { event => (account, snapshot, event) }
-        }
-        .async
-        .runWith(Sink.seq)
+              events
+          }
+          .flatMapConcat { eventsStream =>
+            Source.future(eventsStream.runWith(Sink.seq))
+          }
+          .filterNot(_.isEmpty)
+          .filterNot { data =>
+            data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
+            data.last._1.lastSynchronizedEvent >= data.size
+          }
+          .flatMapConcat(Source.apply)
+          .mapAsync(1) {
+            case (account, snapshot, event) =>
+              primaryStorage
+                .getAccountEvent(
+                  account.tenant,
+                  account.name,
+                  snapshot.version,
+                  event
+                )
+                .map { event => (account, snapshot, event) }
+          }
+          .async
+          .runWith(Sink.seq)
 
     Flow[Tuple2[PersistentAccount, PersistentAccountSnapshot]]
-      .mapAsync(1) { case (account, snapshot) =>
-        substream(account, snapshot)
-          .map { result =>
-            result
-              .sortWith(_._3.version < _._3.version)
-              .toIndexedSeq
-          }
+      .mapAsync(1) {
+        case (account, snapshot) =>
+          substream(account, snapshot)
+            .map { result =>
+              result
+                .sortWith(_._3.version < _._3.version)
+                .toIndexedSeq
+            }
       }
       .async
       .recover {
         case e: Exception =>
           logger.warn("Failed to get account events caused by", e)
           Array
-            .empty[Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]]
+            .empty[Tuple3[
+              PersistentAccount,
+              PersistentAccountSnapshot,
+              PersistentAccountEvent
+            ]]
             .toIndexedSeq
       }
       .flatMapConcat(Source.apply)
