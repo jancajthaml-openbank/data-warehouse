@@ -319,7 +319,7 @@ class PrimaryDataExplorationService(
         case (account, snapshot, event, transfers) => {
           secondaryStorage
             .updateAccount(account)
-            .map { _ => (nextAccount, snapshot, event, transfers) }
+            .map { _ => (account, snapshot, event, transfers) }
         }
       }
       .async
