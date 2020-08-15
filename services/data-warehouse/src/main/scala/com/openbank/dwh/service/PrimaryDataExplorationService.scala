@@ -285,9 +285,12 @@ class PrimaryDataExplorationService(
       .flatMapConcat {
 
         case (account, snapshot, event, transfers) if transfers.isEmpty =>
+          logger.debug(s"0 transfers in ${snapshot.version}/${event.version} for ${account}")
+
           Source.single((account, snapshot, event, transfers))
 
         case (account, snapshot, event, transfers) =>
+          logger.debug(s"${transfers.size} transfers in ${snapshot.version}/${event.version} for ${account}")
           logger.info(s"Discovered new transaction ${transfers(0).transaction}")
 
           Source(transfers)
