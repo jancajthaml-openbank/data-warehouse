@@ -75,7 +75,7 @@ class PrimaryDataExplorationService(
         (
           primaryStorage.getTenant(name)
             zip
-              secondaryStorage.getTenant(name)
+          secondaryStorage.getTenant(name)
         ).flatMap {
           case (a, Some(b)) =>
             Future.successful(Some(b))
@@ -113,7 +113,7 @@ class PrimaryDataExplorationService(
           (
             primaryStorage.getAccount(tenant.name, name)
               zip
-                secondaryStorage.getAccount(tenant.name, name)
+            secondaryStorage.getAccount(tenant.name, name)
           )
             .flatMap {
               case (a, Some(b)) =>
@@ -209,7 +209,6 @@ class PrimaryDataExplorationService(
           .flatMapConcat { eventsStream =>
             Source.future(eventsStream.runWith(Sink.seq))
           }
-          .filterNot(_.isEmpty)
           .filterNot { data =>
             data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
             data.last._1.lastSynchronizedEvent >= data.size
@@ -235,6 +234,10 @@ class PrimaryDataExplorationService(
           substream(account, snapshot)
             .map { result =>
               result
+                .filterNot { event =>
+                  event._1.lastSynchronizedSnapshot == event._2.version &&
+                  event._1.lastSynchronizedEvent <= event._3.version
+                }
                 .sortWith(_._3.version < _._3.version)
                 .toIndexedSeq
             }
@@ -243,17 +246,16 @@ class PrimaryDataExplorationService(
       .recover {
         case e: Exception =>
           logger.warn("Failed to get account events caused by", e)
-          Array
-            .empty[Tuple3[
-              PersistentAccount,
-              PersistentAccountSnapshot,
-              PersistentAccountEvent
-            ]]
-            .toIndexedSeq
+          IndexedSeq[Tuple3[
+            PersistentAccount,
+            PersistentAccountSnapshot,
+            PersistentAccountEvent
+          ]]()
       }
       .flatMapConcat(Source.apply)
   }
 
+  // FIXME improve flow
   def getTransfersFlow: Graph[FlowShape[Tuple3[
     PersistentAccount,
     PersistentAccountSnapshot,
@@ -296,7 +298,7 @@ class PrimaryDataExplorationService(
           logger.info(s"Discovered new Transaction ${transfers(0).transaction}")
 
           Future
-            .fold {
+            .foldLeft {
               transfers
                 .map { transfer =>
                   secondaryStorage
