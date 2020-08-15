@@ -204,6 +204,7 @@ class PrimaryDataExplorationService(
               events
           }
           .fold(Seq.empty[Tuple3[PersistentAccount, PersistentAccountSnapshot, String]])(_ :+ _)
+          .filterNot(_.isEmpty)
           .filterNot { data =>
             data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
             data.last._1.lastSynchronizedEvent >= data.size
