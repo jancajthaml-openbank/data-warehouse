@@ -51,10 +51,7 @@ class SecondaryPersistence(val persistence: Postgres)(
 
     persistence.database
       .run(query)
-      .map { _ =>
-        logger.debug(s"update tenant ${item}")
-        Done
-      }
+      .map { _ => Done }
       .recoverWith {
         case e: Exception =>
           logger.error(s"failed to update tenant", e)
@@ -82,10 +79,7 @@ class SecondaryPersistence(val persistence: Postgres)(
 
     persistence.database
       .run(query)
-      .map { _ =>
-        logger.debug(s"update account ${item}")
-        Done
-      }
+      .map { _ => Done }
       .recoverWith {
         case e: Exception =>
           logger.error(s"failed to update account", e)
@@ -97,9 +91,9 @@ class SecondaryPersistence(val persistence: Postgres)(
 
     val query = sqlu"""
       INSERT INTO
-        transfer(tenant, transaction, transfer, credit_tenant, credit_name, debit_tenant, debit_name, amount, currency, value_date)
+        transfer(tenant, transaction, transfer, status, credit_tenant, credit_name, debit_tenant, debit_name, amount, currency, value_date)
       VALUES
-        (${item.tenant}, ${item.transaction}, ${item.transfer}, ${item.creditTenant}, ${item.creditAccount}, ${item.debitTenant}, ${item.debitAccount}, ${item.amount}, ${item.currency}, ${Timestamp
+        (${item.tenant}, ${item.transaction}, ${item.transfer}, ${item.status}, ${item.creditTenant}, ${item.creditAccount}, ${item.debitTenant}, ${item.debitAccount}, ${item.amount}, ${item.currency}, ${Timestamp
       .valueOf(
         item.valueDate.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime
       )})
@@ -110,10 +104,7 @@ class SecondaryPersistence(val persistence: Postgres)(
 
     persistence.database
       .run(query)
-      .map { _ =>
-        logger.debug(s"update transfer ${item}")
-        Done
-      }
+      .map { _ => Done }
       .recoverWith {
         case e: Exception =>
           logger.error(s"failed to update transfer", e)

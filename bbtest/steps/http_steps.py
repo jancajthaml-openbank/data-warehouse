@@ -19,8 +19,18 @@ def perform_http_request(context, uri):
   context.http_request = urllib.request.Request(method=options['method'], url=uri)
   context.http_request.add_header('Accept', 'application/json')
   if context.text:
+
+    if "graphql" in uri:
+      payload = json.dumps({
+        'query': context.text,
+        'variables': None,
+        'operationName': None,
+      })
+    else:
+      payload = context.text
+
     context.http_request.add_header('Content-Type', 'application/json')
-    context.http_request.data = context.text.encode('utf-8')
+    context.http_request.data = payload.encode('utf-8')
 
 
 @then('HTTP response is')
@@ -61,7 +71,7 @@ def check_http_response(context):
       http_response['body'] = err.read().decode('utf-8')
 
     if 'status' in options:
-      assert http_response['status'] == options['status'], 'expected status {} actual {}'.format(options['status'], response)
+      assert http_response['status'] == options['status'], 'expected status {} actual {}'.format(options['status'], http_response)
     if context.text:
       diff('', json.loads(context.text), json.loads(http_response['body']))
 
