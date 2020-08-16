@@ -8,13 +8,10 @@ Feature: Graphql
       | key    | value |
       | method | POST  |
       """
-      {
-        "query": "query GetTenants($limit: Int!, $offset: Int!) { tenants(limit: $limit, offset: $offset) { name } }",
-        "variables": {
-          "limit": 1,
-          "offset": 0
-        },
-        "operationName": null
+      query {
+        tenants(limit: 1000, offset: 0) {
+          name
+        }
       }
       """
     Then HTTP response is
@@ -26,6 +23,43 @@ Feature: Graphql
           "tenants": [
             {
               "name": "demo"
+            }
+          ]
+        }
+      }
+      """
+
+  Scenario: Accounts Query
+
+    Given Directory reports/blackbox-tests/meta/t_TENANT/account/ACCOUNT/snapshot exists
+    And   File reports/blackbox-tests/meta/t_TENANT/account/ACCOUNT/snapshot/0000000000 contains
+    """
+    CZK FORMAT_T
+    """
+
+    When I request HTTP http://127.0.0.1/graphql
+      | key    | value |
+      | method | POST  |
+      """
+      query {
+        accounts(tenant: "TENANT", limit: 1000, offset: 0) {
+          name,
+          currency,
+          balance
+        }
+      }
+      """
+    Then HTTP response is
+      | key    | value |
+      | status | 200   |
+      """
+      {
+        "data": {
+          "accounts": [
+            {
+              "name": "ACCOUNT",
+              "currency": "CZK",
+              "balance": 0
             }
           ]
         }

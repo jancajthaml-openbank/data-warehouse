@@ -14,9 +14,15 @@ def ensure_directory_existence(context, dirname):
 @given('File {filename} exists')
 @when('File {filename} exists')
 def ensure_file_existence(context, filename):
-  ensure_directory_existence(os.path.dirname(filename))
+  ensure_directory_existence(context, os.path.dirname(filename))
   with open(filename, 'a'):
     os.utime(filename, None)
 
 
-
+@given('File {filename} contains')
+@when('File {filename} contains')
+def file_contains(context, filename):
+  ensure_directory_existence(context, os.path.dirname(filename))
+  ensure_file_existence(context, filename)
+  with open(filename, 'w') as fd:
+    fd.write(context.text)

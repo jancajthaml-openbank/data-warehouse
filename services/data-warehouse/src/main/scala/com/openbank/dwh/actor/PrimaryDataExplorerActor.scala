@@ -100,7 +100,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
             props.primaryDataExplorationService.exploreTransfers()
           }
           .recoverWith { case e: Exception =>
-            logger.warn(s"Primary exploration errored with ${e}")
+            logger.error(s"Primary exploration errored with", e)
             Future.successful(Done)
           }
           .onComplete { _ => ctx.self ! Free }
