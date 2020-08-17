@@ -55,7 +55,7 @@ def check_http_response(context):
       assert type(a) == type(b), 'types differ at {} expected: {} actual: {}'.format(path, type(a), type(b))
       assert a == b, 'values differ at {} expected: {} actual: {}'.format(path, a, b)
 
-  @eventually(30)
+  @eventually(20)
   def wait_for_correct_response():
     http_response = dict()
 
@@ -73,6 +73,9 @@ def check_http_response(context):
     if 'status' in options:
       assert http_response['status'] == options['status'], 'expected status {} actual {}'.format(options['status'], http_response)
     if context.text:
-      diff('', json.loads(context.text), json.loads(http_response['body']))
+      try:
+        diff('', json.loads(context.text), json.loads(http_response['body']))
+      except Exception as ex:
+        raise AssertionError('error: {}, response: {}'.format(ex, http_response))
 
   wait_for_correct_response()

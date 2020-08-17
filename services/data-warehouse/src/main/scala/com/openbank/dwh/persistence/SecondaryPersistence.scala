@@ -185,7 +185,6 @@ class SecondaryPersistence(val persistence: Postgres)(
   }
 
   def getTenant(name: String): Future[Option[PersistentTenant]] = {
-
     val query = sql"""
       SELECT
         name

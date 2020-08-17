@@ -232,7 +232,7 @@ class PrimaryDataExplorationService(
               result
                 .filterNot { event =>
                   event._1.lastSynchronizedSnapshot == event._2.version &&
-                  event._1.lastSynchronizedEvent <= event._3.version
+                  event._1.lastSynchronizedEvent > event._3.version
                 }
                 .sortWith(_._3.version < _._3.version)
                 .toIndexedSeq
@@ -291,13 +291,9 @@ class PrimaryDataExplorationService(
             }
             .async
             .fold(Seq.empty[PersistentTransfer])(_ :+ _)
-            .map { transfers =>
-              logger.debug(s"${transfers.size} transfers discovered from ${event}")
-              (account, snapshot, event, transfers)
-            }
+            .map { transfers => (account, snapshot, event, transfers) }
 
         case (account, snapshot, event) =>
-          logger.debug(s"no transfers to discover from ${event}")
           Source
             .single((account, snapshot, event, Seq.empty[PersistentTransfer]))
       }
