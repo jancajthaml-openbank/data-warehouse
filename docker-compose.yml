@@ -8,67 +8,75 @@ services:
 
   scala: &scala
     image: jancajthaml/scala:amd64
+    tty: true
     volumes:
       - .:/project
     working_dir: /project
-    tty: true
 
   # -------------------------------------------------------------------------- #
 
   debian: &debian
     image: jancajthaml/debian-packager
+    tty: true
     volumes:
       - .:/project
     working_dir: /project
-    tty: true
 
   # -------------------------------------------------------------------------- #
 
   sync:
     <<: *scala
-    entrypoint: ["/project/dev/lifecycle/sync"]
+    entrypoint:
+      - /project/dev/lifecycle/sync
 
   # -------------------------------------------------------------------------- #
 
   update:
     <<: *scala
-    entrypoint: ["/project/dev/lifecycle/update"]
+    entrypoint:
+      - /project/dev/lifecycle/update
 
   # -------------------------------------------------------------------------- #
 
   lint:
     <<: *scala
-    entrypoint: ["/project/dev/lifecycle/lint"]
+    entrypoint:
+      - /project/dev/lifecycle/lint
 
   # -------------------------------------------------------------------------- #
 
   sec:
     <<: *scala
-    entrypoint: ["/project/dev/lifecycle/sec"]
+    entrypoint:
+      - /project/dev/lifecycle/sec
 
   # -------------------------------------------------------------------------- #
 
   package:
     <<: *scala
-    entrypoint: ["/project/dev/lifecycle/package"]
+    entrypoint:
+      - /project/dev/lifecycle/package
 
   # -------------------------------------------------------------------------- #
 
   release:
     <<: *debian
-    entrypoint: ["/project/dev/lifecycle/release"]
+    entrypoint:
+      - /project/dev/lifecycle/release
 
   # -------------------------------------------------------------------------- #
 
   debian-package:
     <<: *debian
-    entrypoint: ["/project/dev/lifecycle/debian"]
+    entrypoint:
+      - /project/dev/lifecycle/debian
 
   # -------------------------------------------------------------------------- #
 
   test:
     <<: *scala
-    entrypoint: ["/project/dev/lifecycle/test"]
+    entrypoint:
+      - /project/dev/lifecycle/test
 
   # -------------------------------------------------------------------------- #
 
