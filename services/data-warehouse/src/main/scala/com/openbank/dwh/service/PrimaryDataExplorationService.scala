@@ -1,18 +1,14 @@
 package com.openbank.dwh.service
 
-import java.nio.file.{Paths, Files, Path}
+import java.nio.file.Path
 import akka.{Done, NotUsed}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{ExecutionContext, Future}
-import scala.collection.mutable.Builder
-import scala.collection.generic.CanBuildFrom
-import language.higherKinds
 import akka.stream.scaladsl._
 import akka.stream._
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
-import java.util.concurrent.atomic.AtomicLong
 
 class PrimaryDataExplorationService(
     primaryStorage: PrimaryPersistence,
@@ -74,7 +70,7 @@ class PrimaryDataExplorationService(
             zip
           secondaryStorage.getTenant(name)
         ).flatMap {
-          case (a, Some(b)) =>
+          case (_, Some(b)) =>
             Future.successful(Some(b))
           case (a, None) =>
             logger.info(s"Discovered new Tenant ${a}")
@@ -111,16 +107,15 @@ class PrimaryDataExplorationService(
             primaryStorage.getAccount(tenant.name, name)
               zip
             secondaryStorage.getAccount(tenant.name, name)
-          )
-            .flatMap {
-              case (a, Some(b)) =>
-                Future.successful(Some(b))
-              case (a, None) =>
-                logger.info(s"Discovered new Account ${a}")
-                secondaryStorage
-                  .updateAccount(a)
-                  .map { _ => Some(a) }
-            }
+          ).flatMap {
+            case (_, Some(b)) =>
+              Future.successful(Some(b))
+            case (a, None) =>
+              logger.info(s"Discovered new Account ${a}")
+              secondaryStorage
+                .updateAccount(a)
+                .map { _ => Some(a) }
+          }
         }
       }
       .async

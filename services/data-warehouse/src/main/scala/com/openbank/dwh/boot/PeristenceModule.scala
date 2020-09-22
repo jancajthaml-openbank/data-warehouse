@@ -4,7 +4,6 @@ import akka.Done
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.Future
 import scala.util.Try
-import slick.jdbc.JdbcBackend.Database
 import com.openbank.dwh.persistence._
 import scala.util.control.NonFatal
 
@@ -32,12 +31,11 @@ trait PersistenceModule extends Lifecycle {
   }
 
   lazy val graphStorage: GraphQLPersistence =
-    GraphQLPersistence.forConfig(config, graphQLExecutionContext)
+    GraphQLPersistence.forConfig(config)
 
   lazy val primaryStorage: PrimaryPersistence =
     PrimaryPersistence.forConfig(
       config,
-      dataExplorationExecutionContext,
       materializer
     )
 

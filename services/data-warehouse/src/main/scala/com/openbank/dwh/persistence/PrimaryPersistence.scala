@@ -6,27 +6,20 @@ import akka.util.ByteString
 import java.nio.file.{Paths, Files, Path, DirectoryStream}
 import com.openbank.dwh.model._
 import akka.stream.Materializer
-import akka.stream.IOResult
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 import akka.stream.scaladsl._
-import collection.immutable.Seq
 import scala.math.BigDecimal
 import java.time.ZonedDateTime
 import com.typesafe.scalalogging.StrictLogging
-import org.reactivestreams.Publisher
 import scala.util.{Try, Success, Failure}
 import akka.NotUsed
 
 object PrimaryPersistence {
 
-  def forConfig(
-      config: Config,
-      ec: ExecutionContext,
-      mat: Materializer
-  ): PrimaryPersistence = {
+  def forConfig(config: Config, mat: Materializer): PrimaryPersistence = {
     new PrimaryPersistence(
       config.getString("data-exploration.primary.directory")
-    )(ec, mat)
+    )(mat)
   }
 
 }
@@ -45,10 +38,7 @@ class DirectoryIterator(stream: DirectoryStream[Path])
 }
 
 // FIXME split into interface and impl for better testing
-class PrimaryPersistence(val root: String)(
-    implicit ec: ExecutionContext,
-    implicit val mat: Materializer
-) extends StrictLogging {
+class PrimaryPersistence(val root: String)(implicit val mat: Materializer) extends StrictLogging {
 
   def listFiles(path: Path): Source[Path, NotUsed] = {
     Try {
@@ -56,7 +46,7 @@ class PrimaryPersistence(val root: String)(
     } match {
       case Success(st) =>
         Source.fromIterator(() => st)
-      case Failure(ex) =>
+      case Failure(_) =>
         Source.empty
     }
   }
@@ -162,7 +152,7 @@ class PrimaryPersistence(val root: String)(
             )
           }
           .runWith(Sink.last)
-      case Failure(ex) =>
+      case Failure(_) =>
         Future.failed(
           new Exception(
             s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage"
@@ -197,7 +187,7 @@ class PrimaryPersistence(val root: String)(
             )
           }
           .runWith(Sink.last)
-      case Failure(ex) =>
+      case Failure(_) =>
         Future.failed(
           new Exception(
             s"account ${tenant}/${account} does not exists in primary storage"
@@ -257,7 +247,7 @@ class PrimaryPersistence(val root: String)(
             }
             .runWith(Sink.asPublisher(fanout = false))
         }
-      case Failure(ex) =>
+      case Failure(_) =>
         logger.warn(
           s"transaction ${tenant}/${transaction} does not exists in primary storage"
         )

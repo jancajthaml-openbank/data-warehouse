@@ -1,12 +1,11 @@
 package com.openbank.dwh.routers
 
-import sangria.parser.{QueryParser, SyntaxError}
+import sangria.parser.SyntaxError
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import sangria.execution.{ErrorWithResolver, QueryAnalysisError}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.{ExceptionHandler, Route}
-import scala.language.implicitConversions
 import akka.stream.Attributes.LogLevels
 
 class RootRouter(routes: Route*) extends SprayJsonSupport {
@@ -15,7 +14,7 @@ class RootRouter(routes: Route*) extends SprayJsonSupport {
   import sangria.marshalling.sprayJson._
 
   def route: Route =
-    logRequestResult("access", LogLevels.Debug) {
+    logRequestResult(("access", LogLevels.Debug)) {
       handleExceptions(exceptionHandler) {
         concat(routes: _*)
       }

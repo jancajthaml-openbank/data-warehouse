@@ -6,7 +6,7 @@ import akka.util.Timeout
 import scala.concurrent.duration._
 import akka.actor.typed.scaladsl.AskPattern._
 import com.typesafe.scalalogging.StrictLogging
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Future
 import com.openbank.dwh.actor
 
 trait TypedActorModule extends Lifecycle {

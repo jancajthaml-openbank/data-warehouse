@@ -38,12 +38,30 @@ libraryDependencies ++= Seq(
 
 excludeDependencies ++= Seq(commonLogging)
 
+scalacOptions ++= Seq("-deprecation", "-feature")
 scalacOptions in Compile := Seq(
   "-encoding",
   "utf-8",
   "-feature",
   "-unchecked",
-  "-deprecation"
+  "-deprecation",
+  "-Xlint",
+  "-Xlint:inaccessible",
+  "-Xlint:nullary-unit",
+  "-Xlint:option-implicit",
+  "-Xlint:package-object-classes",
+  "-Xlint:poly-implicit-overload",
+  "-Xlint:private-shadow",
+  "-Xlint:missing-interpolator",
+  "-Ywarn-dead-code",
+  "-Ywarn-numeric-widen",
+  "-Ywarn-value-discard",
+  "-Ywarn-unused",
+  "-Yrangepos"
+)
+
+scalacOptions in Test := Seq(
+  "-Ywarn-unused"
 )
 
 enablePlugins(PackPlugin)

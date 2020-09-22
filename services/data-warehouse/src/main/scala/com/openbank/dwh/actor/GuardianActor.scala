@@ -5,7 +5,7 @@ import akka.util.Timeout
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
-import scala.concurrent.{Future, Promise, ExecutionContext}
+import scala.concurrent.{Future, ExecutionContext}
 import com.typesafe.scalalogging.StrictLogging
 import com.openbank.dwh.service._
 import scala.concurrent.duration._
@@ -72,7 +72,7 @@ object GuardianActor extends StrictLogging {
                     props.ctx.system.scheduler
                   )
                   .recoverWith {
-                    case e: Exception =>
+                    case _: Exception =>
                       props.ctx.stop(ref)
                       Future.successful(Done)
                   }

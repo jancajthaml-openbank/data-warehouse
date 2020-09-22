@@ -4,8 +4,8 @@ GRANT ALL PRIVILEGES ON DATABASE openbank TO postgres;
 
 CREATE TABLE tenant
 (
-  name              VARCHAR(50) NOT NULL,
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  name       VARCHAR(50) NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   PRIMARY KEY (name)
 );
@@ -33,18 +33,18 @@ GRANT ALL PRIVILEGES ON TABLE account TO postgres;
 
 CREATE TABLE transfer
 (
-  tenant            VARCHAR(50) NOT NULL,
-  transaction       VARCHAR(100) NOT NULL,
-  transfer          VARCHAR(100) NOT NULL,
-  status            SMALLINT NOT NULL,
-  credit_tenant     VARCHAR(50) NOT NULL,
-  credit_name       VARCHAR(50) NOT NULL,
-  debit_tenant      VARCHAR(50) NOT NULL,
-  debit_name        VARCHAR(50) NOT NULL,
-  currency          CHAR(3) NOT NULL,
-  amount            NUMERIC NOT NULL,
-  value_date        TIMESTAMPTZ NOT NULL,
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  tenant        VARCHAR(50) NOT NULL,
+  transaction   VARCHAR(100) NOT NULL,
+  transfer      VARCHAR(100) NOT NULL,
+  status        SMALLINT NOT NULL,
+  credit_tenant VARCHAR(50) NOT NULL,
+  credit_name   VARCHAR(50) NOT NULL,
+  debit_tenant  VARCHAR(50) NOT NULL,
+  debit_name    VARCHAR(50) NOT NULL,
+  currency      CHAR(3) NOT NULL,
+  amount        NUMERIC NOT NULL,
+  value_date    TIMESTAMPTZ NOT NULL,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   FOREIGN KEY (tenant) REFERENCES tenant(name)
                        ON DELETE RESTRICT
@@ -75,7 +75,7 @@ CREATE VIEW account_balance_change AS (
       SELECT
         account.tenant,
         account.name,
-        date_trunc('day', transfer.value_date) AS value_date,
+        date_trunc('day', transfer.value_date AT TIME ZONE 'UTC') AS value_date,
         transfer.amount
       FROM account
       INNER JOIN transfer
@@ -88,7 +88,7 @@ CREATE VIEW account_balance_change AS (
       SELECT
         account.tenant,
         account.name,
-        date_trunc('day', transfer.value_date) AS value_date,
+        date_trunc('day', transfer.value_date AT TIME ZONE 'UTC') AS value_date,
         -transfer.amount
       FROM account
       INNER JOIN transfer

@@ -1,9 +1,8 @@
 package com.openbank.dwh
 
-import akka.Done
 import com.openbank.dwh.boot._
 import com.typesafe.scalalogging.StrictLogging
-import scala.concurrent.{ExecutionContext, Future, Await}
+import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
 import scala.sys
 
@@ -22,7 +21,10 @@ object Main extends App with StrictLogging {
 
   try {
     Await.result(Program.setup(), 10.minutes)
-    sys.addShutdownHook { Program.shutdown() }
+    sys.addShutdownHook {
+      Program.shutdown()
+      ()
+    }
     Program.start()
   } catch {
     case e: Exception =>
