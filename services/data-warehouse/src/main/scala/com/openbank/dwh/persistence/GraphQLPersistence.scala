@@ -1,33 +1,22 @@
 package com.openbank.dwh.persistence
 
 import com.typesafe.config.Config
-import akka.Done
 import com.typesafe.scalalogging.StrictLogging
-import scala.concurrent.{ExecutionContext, Future}
 import com.openbank.dwh.model._
 import scala.math.BigDecimal
-import java.time.{ZonedDateTime, ZoneOffset}
-import slick.jdbc._
-import slick.lifted._
-import slick.jdbc.JdbcBackend.Database
-import slick.basic.DatabasePublisher
-import akka.stream._
-import akka.stream.scaladsl._
 import java.sql.Timestamp
 import akka.http.scaladsl.model.DateTime
 
 object GraphQLPersistence {
 
-  def forConfig(config: Config, ec: ExecutionContext): GraphQLPersistence = {
-    new GraphQLPersistence(Postgres.forConfig(config, "graphql.postgresql"))(ec)
+  def forConfig(config: Config): GraphQLPersistence = {
+    new GraphQLPersistence(Postgres.forConfig(config, "graphql.postgresql"))
   }
 
 }
 
 // FIXME split into interface and impl for better testing
-class GraphQLPersistence(val persistence: Postgres)(implicit
-    ec: ExecutionContext
-) extends StrictLogging {
+class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
 
   import persistence.profile.api._
 

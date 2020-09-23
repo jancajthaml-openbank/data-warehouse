@@ -6,7 +6,6 @@ import sangria.parser.QueryParser
 import com.typesafe.scalalogging.StrictLogging
 import akka.http.scaladsl.model.DateTime
 import sangria.schema._
-import sangria.macros.derive._
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import sangria.execution.deferred._

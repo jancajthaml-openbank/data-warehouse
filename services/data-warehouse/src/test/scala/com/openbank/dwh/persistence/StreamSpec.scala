@@ -2,13 +2,12 @@ package com.openbank.dwh.persistence
 
 import org.scalatest.concurrent.ScalaFutures
 import com.openbank.dwh.utils.AkkaSpecBase
+import org.scalatest.concurrent.IntegrationPatience
+import java.nio.file.Paths
+import akka.stream.scaladsl._
+import akka.Done
 
-class StreamSpec extends AkkaSpecBase("stream") with ScalaFutures {
-
-  import java.nio.file.Paths
-  import akka.stream.scaladsl._
-  import akka.stream._
-  import akka.Done
+class StreamSpec extends AkkaSpecBase("stream") with ScalaFutures with IntegrationPatience {
 
   it should "not throw null pointer exception on non existant path" in {
     val result = Source

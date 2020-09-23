@@ -1,7 +1,7 @@
 package com.openbank.dwh.boot
 
 import akka.actor.{ActorSystem, Scheduler}
-import akka.stream.{ActorMaterializer, Materializer, SystemMaterializer}
+import akka.stream.{Materializer, SystemMaterializer}
 import scala.concurrent.ExecutionContext
 
 trait AkkaModule {

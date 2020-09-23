@@ -6,14 +6,10 @@ import com.typesafe.scalalogging.StrictLogging
 import akka.stream.Materializer
 import scala.concurrent.{ExecutionContext, Future}
 import com.openbank.dwh.model._
-import scala.math.BigDecimal
 import java.time.{ZonedDateTime, ZoneOffset}
 import slick.jdbc._
-import slick.jdbc.JdbcBackend.Database
-import java.sql.{Timestamp, Types}
-import slick.basic.DatabasePublisher
+import java.sql.Timestamp
 import akka.stream._
-import akka.stream.scaladsl._
 
 object SecondaryPersistence {
 

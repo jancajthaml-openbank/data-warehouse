@@ -5,7 +5,6 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 import com.openbank.dwh.routers._
 import com.typesafe.scalalogging.StrictLogging
-import akka.http.scaladsl.server.Directives._
 import scala.concurrent.Future
 import scala.util.Success
 
