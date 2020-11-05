@@ -92,7 +92,7 @@ pipeline {
             agent {
                 docker {
                     image 'jancajthaml/scala:amd64'
-                    args "--entrypoint=''"
+                    args "--entrypoint='' -u 0"
                     reuseNode true
                 }
             }
