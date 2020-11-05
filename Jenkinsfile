@@ -98,6 +98,8 @@ pipeline {
             }
             steps {
                 script {
+                    sh "java --version"
+                    sh "sbt -v"
                     sh """
                         ${env.WORKSPACE}/dev/lifecycle/sync \
                         --source ${env.WORKSPACE}/services/data-warehouse
