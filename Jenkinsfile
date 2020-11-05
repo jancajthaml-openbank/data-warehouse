@@ -98,8 +98,6 @@ pipeline {
             }
             steps {
                 script {
-                    sh "java --version"
-                    sh "sbt -v"
                     sh """
                         ${env.WORKSPACE}/dev/lifecycle/sync \
                         --source ${env.WORKSPACE}/services/data-warehouse
@@ -112,7 +110,7 @@ pipeline {
             agent {
                 docker {
                     image 'jancajthaml/scala:amd64'
-                    args "--entrypoint=''"
+                    args "--entrypoint='' -u 0"
                     reuseNode true
                 }
             }
@@ -134,7 +132,7 @@ pipeline {
             agent {
                 docker {
                     image 'jancajthaml/scala:amd64'
-                    args "--entrypoint=''"
+                    args "--entrypoint='' -u 0"
                     reuseNode true
                 }
             }
@@ -153,7 +151,7 @@ pipeline {
             agent {
                 docker {
                     image 'jancajthaml/scala:amd64'
-                    args "--entrypoint=''"
+                    args "--entrypoint='' -u 0"
                     reuseNode true
                 }
             }
@@ -173,7 +171,7 @@ pipeline {
             agent {
                 docker {
                     image 'jancajthaml/debian-packager:latest'
-                    args "--entrypoint=''"
+                    args "--entrypoint='' -u 0"
                     reuseNode true
                 }
             }
