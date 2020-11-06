@@ -217,7 +217,6 @@ pipeline {
 
                             options = """
                                 |-e IMAGE_VERSION=${env.VERSION}
-                                |-e POSTGRES_HOSTNAME=${db.id}
                                 |-e UNIT_VERSION=${env.VERSION}
                                 |-e UNIT_ARCH=${env.ARCH}
                                 |--volumes-from=${cid}
