@@ -199,16 +199,21 @@ pipeline {
             }
             steps {
                 script {
+                    echo "A"
                     cid = sh(
                         script: 'hostname',
                         returnStdout: true
                     ).trim()
 
+                    echo "B"
+
                     docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").runWith("") { c ->
-                        echo "inside postgre"
+                        echo "C"
                         postgre_hostname = "${c.id}"
+                        echo "D"
                     }
 
+                    echo "E"
                     echo "after postgre id ${postgre_hostname}"
 
                     options = """
