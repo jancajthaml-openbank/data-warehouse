@@ -1,4 +1,5 @@
 def DOCKER_IMAGE
+//def POSTGRES_CONTAINER
 
 def dockerOptions() {
     String options = "--pull "
@@ -207,6 +208,8 @@ pipeline {
 
                     echo "B"
 
+                    postgre_hostname = ""
+
                     docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").runWith("") { c ->
                         echo "C"
                         postgre_hostname = "${c.id}"
@@ -283,6 +286,9 @@ pipeline {
                 if (DOCKER_IMAGE != null) {
                     sh "docker rmi -f ${DOCKER_IMAGE.id} || :"
                 }
+                //if (POSTGRES_CONTAINER != null) {
+                //    sh "docker rm -f ${POSTGRES_CONTAINER.id} || :"
+                //}
             }
             script {
                 publishHTML(target: [
