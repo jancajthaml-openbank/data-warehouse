@@ -208,36 +208,24 @@ pipeline {
 
                     echo "B"
 
-                    postgre_hostname = ""
+                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").runWith("") { -> db
+                        docker.image("jancajthaml/bbtest:${env.ARCH}").withRun(options) { c ->
+                            options = """
+                                |-e IMAGE_VERSION=${env.VERSION}
+                                |-e POSTGRES_HOSTNAME=${db.id}
+                                |-e UNIT_VERSION=${env.VERSION}
+                                |-e UNIT_ARCH=${env.ARCH}
+                                |--volumes-from=${cid}
+                                |-v /var/run/docker.sock:/var/run/docker.sock:rw
+                                |-v /var/lib/docker/containers:/var/lib/docker/containers:rw
+                                |-v /sys/fs/cgroup:/sys/fs/cgroup:ro
+                                |-u 0
+                            """.stripMargin().stripIndent().replaceAll("[\\t\\n\\r]+"," ").stripMargin().stripIndent()
 
-                    echo "C"
-
-                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").runWith("--entrypoint=''") { c ->
-                        echo "D"
-                        postgre_hostname = "${c.id}"
-                        echo "E"
+                            sh "docker exec -t ${c.id} python3 ${env.WORKSPACE}/bbtest/main.py"
+                        }
                     }
 
-                    echo "F"
-                    echo "after postgre id ${postgre_hostname}"
-
-                    options = """
-                        |-e IMAGE_VERSION=${env.VERSION}
-                        |-e POSTGRES_HOSTNAME=${postgre_hostname}
-                        |-e UNIT_VERSION=${env.VERSION}
-                        |-e UNIT_ARCH=${env.ARCH}
-                        |--volumes-from=${cid}
-                        |-v /var/run/docker.sock:/var/run/docker.sock:rw
-                        |-v /var/lib/docker/containers:/var/lib/docker/containers:rw
-                        |-v /sys/fs/cgroup:/sys/fs/cgroup:ro
-                        |-u 0
-                    """.stripMargin().stripIndent().replaceAll("[\\t\\n\\r]+"," ").stripMargin().stripIndent()
-
-                    echo "options ${options}"
-
-                    docker.image("jancajthaml/bbtest:${env.ARCH}").withRun(options) { c ->
-                        sh "docker exec -t ${c.id} python3 ${env.WORKSPACE}/bbtest/main.py"
-                    }
                 }
             }
         }
