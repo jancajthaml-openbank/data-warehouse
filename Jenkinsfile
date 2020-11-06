@@ -207,7 +207,7 @@ pipeline {
 
                     echo "B"
 
-                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").runWith("") { db ->
+                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").withRun("") { db ->
 
                         echo "C"
 
