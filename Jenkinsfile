@@ -277,9 +277,6 @@ pipeline {
                 if (DOCKER_IMAGE != null) {
                     sh "docker rmi -f ${DOCKER_IMAGE.id} || :"
                 }
-                if (POSTGRE_IMAGE != null) {
-                    sh "docker rmi -f ${POSTGRE_IMAGE.id} || :"
-                }
             }
             script {
                 publishHTML(target: [
