@@ -2,7 +2,7 @@ Feature: Graphql
 
   Scenario: Tenants Query
 
-    Given Directory reports/blackbox-tests/meta/t_TENANT exists
+    Given Directory /data/t_TENANT exists
 
     When I request HTTP http://127.0.0.1/graphql
       | key    | value |
@@ -31,8 +31,8 @@ Feature: Graphql
 
   Scenario: Accounts Query
 
-    Given Directory reports/blackbox-tests/meta/t_TENANT_ACC/account/ACCOUNT/snapshot exists
-    And   File reports/blackbox-tests/meta/t_TENANT_ACC/account/ACCOUNT/snapshot/0000000000 contains
+    Given Directory /data/t_TENANT_ACC/account/ACCOUNT/snapshot exists
+    And   File /data/t_TENANT_ACC/account/ACCOUNT/snapshot/0000000000 contains
     """
     CZK FORMAT_T
     """
@@ -68,26 +68,26 @@ Feature: Graphql
 
   Scenario: Transfers Query
 
-    Given Directory reports/blackbox-tests/meta/t_TENANT_TRN/account/CREDIT/snapshot exists
-    And   File reports/blackbox-tests/meta/t_TENANT_TRN/account/CREDIT/snapshot/0000000000 contains
+    Given Directory /data/t_TENANT_TRN/account/CREDIT/snapshot exists
+    And   File /data/t_TENANT_TRN/account/CREDIT/snapshot/0000000000 contains
     """
     CZK FORMAT_F
     """
-    And   Directory reports/blackbox-tests/meta/t_TENANT_TRN/account/CREDIT/snapshot exists
-    And   File reports/blackbox-tests/meta/t_TENANT_TRN/account/DEBIT/snapshot/0000000000 contains
+    And   Directory /data/t_TENANT_TRN/account/CREDIT/snapshot exists
+    And   File /data/t_TENANT_TRN/account/DEBIT/snapshot/0000000000 contains
     """
     CZK FORMAT_F
     """
-    And File reports/blackbox-tests/meta/t_TENANT_TRN/transaction/TRN contains
+    And   File /data/t_TENANT_TRN/transaction/TRN contains
     """
     committed
     TRX TENANT_TRN CREDIT TENANT_TRN DEBIT 2020-01-01T00:00:00Z 1 CZK
     """
-    And   File reports/blackbox-tests/meta/t_TENANT_TRN/account/DEBIT/events/0000000000/1_-1_TRN contains
+    And   File /data/t_TENANT_TRN/account/DEBIT/events/0000000000/1_-1_TRN contains
     """
     1
     """
-    And   File reports/blackbox-tests/meta/t_TENANT_TRN/account/CREDIT/events/0000000000/1_1_TRN contains
+    And   File /data/t_TENANT_TRN/account/CREDIT/events/0000000000/1_1_TRN contains
     """
     1
     """
