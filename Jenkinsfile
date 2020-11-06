@@ -207,7 +207,7 @@ pipeline {
 
                     echo "B"
 
-                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").withRun("") { -> db
+                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").runWith("") { db ->
 
                         echo "C"
 
@@ -217,6 +217,7 @@ pipeline {
 
                             options = """
                                 |-e IMAGE_VERSION=${env.VERSION}
+                                |-e POSTGRES_HOSTNAME=${db.id}
                                 |-e UNIT_VERSION=${env.VERSION}
                                 |-e UNIT_ARCH=${env.ARCH}
                                 |--volumes-from=${cid}
