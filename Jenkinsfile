@@ -210,13 +210,15 @@ pipeline {
 
                     postgre_hostname = ""
 
-                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").runWith("") { c ->
-                        echo "C"
-                        postgre_hostname = "${c.id}"
+                    echo "C"
+
+                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").runWith("--entrypoint=''") { c ->
                         echo "D"
+                        postgre_hostname = "${c.id}"
+                        echo "E"
                     }
 
-                    echo "E"
+                    echo "F"
                     echo "after postgre id ${postgre_hostname}"
 
                     options = """
