@@ -82,9 +82,7 @@ services:
 
   postgres:
     hostname: postgres
-    build:
-      dockerfile: Dockerfile
-      context: bbtest/postgres
+    image: openbank/postgres:0.0.1
 
   # -------------------------------------------------------------------------- #
 

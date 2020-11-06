@@ -1,5 +1,4 @@
 def DOCKER_IMAGE
-def POSTGRE_IMAGE
 
 def dockerOptions() {
     String options = "--pull "
@@ -205,8 +204,7 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    postgre_hostname = ""
-                    POSTGRE_IMAGE.runWith("") { p ->
+                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:${env.VERSION}").runWith("") { p ->
                         echo "inside postgre"
                         postgre_hostname = p.id
                     }
@@ -237,7 +235,6 @@ pipeline {
             steps {
                 script {
                     DOCKER_IMAGE = docker.build("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/data-warehouse:${env.VERSION}", dockerOptions())
-                    POSTGRE_IMAGE = docker.build("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:${env.VERSION}", dockerOptions())
                 }
             }
         }
@@ -247,7 +244,6 @@ pipeline {
                 script {
                     docker.withRegistry("http://${env.ARTIFACTORY_DOCKER_REGISTRY}", 'jenkins-artifactory') {
                         DOCKER_IMAGE.push()
-                        POSTGRE_IMAGE.push()
                     }
                     artifactory.upload spec: """
                     {
