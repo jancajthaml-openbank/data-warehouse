@@ -93,6 +93,7 @@ services:
     depends_on:
       - postgres
     environment:
+      POSTGRES_HOSTNAME: postgres
       IMAGE_VERSION: ${IMAGE_VERSION:-}
       UNIT_VERSION: ${UNIT_VERSION:-}
       UNIT_ARCH: amd64

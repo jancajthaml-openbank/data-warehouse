@@ -1,4 +1,5 @@
 def DOCKER_IMAGE
+def POSTGRE_IMAGE
 
 def dockerOptions() {
     String options = "--pull "
@@ -80,8 +81,6 @@ pipeline {
                     env.PROJECT_NAME = "openbank data-warehouse"
                     env.PROJECT_DESCRIPTION = "OpenBanking Data Warehouse service"
                     env.PROJECT_AUTHOR = "${env.CHANGE_AUTHOR_DISPLAY_NAME} <${env.CHANGE_AUTHOR_EMAIL}>"
-                    //env.GOPATH = "${env.WORKSPACE}/go"
-                    //env.XDG_CACHE_HOME = "${env.GOPATH}/.cache"
 
                     currentBuild.displayName = "#${currentBuild.number} - ${env.CHANGE_BRANCH} (${env.VERSION})"
                 }
@@ -205,8 +204,17 @@ pipeline {
                         script: 'hostname',
                         returnStdout: true
                     ).trim()
+
+                    postgre_hostname = ""
+                    POSTGRE_IMAGE.runWith("") { p ->
+                        echo "inside postgre"
+                        postgre_hostname = p.id
+                    }
+                    echo "after postgre id ${postgre_hostname}"
+
                     options = """
                         |-e IMAGE_VERSION=${env.VERSION}
+                        |-e POSTGRES_HOSTNAME=${postgre_hostname}
                         |-e UNIT_VERSION=${env.VERSION}
                         |-e UNIT_ARCH=${env.ARCH}
                         |--volumes-from=${cid}
@@ -215,6 +223,9 @@ pipeline {
                         |-v /sys/fs/cgroup:/sys/fs/cgroup:ro
                         |-u 0
                     """.stripMargin().stripIndent().replaceAll("[\\t\\n\\r]+"," ").stripMargin().stripIndent()
+
+                    echo "options ${options}"
+
                     docker.image("jancajthaml/bbtest:${env.ARCH}").withRun(options) { c ->
                         sh "docker exec -t ${c.id} python3 ${env.WORKSPACE}/bbtest/main.py"
                     }
@@ -226,6 +237,7 @@ pipeline {
             steps {
                 script {
                     DOCKER_IMAGE = docker.build("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/data-warehouse:${env.VERSION}", dockerOptions())
+                    POSTGRE_IMAGE = docker.build("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:${env.VERSION}", dockerOptions())
                 }
             }
         }
@@ -235,6 +247,7 @@ pipeline {
                 script {
                     docker.withRegistry("http://${env.ARTIFACTORY_DOCKER_REGISTRY}", 'jenkins-artifactory') {
                         DOCKER_IMAGE.push()
+                        POSTGRE_IMAGE.push()
                     }
                     artifactory.upload spec: """
                     {
@@ -267,6 +280,9 @@ pipeline {
             script {
                 if (DOCKER_IMAGE != null) {
                     sh "docker rmi -f ${DOCKER_IMAGE.id} || :"
+                }
+                if (POSTGRE_IMAGE != null) {
+                    sh "docker rmi -f ${POSTGRE_IMAGE.id} || :"
                 }
             }
             script {
