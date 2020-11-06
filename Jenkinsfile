@@ -204,10 +204,11 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:${env.VERSION}").runWith("") { p ->
+                    docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").runWith("") { c ->
                         echo "inside postgre"
-                        postgre_hostname = p.id
+                        postgre_hostname = "${c.id}"
                     }
+
                     echo "after postgre id ${postgre_hostname}"
 
                     options = """
