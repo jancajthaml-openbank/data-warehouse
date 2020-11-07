@@ -19,7 +19,7 @@ class UnitHelper(object):
     return {
       "LOG_LEVEL": "DEBUG",
       "HTTP_PORT": "80",
-      "POSTGRES_URL": "jdbc:{}://{}:5432/openbank".format(postgres_hostname, postgres_hostname),
+      "POSTGRES_URL": "jdbc:postgresql://{}:5432/openbank".format(postgres_hostname),
       "PRIMARY_STORAGE_PATH": "/data",
     }
 
