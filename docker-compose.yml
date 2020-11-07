@@ -82,7 +82,7 @@ services:
 
   postgres:
     hostname: postgres
-    image: openbank/postgres:0.0.1
+    image: openbank/postgres:0.0.0
 
   # -------------------------------------------------------------------------- #
 
