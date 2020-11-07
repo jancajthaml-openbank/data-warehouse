@@ -48,7 +48,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    currentBuild.displayName = "#${currentBuild.number} - ${env.CHANGE_BRANCH} (?)"
+                    currentBuild.displayName = "#${currentBuild.number} - ? (?)"
                 }
                 deleteDir()
                 checkout(scm)
@@ -73,7 +73,7 @@ pipeline {
                     env.GIT_BRANCH = sh(
                         script: 'git name-rev --name-only HEAD',
                         returnStdout: true
-                    ).trim()
+                    ).trim() - 'remotes/origin/'
                     env.ARCH = sh(
                         script: 'dpkg --print-architecture',
                         returnStdout: true
@@ -85,7 +85,7 @@ pipeline {
                     env.PROJECT_DESCRIPTION = "OpenBanking Data Warehouse service"
                     env.PROJECT_AUTHOR = "${env.CHANGE_AUTHOR_DISPLAY_NAME} <${env.CHANGE_AUTHOR_EMAIL}>"
 
-                    currentBuild.displayName = "#${currentBuild.number} - ${env.CHANGE_BRANCH} (${env.VERSION})"
+                    currentBuild.displayName = "#${currentBuild.number} - ${env.GIT_BRANCH} (${env.VERSION})"
                 }
             }
         }
