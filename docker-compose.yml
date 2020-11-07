@@ -82,9 +82,7 @@ services:
 
   postgres:
     hostname: postgres
-    build:
-      dockerfile: Dockerfile
-      context: bbtest/postgres
+    image: openbank/postgres:v0.0.0-main
 
   # -------------------------------------------------------------------------- #
 
@@ -93,6 +91,7 @@ services:
     depends_on:
       - postgres
     environment:
+      POSTGRES_HOSTNAME: postgres
       IMAGE_VERSION: ${IMAGE_VERSION:-}
       UNIT_VERSION: ${UNIT_VERSION:-}
       UNIT_ARCH: amd64

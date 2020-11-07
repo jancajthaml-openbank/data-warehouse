@@ -12,7 +12,7 @@ import urllib.request
 @given('package {package} is {operation}')
 def step_impl(context, package, operation):
   if operation == 'installed':
-    (code, result, error) = execute(["apt-get", "install", "-f", "-qq", "-o=Dpkg::Use-Pty=0", "-o=Dpkg::Options::=--force-confold", "/tmp/packages/{}.deb".format(package)])
+    (code, result, error) = execute(["apt-get", "install", "-f", "-qq", "-o=Dpkg::Use-Pty=0", "-o=Dpkg::Options::=--force-confold", context.unit.binary])
     assert code == 0, "unable to install with code {} and {} {}".format(code, result, error)
     assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is True
   elif operation == 'uninstalled':
@@ -64,7 +64,7 @@ def unit_running(context, unit):
     assert code == 0, code
     assert 'SubState=running' in result, result
 
-  @eventually(240)
+  @eventually(30)
   def wait_for_service_to_be_healthy():
     request = urllib.request.Request(method='GET', url= "http://127.0.0.1/health")
     response = urllib.request.urlopen(request, timeout=2)
