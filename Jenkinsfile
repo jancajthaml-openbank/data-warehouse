@@ -199,23 +199,18 @@ pipeline {
             }
             steps {
                 script {
-                    echo "A"
                     cid = sh(
                         script: 'hostname',
                         returnStdout: true
                     ).trim()
 
-                    echo "B"
-
                     docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").withRun("") { db ->
-
-                        echo "C"
 
                         options = """
                             |-e IMAGE_VERSION=${env.VERSION}
-                            |-e POSTGRES_HOSTNAME=${db.id}
                             |-e UNIT_VERSION=${env.VERSION}
                             |-e UNIT_ARCH=${env.ARCH}
+                            |-e POSTGRES_HOSTNAME=${db.id}
                             |--volumes-from=${cid}
                             |-v /var/run/docker.sock:/var/run/docker.sock:rw
                             |-v /var/lib/docker/containers:/var/lib/docker/containers:rw
@@ -224,9 +219,6 @@ pipeline {
                         """.stripMargin().stripIndent().replaceAll("[\\t\\n\\r]+"," ").stripMargin().stripIndent()
 
                         docker.image("jancajthaml/bbtest:${env.ARCH}").withRun(options) { c ->
-
-                            echo "D"
-
                             sh "docker exec -t ${c.id} python3 ${env.WORKSPACE}/bbtest/main.py"
                         }
                     }
