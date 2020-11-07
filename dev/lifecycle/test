@@ -36,7 +36,21 @@ lifecycle::scala::test() {
     return
   fi
 
-  cd ${dir} && sbt -Dsbt.ivy.home=${dir}/.ivy test
+  local output="$2"
+  local target=$(basename $dir)
+
+  cd ${dir} && sbt \
+    -batch \
+    -Dsbt.ivy.home=${dir}/.ivy \
+    coverage \
+    test \
+    coverageReport
+
+  mkdir -p ${output}/${target}-coverage
+
+  cp -r \
+    ${dir}/target/scala-2.13/scoverage-report/* \
+    ${output}/${target}-coverage/
 }
 
 ################################################################################

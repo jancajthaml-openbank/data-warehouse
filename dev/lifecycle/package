@@ -50,7 +50,9 @@ lifecycle::scala::pack() {
     rm -f ${output}
   fi
 
-  cd ${source} && sbt -Dsbt.ivy.home=${source}/.ivy pack
+  cd ${source} && sbt \
+    -Dsbt.ivy.home=${source}/.ivy \
+    pack
 
   mkdir -p ${output}
 

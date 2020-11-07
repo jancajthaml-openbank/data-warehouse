@@ -246,18 +246,8 @@ pipeline {
                     {
                         "files": [
                             {
-                                "pattern": "${env.WORKSPACE}/packaging/bin/fio-bco-rest-linux-(*)",
-                                "target": "generic-local/openbank/fio-bco/linux/{1}/${env.VERSION}/fio-bco-rest",
-                                "recursive": "false"
-                            },
-                            {
-                                "pattern": "${env.WORKSPACE}/packaging/bin/fio-bco-import-linux-(*)",
-                                "target": "generic-local/openbank/fio-bco/linux/{1}/${env.VERSION}/fio-bco-import",
-                                "recursive": "false"
-                            },
-                            {
-                                "pattern": "${env.WORKSPACE}/packaging/bin/fio-bco_(*)_(*).deb",
-                                "target": "generic-local/openbank/fio-bco/linux/{2}/{1}/fio-bco.deb",
+                                "pattern": "${env.WORKSPACE}/packaging/bin/data-warehouse_(*)_(*).deb",
+                                "target": "generic-local/openbank/fio-bco/linux/{2}/{1}/data-warehouse.deb",
                                 "recursive": "false"
                             }
                         ]
@@ -274,16 +264,9 @@ pipeline {
                 publishHTML(target: [
                     alwaysLinkToLastBuild: false,
                     keepAll: true,
-                    reportDir: "${env.WORKSPACE}/reports/unit-tests/fio-bco-import",
-                    reportFiles: 'fio-bco-import-coverage.html',
-                    reportName: 'Unit Test Coverage (Fio BCO Import)'
-                ])
-                publishHTML(target: [
-                    alwaysLinkToLastBuild: false,
-                    keepAll: true,
-                    reportDir: "${env.WORKSPACE}/reports/unit-tests/fio-bco-rest",
-                    reportFiles: 'fio-bco-rest-coverage.html',
-                    reportName: 'Unit Test Coverage (Fio BCO Rest)'
+                    reportDir: "${env.WORKSPACE}/reports/unit-tests/data-warehouse-coverage",
+                    reportFiles: '*',
+                    reportName: 'Unit Test Coverage (Data Warehouse)'
                 ])
                 cucumber(
                     reportTitle: 'Black Box Test',
