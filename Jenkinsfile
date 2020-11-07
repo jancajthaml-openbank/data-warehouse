@@ -211,21 +211,21 @@ pipeline {
 
                         echo "C"
 
+                        options = """
+                            |-e IMAGE_VERSION=${env.VERSION}
+                            |-e POSTGRES_HOSTNAME=${db.id}
+                            |-e UNIT_VERSION=${env.VERSION}
+                            |-e UNIT_ARCH=${env.ARCH}
+                            |--volumes-from=${cid}
+                            |-v /var/run/docker.sock:/var/run/docker.sock:rw
+                            |-v /var/lib/docker/containers:/var/lib/docker/containers:rw
+                            |-v /sys/fs/cgroup:/sys/fs/cgroup:ro
+                            |-u 0
+                        """.stripMargin().stripIndent().replaceAll("[\\t\\n\\r]+"," ").stripMargin().stripIndent()
+
                         docker.image("jancajthaml/bbtest:${env.ARCH}").withRun(options) { c ->
 
                             echo "D"
-
-                            options = """
-                                |-e IMAGE_VERSION=${env.VERSION}
-                                |-e POSTGRES_HOSTNAME=${db.id}
-                                |-e UNIT_VERSION=${env.VERSION}
-                                |-e UNIT_ARCH=${env.ARCH}
-                                |--volumes-from=${cid}
-                                |-v /var/run/docker.sock:/var/run/docker.sock:rw
-                                |-v /var/lib/docker/containers:/var/lib/docker/containers:rw
-                                |-v /sys/fs/cgroup:/sys/fs/cgroup:ro
-                                |-u 0
-                            """.stripMargin().stripIndent().replaceAll("[\\t\\n\\r]+"," ").stripMargin().stripIndent()
 
                             sh "docker exec -t ${c.id} python3 ${env.WORKSPACE}/bbtest/main.py"
                         }
