@@ -208,7 +208,7 @@ pipeline {
                         returnStdout: true
                     ).trim()
                     docker.withRegistry("http://${env.ARTIFACTORY_DOCKER_REGISTRY}", 'jenkins-artifactory') {
-                    	docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").withRun("") { db ->
+                      docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").withRun("") { db ->
                         options = """
                             |-e IMAGE_VERSION=${env.VERSION}
                             |-e UNIT_VERSION=${env.VERSION}
@@ -224,8 +224,8 @@ pipeline {
                         docker.image("jancajthaml/bbtest:${env.ARCH}").withRun(options) { c ->
                             sh "docker exec -t ${c.id} python3 ${env.WORKSPACE}/bbtest/main.py"
                         }
-                    	}
-										}
+                      }
+                    }
 
                 }
             }
@@ -250,7 +250,7 @@ pipeline {
                         "files": [
                             {
                                 "pattern": "${env.WORKSPACE}/packaging/bin/data-warehouse_(*)_(*).deb",
-                                "target": "generic-local/openbank/fio-bco/linux/{2}/{1}/data-warehouse.deb",
+                                "target": "generic-local/openbank/data-warehouse/{1}/linux/{2}/data-warehouse.deb",
                                 "recursive": "false"
                             }
                         ]
