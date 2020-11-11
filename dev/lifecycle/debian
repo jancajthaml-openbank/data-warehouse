@@ -54,6 +54,8 @@ lifecycle::debian::generate_changelog() {
   fi
 
   touch ${target}
+	
+	git tag "v${VERSION#v}" 2> /dev/null || :
 
   PAIRS=()
   tag=HEAD
