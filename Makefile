@@ -45,7 +45,10 @@ bundle-debian-%: %
 
 .PHONY: bundle-docker
 bundle-docker:
-	@docker build -t openbank/data-warehouse:$(VERSION)-$(META) .
+	@docker build \
+		-t openbank/data-warehouse:$(VERSION)-$(META) \
+		-f packaging/docker/Dockerfile \
+		.
 
 .PHONY: bootstrap
 bootstrap:
@@ -92,9 +95,6 @@ release:
 
 .PHONY: bbtest
 bbtest:
-	@\
-		IMAGE_VERSION=$(VERSION)-$(META) \
-		UNIT_VERSION=$(VERSION) \
-		docker-compose up -d bbtest
+	@META=$(META) VERSION=$(VERSION) docker-compose up -d bbtest
 	@docker exec -t $$(docker-compose ps -q bbtest) python3 /opt/app/bbtest/main.py
 	@docker-compose down -v

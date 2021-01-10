@@ -92,8 +92,8 @@ services:
       - postgres
     environment:
       POSTGRES_HOSTNAME: postgres
-      IMAGE_VERSION: ${IMAGE_VERSION:-}
-      UNIT_VERSION: ${UNIT_VERSION:-}
+      IMAGE_VERSION: ${VERSION:-latest}-${META:-main}
+      UNIT_VERSION: ${VERSION:-latest}
       UNIT_ARCH: amd64
       CI: ${CI:-false}
     volumes:
