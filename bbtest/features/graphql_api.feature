@@ -106,6 +106,7 @@ Feature: Graphql
 
         transfers(tenant: "TENANT_TRN", limit: 1000, offset: 0) {
           transaction,
+          status
           transfer
         }
 
@@ -131,6 +132,7 @@ Feature: Graphql
           ],
           "transfers": [
             {
+              "status": 1,
               "transaction": "TRN",
               "transfer": "TRX"
             }
