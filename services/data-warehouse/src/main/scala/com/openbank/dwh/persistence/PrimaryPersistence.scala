@@ -220,7 +220,9 @@ class PrimaryPersistence(val root: String)(implicit val mat: Materializer) exten
                   status = line match {
                     case "committed" => 1
                     case "rollbacked" => 2
-                    case _ => 0
+                    case _ =>
+                      logger.warn(s"uknown transaction status \"${line}\", falling back to promised status")
+                      0
                   }
                   firstLine = false
                   Nil
