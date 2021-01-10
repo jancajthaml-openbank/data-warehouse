@@ -132,7 +132,7 @@ Feature: Graphql
           ],
           "transfers": [
             {
-              "status": 1,
+              "status": "committed",
               "transaction": "TRN",
               "transfer": "TRX"
             }
