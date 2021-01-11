@@ -99,9 +99,10 @@ object PrimaryDataExplorerActor extends StrictLogging {
           .flatMap { _ =>
             props.primaryDataExplorationService.exploreTransfers()
           }
-          .recoverWith { case e: Exception =>
-            logger.error(s"Primary exploration errored with", e)
-            Future.successful(Done)
+          .recoverWith {
+            case e: Exception =>
+              logger.error(s"Primary exploration errored with", e)
+              Future.successful(Done)
           }
           .onComplete { _ => ctx.self ! Free }
 

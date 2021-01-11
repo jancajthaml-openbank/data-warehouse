@@ -15,12 +15,15 @@ def step_impl(context, package, operation):
     (code, result, error) = execute(["apt-get", "install", "-f", "-qq", "-o=Dpkg::Use-Pty=0", "-o=Dpkg::Options::=--force-confold", context.unit.binary])
     assert code == 0, "unable to install with code {} and {} {}".format(code, result, error)
     assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is True
+    execute(['systemctl', 'start', package])
   elif operation == 'uninstalled':
     (code, result, error) = execute(["apt-get", "-y", "remove", package])
     assert code == 0, "unable to uninstall with code {} and {} {}".format(code, result, error)
-    assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is False
+    (code, result, error) = execute(["apt-get", "-y", "purge", package])
+    assert code == 0, "unable to purge with code {} and {} {}".format(code, result, error)
+    assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is False, 'config file still exists'
   else:
-    assert False
+    assert False, 'unknown operation {}'.format(operation)
 
 
 @given('systemctl contains following active units')
@@ -79,9 +82,13 @@ def unit_running(context, unit):
 @given('unit "{unit}" is not running')
 @then('unit "{unit}" is not running')
 def unit_not_running(context, unit):
-  (code, result, error) = execute(["systemctl", "show", "-p", "SubState", unit])
-  assert code == 0, str(result) + ' ' + str(error)
-  assert 'SubState=dead' in result, str(result) + ' ' + str(error)
+  @eventually(10)
+  def wait_for_unit_state_change():
+    (code, result, error) = execute(["systemctl", "show", "-p", "SubState", unit])
+    assert code == 0, str(result) + ' ' + str(error)
+    assert 'SubState=dead' in result, str(result) + ' ' + str(error)
+
+  wait_for_unit_state_change()
 
 
 @given('{operation} unit "{unit}"')
@@ -97,14 +104,5 @@ def operation_unit(context, operation, unit):
 def unit_is_configured(context):
   params = dict()
   for row in context.table:
-    params[row['property']] = row['value']
+    params[row['property']] = row['value'].strip()
   context.unit.configure(params)
-
-  (code, result, error) = execute([
-    'systemctl', 'list-units', '--no-legend'
-  ])
-  result = [item.split(' ')[0].strip() for item in result.split(os.linesep)]
-  result = [item for item in result if ("data-warehouse-" in item and ".service" in item)]
-
-  for unit in result:
-    operation_unit(context, 'restart', unit)
