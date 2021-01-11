@@ -16,7 +16,7 @@ LimitNPROC=infinity
 LimitCORE=infinity
 Restart=always
 RestartSec=1
-SuccessExitStatus=SIGTERM
+SuccessExitStatus=143
 KillMode=process
 KillSignal=SIGTERM
 
