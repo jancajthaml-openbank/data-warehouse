@@ -77,6 +77,13 @@ sync:
 		--rm sync \
 		--source /project/services/data-warehouse
 
+.PHONY: scan
+scan:
+	docker scan \
+	  openbank/data-warehouse:$(VERSION)-$(META) \
+	  --file ./packaging/docker/Dockerfile \
+	  --exclude-base
+
 .PHONY: test
 test:
 	@docker-compose \
