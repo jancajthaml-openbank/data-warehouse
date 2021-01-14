@@ -16,9 +16,9 @@ LimitNPROC=infinity
 LimitCORE=infinity
 Restart=always
 RestartSec=1
-KillSignal=SIGINT
-SuccessExitStatus=130
+SuccessExitStatus=143
 KillMode=process
+KillSignal=SIGTERM
 
 [Install]
 WantedBy=multi-user.target

@@ -123,7 +123,16 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit
         resolve = (ctx) => ctx.value.transaction
       ),
       Field("transfer", StringType, resolve = (ctx) => ctx.value.transfer),
-      Field("status", IntType, resolve = (ctx) => ctx.value.status),
+      Field(
+        "status",
+        StringType,
+        resolve = (ctx) =>
+          ctx.value.status match {
+            case 0 => "queued"
+            case 1 => "committed"
+            case 2 => "rollbacked"
+          }
+      ),
       Field(
         "credit",
         OptionType(AccountType),
@@ -148,6 +157,7 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit
 
   val FilterCurrency = Argument("currency", OptionInputType(StringType))
 
+  // FIXME String
   val FilterStatus = Argument("status", OptionInputType(IntType))
 
   val FilterFofmat = Argument("format", OptionInputType(StringType))

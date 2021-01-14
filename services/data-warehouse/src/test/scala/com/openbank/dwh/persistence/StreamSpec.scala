@@ -7,7 +7,10 @@ import java.nio.file.Paths
 import akka.stream.scaladsl._
 import akka.Done
 
-class StreamSpec extends AkkaSpecBase("stream") with ScalaFutures with IntegrationPatience {
+class StreamSpec
+    extends AkkaSpecBase("stream")
+    with ScalaFutures
+    with IntegrationPatience {
 
   it should "not throw null pointer exception on non existant path" in {
     val result = Source

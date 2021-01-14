@@ -38,7 +38,8 @@ class DirectoryIterator(stream: DirectoryStream[Path])
 }
 
 // FIXME split into interface and impl for better testing
-class PrimaryPersistence(val root: String)(implicit val mat: Materializer) extends StrictLogging {
+class PrimaryPersistence(val root: String)(implicit val mat: Materializer)
+    extends StrictLogging {
 
   def listFiles(path: Path): Source[Path, NotUsed] = {
     Try {
@@ -218,9 +219,13 @@ class PrimaryPersistence(val root: String)(implicit val mat: Materializer) exten
               {
                 case line if firstLine =>
                   status = line match {
-                    case "committed" => 1
+                    case "committed"  => 1
                     case "rollbacked" => 2
-                    case _ => 0
+                    case _ =>
+                      logger.warn(
+                        s"unknown transaction ${tenant}/${transaction} status ${line}, falling back to promised"
+                      )
+                      0
                   }
                   firstLine = false
                   Nil

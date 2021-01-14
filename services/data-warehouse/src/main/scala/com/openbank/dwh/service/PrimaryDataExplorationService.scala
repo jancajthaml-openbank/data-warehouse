@@ -68,7 +68,7 @@ class PrimaryDataExplorationService(
         (
           primaryStorage.getTenant(name)
             zip
-          secondaryStorage.getTenant(name)
+              secondaryStorage.getTenant(name)
         ).flatMap {
           case (_, Some(b)) =>
             Future.successful(Some(b))
@@ -106,7 +106,7 @@ class PrimaryDataExplorationService(
           (
             primaryStorage.getAccount(tenant.name, name)
               zip
-            secondaryStorage.getAccount(tenant.name, name)
+                secondaryStorage.getAccount(tenant.name, name)
           ).flatMap {
             case (_, Some(b)) =>
               Future.successful(Some(b))
@@ -198,7 +198,11 @@ class PrimaryDataExplorationService(
 
               events
           }
-          .fold(Seq.empty[Tuple3[PersistentAccount, PersistentAccountSnapshot, String]])(_ :+ _)
+          .fold(
+            Seq.empty[
+              Tuple3[PersistentAccount, PersistentAccountSnapshot, String]
+            ]
+          )(_ :+ _)
           .filterNot(_.isEmpty)
           .filterNot { data =>
             data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
@@ -280,7 +284,9 @@ class PrimaryDataExplorationService(
             }
             .map {
               case transfer if transfer.status != event.status =>
-                throw new Exception(s"Expected ${event.status} vs actual ${transfer.status} transfer status mismatch")
+                throw new Exception(
+                  s"Expected ${event.status} vs actual ${transfer.status} transfer status mismatch"
+                )
               case transfer =>
                 transfer
             }
@@ -295,11 +301,15 @@ class PrimaryDataExplorationService(
       .flatMapConcat {
 
         case (account, snapshot, event, transfers) if transfers.isEmpty =>
-          logger.debug(s"0 transfers in ${snapshot.version}/${event.version} for ${account}")
+          logger.debug(
+            s"0 transfers in ${snapshot.version}/${event.version} for ${account}"
+          )
           Source.single((account, snapshot, event, transfers))
 
         case (account, snapshot, event, transfers) =>
-          logger.debug(s"${transfers.size} transfers in ${snapshot.version}/${event.version} for ${account}")
+          logger.debug(
+            s"${transfers.size} transfers in ${snapshot.version}/${event.version} for ${account}"
+          )
           logger.info(s"Discovered new transaction ${transfers(0).transaction}")
 
           Source(transfers)
