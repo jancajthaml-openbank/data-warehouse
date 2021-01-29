@@ -1,13 +1,15 @@
 [Unit]
-Description=openbank data warehouse namespace
+Description=openbank data warehouse control group
 After=inetd.service
 ConditionPathExists=/etc/data-warehouse/conf.d/init.conf
 
 [Service]
 Type=oneshot
-ExecStart=/bin/echo start data-warehouse namespace
+ExecStart=/bin/true
 RemainAfterExit=yes
 KillMode=control-group
+StartLimitBurst=0
+StartLimitInterval=0
 
 [Install]
 WantedBy=multi-user.target
