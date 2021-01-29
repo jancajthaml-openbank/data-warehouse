@@ -110,9 +110,12 @@ lifecycle::debian::package() {
   CC=${CC} \
     dpkg-buildpackage \
     --host-arch=${TARGET_ARCHITECTURE} \
-    -tc -uc -b -rfakeroot
-
-  find ".." -name "${TARGET_PACKAGE}_*_${TARGET_ARCHITECTURE}.*" -exec mv {} bin/ \;
+    --buildinfo-option=-ubin \
+    --changes-option=-ubin \
+    -tc \
+    -uc \
+    -b \
+    -rfakeroot
 }
 
 lifecycle::lintian() {

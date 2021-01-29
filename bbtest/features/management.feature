@@ -1,18 +1,19 @@
-Feature: Properly behaving units
+Feature: System control
 
-  Scenario: lifecycle
+  Scenario: check units presence
     Given systemctl contains following active units
       | name               | type    |
-      | data-warehouse     | path    |
       | data-warehouse     | service |
       | data-warehouse-app | service |
-    And unit "data-warehouse-app.service" is running
 
-    When stop unit "data-warehouse-app.service"
+  Scenario: stop
+    When stop unit "data-warehouse.service"
     Then unit "data-warehouse-app.service" is not running
 
-    When start unit "data-warehouse-app.service"
+  Scenario: start
+    When start unit "data-warehouse.service"
     Then unit "data-warehouse-app.service" is running
 
-    When restart unit "data-warehouse-app.service"
+  Scenario: restart
+    When restart unit "data-warehouse.service"
     Then unit "data-warehouse-app.service" is running

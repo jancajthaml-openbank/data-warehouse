@@ -65,7 +65,7 @@ def unit_running(context, unit):
   def wait_for_unit_state_change():
     (code, result, error) = execute(["systemctl", "show", "-p", "SubState", unit])
     assert code == 0, code
-    assert 'SubState=running' in result, result
+    assert 'SubState=running' in result, '{} {}'.format(unit, result)
 
   @eventually(30)
   def wait_for_service_to_be_healthy():
@@ -96,8 +96,6 @@ def unit_not_running(context, unit):
 def operation_unit(context, operation, unit):
   (code, result, error) = execute(["systemctl", operation, unit])
   assert code == 0, str(result) + ' ' + str(error)
-  if operation == 'restart':
-    unit_running(context, unit)
 
 
 @given('data-warehouse is configured with')

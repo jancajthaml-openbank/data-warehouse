@@ -1,0 +1,10 @@
+[Unit]
+Description=openbank data warehouse configuration watcher
+StartLimitBurst=5
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'systemctl restart data-warehouse.service'
+
+[Install]
+WantedBy=multi-user.target

@@ -2,7 +2,7 @@
 Description=openbank data warehouse application namespace
 PartOf=data-warehouse.service
 After=data-warehouse.service
-ConditionPathExists=/etc/data-warehouse/conf.d/init.conf
+Requires=data-warehouse.service
 
 [Service]
 Type=simple
@@ -21,4 +21,4 @@ KillMode=process
 KillSignal=SIGTERM
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=data-warehouse.service
