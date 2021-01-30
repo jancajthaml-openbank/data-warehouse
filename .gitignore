@@ -6,3 +6,4 @@ database.json
 **/*/target
 reports
 *.ivy
+*.coursier

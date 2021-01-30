@@ -3,5 +3,6 @@
 .circleci
 packaging/debian/target
 **/*/.ivy
+**/*/.coursier
 **/*/project/project
 **/*/target
