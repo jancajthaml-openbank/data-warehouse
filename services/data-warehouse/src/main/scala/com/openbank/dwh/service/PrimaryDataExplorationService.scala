@@ -27,20 +27,12 @@ class PrimaryDataExplorationService(
       Future.successful(Done)
     }
 
-  def exploreAccounts(): Future[Done] = {
-    val (switch, result) = Source
-      .single(primaryStorage.getRootPath())
-      .via(getTenantsFlow)
-      .via(getAccountsFlow)
-      .viaMat(KillSwitches.single)(Keep.right)
-      .toMat(Sink.ignore)(Keep.both)
-      .run()
+  def runExploration(): Future[Done] = {
+    // FIXME to separate monitor actor
+    // FIXME each 1 second
+    val runtime = Runtime.getRuntime
+    metrics.gauge("memory.bytes", (runtime.totalMemory - runtime.freeMemory))
 
-    killSwitch = Some(switch)
-    result
-  }
-
-  def exploreTransfers(): Future[Done] = {
     val (switch, result) = Source
       .single(primaryStorage.getRootPath())
       .via(getTenantsFlow)
@@ -75,7 +67,7 @@ class PrimaryDataExplorationService(
           case (_, Some(b)) =>
             Future.successful(Some(b))
           case (a, None) =>
-            logger.info(s"Discovered new Tenant ${a}")
+            logger.info(s"Discovered new Tenant ${a.name}")
             metrics.count("discovery.tenant", 1)
             secondaryStorage
               .updateTenant(a)
@@ -108,13 +100,13 @@ class PrimaryDataExplorationService(
         case (tenant, name) => {
           (
             primaryStorage.getAccount(tenant.name, name)
-              zip
-                secondaryStorage.getAccount(tenant.name, name)
+            zip
+            secondaryStorage.getAccount(tenant.name, name)
           ).flatMap {
             case (_, Some(b)) =>
               Future.successful(Some(b))
             case (a, None) =>
-              logger.info(s"Discovered new Account ${a}")
+              logger.info(s"Discovered new Account ${a.tenant}/${a.name}")
               metrics.count("discovery.account", 1)
               secondaryStorage
                 .updateAccount(a)
@@ -163,8 +155,7 @@ class PrimaryDataExplorationService(
         case (account, version) => {
           primaryStorage
             .getAccountSnapshot(account.tenant, account.name, version)
-            .map { snapshot => (account, snapshot) }
-            .map { data => Some(data) }
+            .map { snapshot => Some((account, snapshot)) }
         }
       }
       .async
@@ -176,70 +167,67 @@ class PrimaryDataExplorationService(
       .collect { case Some(data) => data }
   }
 
+  private def getNewAccountEvents(account: PersistentAccount, snapshot: PersistentAccountSnapshot) =
+    Source
+      .single((account, snapshot))
+      .flatMapConcat {
+        case (account, snapshot) =>
+          val path = primaryStorage
+            .getAccountEventsPath(
+              account.tenant,
+              account.name,
+              snapshot.version
+            )
+
+          val events = primaryStorage
+            .listFiles(path)
+            .map(_.getFileName.toString)
+            .filterNot(_.isEmpty)
+            .map { file => (account, snapshot, file) }
+
+          events
+      }
+      .fold(
+        Seq.empty[
+          Tuple3[PersistentAccount, PersistentAccountSnapshot, String]
+        ]
+      )(_ :+ _)
+      .filterNot(_.isEmpty)
+      .filterNot { data =>
+        data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
+        data.last._1.lastSynchronizedEvent >= data.size
+      }
+      .flatMapConcat(Source.apply)
+      .mapAsync(1) {
+        case (account, snapshot, event) =>
+          primaryStorage
+            .getAccountEvent(
+              account.tenant,
+              account.name,
+              snapshot.version,
+              event
+            )
+            .map { event => (account, snapshot, event) }
+      }
+      .async
+      .filterNot { event =>
+        event._1.lastSynchronizedSnapshot == event._2.version &&
+        event._1.lastSynchronizedEvent > event._3.version
+      }
+      .runWith(Sink.seq)
+      .map { events =>
+        events.sortWith(_._3.version < _._3.version)
+      }
+
   def getAccountEventsFlow: Graph[FlowShape[
     Tuple2[PersistentAccount, PersistentAccountSnapshot],
     Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]
   ], NotUsed] = {
 
-    val substream =
-      (account: PersistentAccount, snapshot: PersistentAccountSnapshot) =>
-        Source
-          .single((account, snapshot))
-          .flatMapConcat {
-            case (account, snapshot) =>
-              val path = primaryStorage
-                .getAccountEventsPath(
-                  account.tenant,
-                  account.name,
-                  snapshot.version
-                )
-
-              val events = primaryStorage
-                .listFiles(path)
-                .map(_.getFileName.toString)
-                .filterNot(_.isEmpty)
-                .map { file => (account, snapshot, file) }
-
-              events
-          }
-          .fold(
-            Seq.empty[
-              Tuple3[PersistentAccount, PersistentAccountSnapshot, String]
-            ]
-          )(_ :+ _)
-          .filterNot(_.isEmpty)
-          .filterNot { data =>
-            data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
-            data.last._1.lastSynchronizedEvent >= data.size
-          }
-          .flatMapConcat(Source.apply)
-          .mapAsync(1) {
-            case (account, snapshot, event) =>
-              primaryStorage
-                .getAccountEvent(
-                  account.tenant,
-                  account.name,
-                  snapshot.version,
-                  event
-                )
-                .map { event => (account, snapshot, event) }
-          }
-          .async
-          .runWith(Sink.seq)
-
     Flow[Tuple2[PersistentAccount, PersistentAccountSnapshot]]
       .mapAsync(1) {
         case (account, snapshot) =>
-          substream(account, snapshot)
-            .map { result =>
-              result
-                .filterNot { event =>
-                  event._1.lastSynchronizedSnapshot == event._2.version &&
-                  event._1.lastSynchronizedEvent > event._3.version
-                }
-                .sortWith(_._3.version < _._3.version)
-                .toIndexedSeq
-            }
+          getNewAccountEvents(account, snapshot)
       }
       .async
       .recover {
@@ -262,7 +250,6 @@ class PrimaryDataExplorationService(
       }
   }
 
-  // FIXME improve flow
   def getTransfersFlow: Graph[FlowShape[Tuple3[
     PersistentAccount,
     PersistentAccountSnapshot,
@@ -295,39 +282,28 @@ class PrimaryDataExplorationService(
                 transfer
             }
             .async
+            .mapAsync(1) { transfer =>
+              secondaryStorage
+                .getTransfer(transfer.tenant, transfer.transaction, transfer.transfer)
+                .flatMap {
+                  case Some(b) =>
+                    Future.successful(b)
+                  case None =>
+                    logger.info(s"Discovered new Transfer ${transfer.transaction}/${transfer.transfer}")
+                    metrics.count("discovery.transfer", 1)
+
+                    secondaryStorage
+                      .updateTransfer(transfer)
+                      .map { _ => transfer }
+                }
+            }
+            .async
             .fold(Seq.empty[PersistentTransfer])(_ :+ _)
             .map { transfers => (account, snapshot, event, transfers) }
 
         case (account, snapshot, event) =>
           Source
             .single((account, snapshot, event, Seq.empty[PersistentTransfer]))
-      }
-      .flatMapConcat {
-
-        case (account, snapshot, event, transfers) if transfers.isEmpty =>
-          logger.debug(
-            s"0 transfers in ${snapshot.version}/${event.version} for ${account}"
-          )
-          Source.single((account, snapshot, event, transfers))
-
-        case (account, snapshot, event, transfers) =>
-          logger.debug(
-            s"${transfers.size} transfers in ${snapshot.version}/${event.version} for ${account}"
-          )
-          logger.info(s"Discovered new transaction ${transfers(0).transaction}")
-
-          metrics.count("discovery.transaction", 1)
-          metrics.count("discovery.transfer", transfers.size.toLong)
-
-          Source(transfers)
-            .mapAsync(1) { transfer =>
-              secondaryStorage
-                .updateTransfer(transfer)
-                .map(_ => transfer)
-            }
-            .async
-            .fold(Seq.empty[PersistentTransfer])(_ :+ _)
-            .map { transfers => (account, snapshot, event, transfers) }
       }
       .mapAsync(1) {
         case (account, snapshot, event, transfers) => {

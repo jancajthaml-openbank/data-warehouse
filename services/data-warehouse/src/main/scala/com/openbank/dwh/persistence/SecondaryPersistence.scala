@@ -118,6 +118,7 @@ class SecondaryPersistence(val persistence: Postgres)(
         tenant,
         transaction,
         transfer,
+        status,
         credit_tenant,
         credit_name,
         debit_name,
@@ -134,7 +135,8 @@ class SecondaryPersistence(val persistence: Postgres)(
       ;
     """.as[PersistentTransfer]
 
-    persistence.database
+    persistence
+      .database
       .run(
         query
           .withStatementParameters(

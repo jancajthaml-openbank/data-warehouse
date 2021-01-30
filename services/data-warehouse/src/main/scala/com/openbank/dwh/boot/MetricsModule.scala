@@ -22,7 +22,7 @@ trait MetricsModule extends Lifecycle {
             uri.getHost(),
             uri.getPort(),
           )
-          logger.info("Starting Statsd Client")
+          logger.info(s"Starting Statsd Client on ${uri.getHost()}:${uri.getPort()}")
         })
         .flatMap(_ => super.setup())
     }

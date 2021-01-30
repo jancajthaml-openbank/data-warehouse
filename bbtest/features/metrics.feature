@@ -31,6 +31,6 @@ Feature: Metrics test
     Then metrics reports:
       | key                                | type  | value |
       | openbank.dwh.discovery.tenant      | count |     1 |
-      | openbank.dwh.discovery.transaction | count |     2 |
-      | openbank.dwh.discovery.transfer    | count |     2 |
+      | openbank.dwh.discovery.transfer    | count |     1 |
       | openbank.dwh.discovery.account     | count |     2 |
+      | openbank.dwh.memory.bytes          | gauce |       |

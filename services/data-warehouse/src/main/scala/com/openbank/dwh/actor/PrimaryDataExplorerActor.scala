@@ -57,7 +57,8 @@ object PrimaryDataExplorerActor extends StrictLogging {
       case (_, Shutdown(replyTo)) =>
         logger.debug("active(Shutdown)")
         Behaviors.stopped { () =>
-          props.primaryDataExplorationService
+          props
+            .primaryDataExplorationService
             .killRunningWorkflow()
             .onComplete { _ => replyTo ! Done }
         }
@@ -90,15 +91,9 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
         ctx.self ! Lock
 
-        // FIXME try in single flow
-        Future
-          .successful(Done)
-          .flatMap { _ =>
-            props.primaryDataExplorationService.exploreAccounts()
-          }
-          .flatMap { _ =>
-            props.primaryDataExplorationService.exploreTransfers()
-          }
+        props
+          .primaryDataExplorationService.
+          runExploration()
           .recoverWith {
             case e: Exception =>
               logger.error(s"Primary exploration errored with", e)
