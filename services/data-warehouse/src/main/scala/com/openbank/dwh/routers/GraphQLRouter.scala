@@ -4,8 +4,6 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.openbank.dwh.service.GraphQLService
-import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.Directives._
 
 class GraphQLRouter(service: GraphQLService) extends SprayJsonSupport {
 

@@ -12,7 +12,8 @@ val slick = ExclusionRule("com.typesafe.slick")
 val log4j = ExclusionRule("org.slf4j")
 val spray = ExclusionRule("io.spray")
 val typesafeConfig = ExclusionRule("com.typesafe", "config")
-val commonLogging = ExclusionRule("commons-logging", "commons-logging")
+val jnrConstants = ExclusionRule("com.typesafe", "config")
+val commonLogging = ExclusionRule("com.github.jnr", "jnr-constants")
 
 conflictManager := ConflictManager.strict
 
@@ -34,6 +35,12 @@ libraryDependencies ++= Seq(
   "org.postgresql" %  "postgresql" % "42.2.14",
   "org.sangria-graphql" %% "sangria" % "2.0.1",
   "org.sangria-graphql" %% "sangria-spray-json" % "1.0.2" excludeAll(spray),
+  "com.datadoghq" % "java-dogstatsd-client" % "2.11.0",
+  "com.github.jnr" % "jnr-constants" % "0.9.15",
+  "com.github.jnr" % "jnr-enxio" % "0.25" excludeAll(jnrConstants),
+  "com.github.jnr" % "jnr-unixsocket" % "0.27" excludeAll(jnrConstants),
+  "com.github.jnr" % "jnr-posix" % "3.0.53" excludeAll(jnrConstants),
+  "info.faljse" % "SDNotify" % "1.3" excludeAll(log4j),
   "org.scalatest" %% "scalatest" % "3.2.3" % Test,
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test
 )

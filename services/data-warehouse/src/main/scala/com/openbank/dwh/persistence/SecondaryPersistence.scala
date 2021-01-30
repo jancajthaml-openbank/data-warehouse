@@ -9,7 +9,6 @@ import com.openbank.dwh.model._
 import java.time.{ZonedDateTime, ZoneOffset}
 import slick.jdbc._
 import java.sql.Timestamp
-import akka.stream._
 
 object SecondaryPersistence {
 

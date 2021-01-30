@@ -29,24 +29,24 @@ lifecycle::scala::sync() {
     return
   fi
 
-  if [ -d ${dir}/vendor ] ; then
-    rm -rf ${dir}/vendor
+  if [ -d ${dir}/.coursier ] ; then
+    rm -rf ${dir}/.coursier
   fi
 
-  if [ -f ${dir}/go.sum ] ; then
-    rm -f ${dir}/go.sum
+  if [ -d ${dir}/target ] ; then
+    rm -rf ${dir}/target
+  fi
+
+  if [ -d ${dir}/project/target ] ; then
+    rm -rf ${dir}/project/target
+  fi
+
+  if [ -d ${dir}/project/project/target ] ; then
+    rm -rf ${dir}/project/project/target
   fi
 
   cd ${dir} && sbt \
     -Dsbt.coursier.home="${dir}/.coursier" \
-    -Dsbt.ivy.home="${dir}/.ivy" \
-    \
-    clean \
-    cleanFiles
-
-  cd ${dir} && sbt \
-    -Dsbt.coursier.home="${dir}/.coursier" \
-    -Dsbt.ivy.home="${dir}/.ivy" \
     \
     update \
     evicted

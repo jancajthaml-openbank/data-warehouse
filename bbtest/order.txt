@@ -1,5 +1,6 @@
 features/install.feature
 features/management.feature
+features/metrics.feature
 features/rest_api.feature
 features/graphql_api.feature
 features/uninstall.feature
