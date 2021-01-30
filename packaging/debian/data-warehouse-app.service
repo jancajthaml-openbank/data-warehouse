@@ -5,7 +5,7 @@ After=data-warehouse.service
 Requires=data-warehouse.service
 
 [Service]
-Type=simple
+Type=notify
 EnvironmentFile=/etc/data-warehouse/conf.d/init.conf
 Environment="PROG_HOME=/usr/share/openbank/data-warehouse"
 StartLimitBurst=0

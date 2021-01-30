@@ -52,7 +52,6 @@ lifecycle::scala::pack() {
 
   cd ${source} && sbt \
     -Dsbt.coursier.home="${source}/.coursier" \
-    -Dsbt.ivy.home="${source}/.ivy" \
     pack
 
   mkdir -p ${output}

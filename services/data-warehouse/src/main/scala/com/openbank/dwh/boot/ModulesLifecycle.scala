@@ -13,7 +13,7 @@ trait ModulesLifecycle extends Lifecycle {
   self: AkkaModule with StrictLogging =>
 
   abstract override def setup(): Future[Done] = {
-    super.setup().flatMap { _ =>
+    super.setup().map { _ =>
       CoordinatedShutdown(system)
         .addTask(
           CoordinatedShutdown.PhaseBeforeActorSystemTerminate,
@@ -21,7 +21,7 @@ trait ModulesLifecycle extends Lifecycle {
         ) { () =>
           stop()
         }
-      Future.successful(Done)
+      Done
     }
   }
 
@@ -30,13 +30,13 @@ trait ModulesLifecycle extends Lifecycle {
       .fromTry(Try {
         LoggerFactory.getILoggerFactory match {
           case c: LoggerContext => c.stop()
+          case _ => ()
         }
       })
       .flatMap(_ => super.stop())
   }
 
-  def kill(): Future[Done] =
-    CoordinatedShutdown(system).run(StartupFailedReason)
+  def kill(): Future[Done] = CoordinatedShutdown(system).run(StartupFailedReason)
   def shutdown(): Future[Done] = CoordinatedShutdown(system).run(ShutDownReason)
 
   private object StartupFailedReason extends Reason

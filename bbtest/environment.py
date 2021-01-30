@@ -3,10 +3,12 @@
 
 import os
 from helpers.unit import UnitHelper
+from helpers.statsd import StatsdHelper
 from helpers.logger import logger
 
 
 def before_feature(context, feature):
+  context.statsd.clear()
   context.log.info('')
   context.log.info('  (FEATURE) {}'.format(feature.name))
 
@@ -23,6 +25,8 @@ def after_scenario(context, scenario):
 
 def before_all(context):
   context.log = logger()
+  context.statsd = StatsdHelper()
+  context.statsd.start()
   context.unit = UnitHelper(context)
   context.unit.configure()
   context.unit.download()
@@ -30,3 +34,4 @@ def before_all(context):
 
 def after_all(context):
   context.unit.teardown()
+  context.statsd.stop()

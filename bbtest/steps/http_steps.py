@@ -69,7 +69,7 @@ def check_http_response(context):
     except urllib.error.HTTPError as err:
       http_response['status'] = str(err.code)
       http_response['body'] = err.read().decode('utf-8')
-
+    
     if 'status' in options:
       assert http_response['status'] == options['status'], 'expected status {} actual {}'.format(options['status'], http_response)
     if context.text:

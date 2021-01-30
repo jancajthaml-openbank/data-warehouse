@@ -21,6 +21,7 @@ class UnitHelper(object):
       "HTTP_PORT": "80",
       "POSTGRES_URL": "jdbc:postgresql://{}:5432/openbank".format(postgres_hostname),
       "PRIMARY_STORAGE_PATH": "/data",
+      "STATSD_ENDPOINT": "127.0.0.1:8125",
     }
 
   def get_arch(self):

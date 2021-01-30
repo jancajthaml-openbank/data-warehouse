@@ -1,5 +1,6 @@
 package com.openbank.dwh.service
 
+import com.openbank.dwh.metrics.StatsDClient
 import java.nio.file.Path
 import akka.{Done, NotUsed}
 import com.typesafe.scalalogging.StrictLogging
@@ -12,7 +13,8 @@ import collection.immutable.Seq
 
 class PrimaryDataExplorationService(
     primaryStorage: PrimaryPersistence,
-    secondaryStorage: SecondaryPersistence
+    secondaryStorage: SecondaryPersistence,
+    metrics: StatsDClient
 )(implicit ec: ExecutionContext, implicit val mat: Materializer)
     extends StrictLogging {
 
@@ -67,13 +69,14 @@ class PrimaryDataExplorationService(
       .mapAsync(1) { name =>
         (
           primaryStorage.getTenant(name)
-            zip
-              secondaryStorage.getTenant(name)
+          zip
+          secondaryStorage.getTenant(name)
         ).flatMap {
           case (_, Some(b)) =>
             Future.successful(Some(b))
           case (a, None) =>
             logger.info(s"Discovered new Tenant ${a}")
+            metrics.count("discovery.tenant", 1)
             secondaryStorage
               .updateTenant(a)
               .map { _ => Some(a) }
@@ -112,6 +115,7 @@ class PrimaryDataExplorationService(
               Future.successful(Some(b))
             case (a, None) =>
               logger.info(s"Discovered new Account ${a}")
+              metrics.count("discovery.account", 1)
               secondaryStorage
                 .updateAccount(a)
                 .map { _ => Some(a) }
@@ -311,6 +315,9 @@ class PrimaryDataExplorationService(
             s"${transfers.size} transfers in ${snapshot.version}/${event.version} for ${account}"
           )
           logger.info(s"Discovered new transaction ${transfers(0).transaction}")
+
+          metrics.count("discovery.transaction", 1)
+          metrics.count("discovery.transfer", transfers.size.toLong)
 
           Source(transfers)
             .mapAsync(1) { transfer =>

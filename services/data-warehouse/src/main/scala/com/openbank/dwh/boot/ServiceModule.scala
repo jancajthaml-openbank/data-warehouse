@@ -3,10 +3,10 @@ package com.openbank.dwh.boot
 import com.openbank.dwh.service._
 
 trait ServiceModule {
-  self: AkkaModule with PersistenceModule =>
+  self: AkkaModule with PersistenceModule with MetricsModule =>
 
   lazy val primaryDataExplorationService: PrimaryDataExplorationService =
-    new PrimaryDataExplorationService(primaryStorage, secondaryStorage)(
+    new PrimaryDataExplorationService(primaryStorage, secondaryStorage, metrics)(
       dataExplorationExecutionContext,
       materializer
     )

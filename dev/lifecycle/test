@@ -41,7 +41,6 @@ lifecycle::scala::test() {
 
   cd ${dir} && sbt \
     -Dsbt.coursier.home="${dir}/.coursier" \
-    -Dsbt.ivy.home="${dir}/.ivy" \
     coverage \
     test \
     coverageReport

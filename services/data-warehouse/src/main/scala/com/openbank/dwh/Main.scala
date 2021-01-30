@@ -1,5 +1,6 @@
 package com.openbank.dwh
 
+import info.faljse.SDNotify.SDNotify
 import com.openbank.dwh.boot._
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{ExecutionContext, Await}
@@ -12,6 +13,7 @@ object Main extends App with StrictLogging {
       extends ProgramLifecycle
       with ModulesLifecycle
       with GlobalConfigModule
+      with MetricsModule
       with TypedActorModule
       with ServiceModule
       with PersistenceModule
@@ -22,9 +24,13 @@ object Main extends App with StrictLogging {
   try {
     Await.result(Program.setup(), 10.minutes)
     sys.addShutdownHook {
-      Program.shutdown()
+      implicit val ec = ExecutionContext.global
+      Program.shutdown().onComplete { _ =>
+        SDNotify.sendStopping()
+      }
       ()
     }
+    SDNotify.sendNotify()
     Program.start()
   } catch {
     case e: Exception =>

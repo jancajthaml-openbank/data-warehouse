@@ -5,7 +5,6 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.openbank.dwh.service.HealthCheckService
 import spray.json._
-import akka.http.scaladsl.model.StatusCodes._
 
 class HealthCheckRouter(service: HealthCheckService) extends SprayJsonSupport {
 
