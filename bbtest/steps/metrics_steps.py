@@ -10,7 +10,7 @@ from helpers.eventually import eventually
 
 @then('metrics reports')
 def step_impl(context):
-  @eventually(10)
+  @eventually(20)
   def wait_for_metrics_update():
     actual = context.statsd.get()
     for row in context.table:
