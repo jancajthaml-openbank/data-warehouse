@@ -9,6 +9,7 @@ import scala.concurrent.{Future, ExecutionContext}
 import com.typesafe.scalalogging.StrictLogging
 import com.openbank.dwh.service._
 import scala.concurrent.duration._
+import com.openbank.dwh.metrics.StatsDClient
 
 object GuardianActor extends StrictLogging {
 
@@ -23,16 +24,18 @@ object GuardianActor extends StrictLogging {
 
   case class BehaviorProps(
       ctx: ActorContext[Command],
-      primaryDataExplorationService: PrimaryDataExplorationService
+      primaryDataExplorationService: PrimaryDataExplorationService,
+      metrics: StatsDClient
   )
 
   def apply(
-      primaryDataExplorationService: PrimaryDataExplorationService
+      primaryDataExplorationService: PrimaryDataExplorationService,
+      metrics: StatsDClient
   )(implicit ec: ExecutionContext): Behavior[Command] = {
     Behaviors
       .supervise {
         Behaviors.setup { (ctx: ActorContext[Command]) =>
-          val props = BehaviorProps(ctx, primaryDataExplorationService)
+          val props = BehaviorProps(ctx, primaryDataExplorationService, metrics)
           behaviour(props)
         }
       }
@@ -55,6 +58,17 @@ object GuardianActor extends StrictLogging {
             props.ctx.self ! RunPrimaryDataExploration
           case _ =>
         }
+
+        getRunningActor(props.ctx, MemoryMonitorActor.name) match {
+          case None =>
+            logger.info("Starting MemoryMonitorActor")
+            props.ctx.spawn(
+              MemoryMonitorActor(props.metrics),
+              MemoryMonitorActor.name
+            )
+          case _ =>
+        }
+
         Behaviors.same
 
       case StopActors(replyTo) =>
@@ -71,10 +85,23 @@ object GuardianActor extends StrictLogging {
                     Timeout(5.seconds),
                     props.ctx.system.scheduler
                   )
-                  .recoverWith {
-                    case _: Exception =>
-                      props.ctx.stop(ref)
-                      Future.successful(Done)
+                  .recoverWith { case _: Exception =>
+                    props.ctx.stop(ref)
+                    Future.successful(Done)
+                  }
+
+              case ref: ActorRef[Nothing]
+                  if ref.path.name == MemoryMonitorActor.name =>
+                logger.info("Stopping MemoryMonitorActor")
+                ref
+                  .asInstanceOf[ActorRef[Command]]
+                  .ask[Done](MemoryMonitorActor.Shutdown)(
+                    Timeout(5.seconds),
+                    props.ctx.system.scheduler
+                  )
+                  .recoverWith { case _: Exception =>
+                    props.ctx.stop(ref)
+                    Future.successful(Done)
                   }
 
               case ref: ActorRef[Nothing] =>
@@ -89,10 +116,9 @@ object GuardianActor extends StrictLogging {
             }
           }
           .map(_ => Done)
-          .recoverWith {
-            case e: Exception =>
-              logger.warn(s"Exception occured during shutdown ${e}")
-              Future.successful(Done)
+          .recoverWith { case e: Exception =>
+            logger.warn(s"Exception occured during shutdown ${e}")
+            Future.successful(Done)
           }
           .onComplete { _ => replyTo ! Done }
 

@@ -47,10 +47,9 @@ class SecondaryPersistence(val persistence: Postgres)(
     persistence.database
       .run(query)
       .map { _ => Done }
-      .recoverWith {
-        case e: Exception =>
-          logger.error(s"failed to update tenant", e)
-          Future.failed(e)
+      .recoverWith { case e: Exception =>
+        logger.error(s"failed to update tenant", e)
+        Future.failed(e)
       }
   }
 
@@ -75,10 +74,9 @@ class SecondaryPersistence(val persistence: Postgres)(
     persistence.database
       .run(query)
       .map { _ => Done }
-      .recoverWith {
-        case e: Exception =>
-          logger.error(s"failed to update account", e)
-          Future.failed(e)
+      .recoverWith { case e: Exception =>
+        logger.error(s"failed to update account", e)
+        Future.failed(e)
       }
   }
 
@@ -100,10 +98,9 @@ class SecondaryPersistence(val persistence: Postgres)(
     persistence.database
       .run(query)
       .map { _ => Done }
-      .recoverWith {
-        case e: Exception =>
-          logger.error(s"failed to update transfer", e)
-          Future.failed(e)
+      .recoverWith { case e: Exception =>
+        logger.error(s"failed to update transfer", e)
+        Future.failed(e)
       }
   }
 
@@ -135,8 +132,7 @@ class SecondaryPersistence(val persistence: Postgres)(
       ;
     """.as[PersistentTransfer]
 
-    persistence
-      .database
+    persistence.database
       .run(
         query
           .withStatementParameters(

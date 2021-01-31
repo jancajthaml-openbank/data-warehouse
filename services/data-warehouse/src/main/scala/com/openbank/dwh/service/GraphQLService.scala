@@ -66,11 +66,11 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit
       Future.reduceLeft {
         ids
           .groupBy(_._1)
-          .map {
-            case (tenant, group) => (tenant, group.map(_._2))
+          .map { case (tenant, group) =>
+            (tenant, group.map(_._2))
           }
-          .map {
-            case (tenant, names) => ctx.accountsByNames(tenant, names)
+          .map { case (tenant, names) =>
+            ctx.accountsByNames(tenant, names)
           }
       }(_ ++ _)
     })
@@ -277,10 +277,9 @@ class GraphQLService(graphStorage: GraphQLPersistence)(implicit
     deferredResolver = GraphResolver
   )
 
-  private lazy val exceptionHandler = ExceptionHandler {
-    case (m, e) =>
-      logger.error(s"exception occured when executing query ${m} ${e}")
-      HandledException("Internal server error")
+  private lazy val exceptionHandler = ExceptionHandler { case (m, e) =>
+    logger.error(s"exception occured when executing query ${m} ${e}")
+    HandledException("Internal server error")
   }
 
 }

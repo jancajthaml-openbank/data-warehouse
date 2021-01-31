@@ -17,12 +17,15 @@ trait MetricsModule extends Lifecycle {
     super.setup().flatMap { _ =>
       Future
         .fromTry(Try {
-          val uri = new java.net.URI(s"udp://${config.getString("statsd.endpoint")}")
+          val uri =
+            new java.net.URI(s"udp://${config.getString("statsd.endpoint")}")
           client = new StatsDClientImpl(
             uri.getHost(),
-            uri.getPort(),
+            uri.getPort()
           )
-          logger.info(s"Starting Statsd Client on ${uri.getHost()}:${uri.getPort()}")
+          logger.info(
+            s"Starting Statsd Client on ${uri.getHost()}:${uri.getPort()}"
+          )
         })
         .flatMap(_ => super.setup())
     }

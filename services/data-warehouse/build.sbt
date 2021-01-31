@@ -85,3 +85,7 @@ packMain := Map(
 packJvmOpts := Map(
   name.value -> Seq("-XX:+HeapDumpOnOutOfMemoryError", "-XX:+UseGCOverheadLimit")
 )
+
+scalafmtConfig := file(".scalafmt.conf")
+
+scalafmtOnCompile := true

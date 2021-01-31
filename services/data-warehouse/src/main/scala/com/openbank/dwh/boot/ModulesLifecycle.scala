@@ -30,13 +30,14 @@ trait ModulesLifecycle extends Lifecycle {
       .fromTry(Try {
         LoggerFactory.getILoggerFactory match {
           case c: LoggerContext => c.stop()
-          case _ => ()
+          case _                => ()
         }
       })
       .flatMap(_ => super.stop())
   }
 
-  def kill(): Future[Done] = CoordinatedShutdown(system).run(StartupFailedReason)
+  def kill(): Future[Done] =
+    CoordinatedShutdown(system).run(StartupFailedReason)
   def shutdown(): Future[Done] = CoordinatedShutdown(system).run(ShutDownReason)
 
   private object StartupFailedReason extends Reason

@@ -26,9 +26,8 @@ trait RouterModule extends Lifecycle {
       Http()
         .newServerAt(bindToLocation, bintToPort)
         .bind(routes)
-        .andThen {
-          case Success(binding) =>
-            logger.info(s"Listening on ${binding.localAddress}")
+        .andThen { case Success(binding) =>
+          logger.info(s"Listening on ${binding.localAddress}")
         }
         .map(_ => Done)
     }
