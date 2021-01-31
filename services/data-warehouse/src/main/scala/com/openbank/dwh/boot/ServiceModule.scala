@@ -6,7 +6,11 @@ trait ServiceModule {
   self: AkkaModule with PersistenceModule with MetricsModule =>
 
   lazy val primaryDataExplorationService: PrimaryDataExplorationService =
-    new PrimaryDataExplorationService(primaryStorage, secondaryStorage, metrics)(
+    new PrimaryDataExplorationService(
+      primaryStorage,
+      secondaryStorage,
+      metrics
+    )(
       dataExplorationExecutionContext,
       materializer
     )

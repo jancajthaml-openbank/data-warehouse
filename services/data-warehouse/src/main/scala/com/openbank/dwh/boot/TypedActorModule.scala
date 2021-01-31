@@ -10,7 +10,7 @@ import scala.concurrent.Future
 import com.openbank.dwh.actor
 
 trait TypedActorModule extends Lifecycle {
-  self: AkkaModule with ServiceModule with StrictLogging =>
+  self: AkkaModule with ServiceModule with MetricsModule with StrictLogging =>
 
   private var typedSystem: ActorSystem[actor.GuardianActor.Command] = null
 
@@ -18,7 +18,7 @@ trait TypedActorModule extends Lifecycle {
     super.setup().flatMap { _ =>
       logger.info("Starting Guardian Actor")
       typedSystem = ActorSystem(
-        actor.GuardianActor(primaryDataExplorationService),
+        actor.GuardianActor(primaryDataExplorationService, metrics),
         actor.GuardianActor.name
       )
       Future.successful(Done)

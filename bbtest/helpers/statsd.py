@@ -25,8 +25,7 @@ class StatsdHelper(threading.Thread):
       data, addr = self._sock.recvfrom(1024)
       try:
         self.process(data.decode('utf-8'))
-      except Exception as ex:
-        print(ex)
+      except:
         return
 
   def clear(self):

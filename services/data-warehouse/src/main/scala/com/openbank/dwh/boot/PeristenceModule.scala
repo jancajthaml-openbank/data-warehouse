@@ -15,16 +15,14 @@ trait PersistenceModule extends Lifecycle {
       Future
         .successful(Done)
         .flatMap(_ => Future.fromTry(Try(graphStorage.persistence.close())))
-        .recover {
-          case NonFatal(e) =>
-            logger.error("Error closing graphql storage", e)
-            Done
+        .recover { case NonFatal(e) =>
+          logger.error("Error closing graphql storage", e)
+          Done
         }
         .flatMap(_ => Future.fromTry(Try(secondaryStorage.persistence.close())))
-        .recover {
-          case NonFatal(e) =>
-            logger.error("Error closing secondary storage", e)
-            Done
+        .recover { case NonFatal(e) =>
+          logger.error("Error closing secondary storage", e)
+          Done
         }
         .map(_ => Done)
     }
