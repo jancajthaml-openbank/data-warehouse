@@ -61,13 +61,13 @@ def step_impl(context):
 @given('unit "{unit}" is running')
 @then('unit "{unit}" is running')
 def unit_running(context, unit):
-  @eventually(10)
+  @eventually(30)
   def wait_for_unit_state_change():
     (code, result, error) = execute(["systemctl", "show", "-p", "SubState", unit])
     assert code == 0, code
     assert 'SubState=running' in result, '{} {}'.format(unit, result)
 
-  @eventually(30)
+  @eventually(10)
   def wait_for_service_to_be_healthy():
     request = urllib.request.Request(method='GET', url= "http://127.0.0.1/health")
     response = urllib.request.urlopen(request, timeout=2)
@@ -82,7 +82,7 @@ def unit_running(context, unit):
 @given('unit "{unit}" is not running')
 @then('unit "{unit}" is not running')
 def unit_not_running(context, unit):
-  @eventually(10)
+  @eventually(30)
   def wait_for_unit_state_change():
     (code, result, error) = execute(["systemctl", "show", "-p", "SubState", unit])
     assert code == 0, str(result) + ' ' + str(error)
