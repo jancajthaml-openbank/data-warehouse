@@ -2,7 +2,6 @@
 Data Warehouse for analytics and search.
 
 ![Health Check](https://github.com/jancajthaml-openbank/data-warehouse/workflows/Health%20Check/badge.svg)
-
 [![CircleCI](https://circleci.com/gh/jancajthaml-openbank/data-warehouse/tree/main.svg?style=shield)](https://circleci.com/gh/jancajthaml-openbank/data-warehouse/tree/main)
 
 ## License
