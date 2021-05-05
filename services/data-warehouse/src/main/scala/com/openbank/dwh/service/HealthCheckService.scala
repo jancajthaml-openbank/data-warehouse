@@ -6,7 +6,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class HealthCheckService(graphQL: GraphQLService)(implicit ec: ExecutionContext)
     extends StrictLogging {
 
-  def isGraphQLHealthy: Future[Boolean] = {
+  def isGraphQLHealthy(): Future[Boolean] = {
     val query = "query { tenants(limit: 1, offset: 0) { name } }"
 
     graphQL

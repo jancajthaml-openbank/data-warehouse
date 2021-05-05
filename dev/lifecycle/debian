@@ -120,7 +120,7 @@ lifecycle::debian::package() {
 
 lifecycle::lintian() {
   echo "[info] (${TARGET_PACKAGE}_${TARGET_ARCHITECTURE}) running lintian"
-  fakeroot find bin -name "${TARGET_PACKAGE}_*_${TARGET_ARCHITECTURE}.deb" -exec lintian --pedantic {} \;
+  fakeroot find bin -name "${TARGET_PACKAGE}_*_${TARGET_ARCHITECTURE}.deb" -exec lintian --no-tag-display-limit --pedantic {} \;
 }
 
 ################################################################################

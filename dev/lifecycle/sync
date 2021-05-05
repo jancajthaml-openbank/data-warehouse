@@ -50,6 +50,11 @@ lifecycle::scala::sync() {
     \
     update \
     evicted
+
+  cd ${dir} && sbt \
+    -Dsbt.coursier.home="${dir}/.coursier" \
+    \
+    dependencyUpdates
 }
 
 ################################################################################

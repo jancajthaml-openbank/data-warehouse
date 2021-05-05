@@ -2,21 +2,25 @@ package com.openbank.dwh.actor
 
 import akka.Done
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
+import akka.actor.typed.{Behavior, SupervisorStrategy}
 import scala.concurrent.{ExecutionContext, Future}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
 import com.openbank.dwh.service._
 
-object PrimaryDataExplorerActor extends StrictLogging {
+object PrimaryDataExplorer extends StrictLogging {
 
   val name = "primary-data-explorer"
 
-  sealed trait Command extends GuardianActor.Command
-  case object RunExploration extends Command
-  case class Shutdown(replyTo: ActorRef[Done]) extends Command
-  case object Lock extends Command
-  case object Free extends Command
+  case object RunExploration extends Guardian.Command
+  case object Lock extends Guardian.Command
+  case object Free extends Guardian.Command
+
+}
+
+object PrimaryDataExplorerActor extends StrictLogging {
+
+  import PrimaryDataExplorer._
 
   case class BehaviorProps(
       primaryDataExplorationService: PrimaryDataExplorationService
@@ -31,7 +35,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
     Behaviors
       .supervise {
-        Behaviors.withTimers[Command] { timer =>
+        Behaviors.withTimers[Guardian.Command] { timer =>
           timer.startTimerAtFixedRate(RunExploration, delay)
           idle(props)
         }
@@ -43,7 +47,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
   def active(
       props: BehaviorProps
-  )(implicit ec: ExecutionContext): Behavior[Command] =
+  )(implicit ec: ExecutionContext): Behavior[Guardian.Command] =
     Behaviors.receive {
 
       case (_, Lock) =>
@@ -54,7 +58,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
         logger.debug("active(Free)")
         idle(props)
 
-      case (_, Shutdown(replyTo)) =>
+      case (_, Guardian.Shutdown(replyTo)) =>
         logger.debug("active(Shutdown)")
         Behaviors.stopped { () =>
           props.primaryDataExplorationService
@@ -74,7 +78,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
   def idle(
       props: BehaviorProps
-  )(implicit ec: ExecutionContext): Behavior[Command] =
+  )(implicit ec: ExecutionContext): Behavior[Guardian.Command] =
     Behaviors.receive {
 
       case (_, Lock) =>
@@ -100,7 +104,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
         Behaviors.same
 
-      case (_, Shutdown(replyTo)) =>
+      case (_, Guardian.Shutdown(replyTo)) =>
         logger.debug("idle(Shutdown)")
         Behaviors.stopped { () =>
           replyTo ! Done

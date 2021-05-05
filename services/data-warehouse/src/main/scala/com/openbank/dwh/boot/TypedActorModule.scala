@@ -7,19 +7,19 @@ import scala.concurrent.duration._
 import akka.actor.typed.scaladsl.AskPattern._
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.Future
-import com.openbank.dwh.actor
+import com.openbank.dwh.actor.{Guardian, GuardianActor}
 
 trait TypedActorModule extends Lifecycle {
   self: AkkaModule with ServiceModule with MetricsModule with StrictLogging =>
 
-  private var typedSystem: ActorSystem[actor.GuardianActor.Command] = null
+  private var typedSystem: ActorSystem[Guardian.Command] = null
 
   abstract override def setup(): Future[Done] = {
     super.setup().flatMap { _ =>
       logger.info("Starting Guardian Actor")
       typedSystem = ActorSystem(
-        actor.GuardianActor(primaryDataExplorationService, metrics),
-        actor.GuardianActor.name
+        GuardianActor(primaryDataExplorationService, metrics),
+        Guardian.name
       )
       Future.successful(Done)
     }
@@ -32,12 +32,12 @@ trait TypedActorModule extends Lifecycle {
         case _ if typedSystem != null =>
           logger.info("Stopping Guardian Actor")
           typedSystem
-            .ask[Done](actor.GuardianActor.StopActors)(
+            .ask[Done](Guardian.Shutdown)(
               Timeout(1.minutes),
               typedSystem.scheduler
             )
             .map { _ =>
-              logger.info("Guardian Actor finished coordinatedshutdown")
+              logger.info("Guardian Actor finished coordinated shutdown")
               Done
             }
         case _ =>
@@ -48,7 +48,7 @@ trait TypedActorModule extends Lifecycle {
 
   abstract override def start(): Future[Done] = {
     if (typedSystem != null) {
-      typedSystem ! actor.GuardianActor.StartActors
+      typedSystem ! Guardian.StartActors
     }
     super.start()
   }
