@@ -11,7 +11,7 @@ class HealthCheckRouter(service: HealthCheckService) extends SprayJsonSupport {
   def route: Route =
     path("health") {
       get {
-        onSuccess(service.isGraphQLHealthy) { isGraphQlHealthy =>
+        onSuccess(service.isGraphQLHealthy()) { isGraphQlHealthy =>
           complete(
             JsObject(
               "healthy" -> JsBoolean(isGraphQlHealthy),

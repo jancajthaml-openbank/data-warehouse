@@ -2,18 +2,22 @@ package com.openbank.dwh.actor
 
 import akka.Done
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
+import akka.actor.typed.{Behavior, SupervisorStrategy}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
 import com.openbank.dwh.metrics.StatsDClient
 
-object MemoryMonitorActor extends StrictLogging {
+object MemoryMonitor {
 
   val name = "memory-monitor"
 
-  sealed trait Command extends GuardianActor.Command
-  case object ReportMemoryStats extends Command
-  case class Shutdown(replyTo: ActorRef[Done]) extends Command
+  case object ReportMemoryStats extends Guardian.Command
+
+}
+
+object MemoryMonitorActor extends StrictLogging {
+
+  import MemoryMonitor._
 
   case class BehaviorProps(metrics: StatsDClient)
 
@@ -24,7 +28,7 @@ object MemoryMonitorActor extends StrictLogging {
 
     Behaviors
       .supervise {
-        Behaviors.withTimers[Command] { timer =>
+        Behaviors.withTimers[Guardian.Command] { timer =>
           timer.startTimerAtFixedRate(ReportMemoryStats, delay)
           active(props)
         }
@@ -34,7 +38,7 @@ object MemoryMonitorActor extends StrictLogging {
       )
   }
 
-  def active(props: BehaviorProps): Behavior[Command] =
+  def active(props: BehaviorProps): Behavior[Guardian.Command] =
     Behaviors.receive {
 
       case (_, ReportMemoryStats) =>
@@ -49,7 +53,7 @@ object MemoryMonitorActor extends StrictLogging {
 
         Behaviors.same
 
-      case (_, Shutdown(replyTo)) =>
+      case (_, Guardian.Shutdown(replyTo)) =>
         logger.debug("active(Shutdown)")
         Behaviors.stopped { () =>
           replyTo ! Done

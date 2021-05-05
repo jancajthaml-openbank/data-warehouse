@@ -11,16 +11,19 @@ import com.openbank.dwh.service._
 import scala.concurrent.duration._
 import com.openbank.dwh.metrics.StatsDClient
 
-object GuardianActor extends StrictLogging {
+object Guardian {
 
   val name = "guardian"
 
   trait Command
-
   case object StartActors extends Command
-  case class StopActors(replyTo: ActorRef[Done]) extends Command
+  case class Shutdown(replyTo: ActorRef[Done]) extends Command
 
-  case object RunPrimaryDataExploration extends Command
+}
+
+object GuardianActor extends StrictLogging {
+
+  import Guardian._
 
   case class BehaviorProps(
       ctx: ActorContext[Command],
@@ -48,66 +51,46 @@ object GuardianActor extends StrictLogging {
     Behaviors.receiveMessagePartial {
 
       case StartActors =>
-        getRunningActor(props.ctx, PrimaryDataExplorerActor.name) match {
+        getRunningActor(props.ctx, PrimaryDataExplorer.name) match {
           case None =>
             logger.info("Starting PrimaryDataExplorerActor")
             props.ctx.spawn(
               PrimaryDataExplorerActor(props.primaryDataExplorationService),
-              PrimaryDataExplorerActor.name
+              PrimaryDataExplorer.name
             )
-            props.ctx.self ! RunPrimaryDataExploration
+            props.ctx.self ! PrimaryDataExplorer.RunExploration
           case _ =>
         }
 
-        getRunningActor(props.ctx, MemoryMonitorActor.name) match {
+        getRunningActor(props.ctx, MemoryMonitor.name) match {
           case None =>
             logger.info("Starting MemoryMonitorActor")
             props.ctx.spawn(
               MemoryMonitorActor(props.metrics),
-              MemoryMonitorActor.name
+              MemoryMonitor.name
             )
           case _ =>
         }
 
         Behaviors.same
 
-      case StopActors(replyTo) =>
+      case Shutdown(replyTo) =>
         Future
           .sequence {
             props.ctx.children.toSeq.map {
 
-              case ref: ActorRef[Nothing]
-                  if ref.path.name == PrimaryDataExplorerActor.name =>
-                logger.info("Stopping PrimaryDataExplorerActor")
-                ref
-                  .asInstanceOf[ActorRef[Command]]
-                  .ask[Done](PrimaryDataExplorerActor.Shutdown)(
-                    Timeout(5.seconds),
-                    props.ctx.system.scheduler
-                  )
-                  .recoverWith { case _: Exception =>
-                    props.ctx.stop(ref)
-                    Future.successful(Done)
-                  }
-
-              case ref: ActorRef[Nothing]
-                  if ref.path.name == MemoryMonitorActor.name =>
-                logger.info("Stopping MemoryMonitorActor")
-                ref
-                  .asInstanceOf[ActorRef[Command]]
-                  .ask[Done](MemoryMonitorActor.Shutdown)(
-                    Timeout(5.seconds),
-                    props.ctx.system.scheduler
-                  )
-                  .recoverWith { case _: Exception =>
-                    props.ctx.stop(ref)
-                    Future.successful(Done)
-                  }
-
               case ref: ActorRef[Nothing] =>
-                logger.warn(s"Unknown child actor ${ref.path}")
-                props.ctx.stop(ref)
-                Future.successful(Done)
+                logger.warn(s"Stopping ${ref.path}")
+                ref
+                  .asInstanceOf[ActorRef[Command]]
+                  .ask[Done](Shutdown)(
+                    Timeout(5.seconds),
+                    props.ctx.system.scheduler
+                  )
+                  .recoverWith { case _: Exception =>
+                    props.ctx.stop(ref)
+                    Future.successful(Done)
+                  }
 
               case node =>
                 logger.warn(s"Unknown child ${node}")
@@ -124,9 +107,9 @@ object GuardianActor extends StrictLogging {
 
         Behaviors.stopped
 
-      case RunPrimaryDataExploration =>
-        getRunningActor(props.ctx, PrimaryDataExplorerActor.name) match {
-          case Some(ref) => ref ! PrimaryDataExplorerActor.RunExploration
+      case PrimaryDataExplorer.RunExploration =>
+        getRunningActor(props.ctx, PrimaryDataExplorer.name) match {
+          case Some(ref) => ref ! PrimaryDataExplorer.RunExploration
           case _         => logger.info("Cannot run primary data exploration")
         }
         Behaviors.same
