@@ -11,24 +11,15 @@ import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import collection.immutable.Seq
 
-class PrimaryDataExplorationService(
+case class PrimaryDataExplorationWorker(
     primaryStorage: PrimaryPersistence,
     secondaryStorage: SecondaryPersistence,
     metrics: StatsDClient
-)(implicit ec: ExecutionContext, implicit val mat: Materializer)
+)(implicit ec: ExecutionContext, mat: Materializer)
     extends StrictLogging {
 
-  @volatile private var killSwitch: Option[UniqueKillSwitch] = None
-
-  def killRunningWorkflow(): Future[Done] =
-    this.synchronized {
-      killSwitch.foreach(_.abort(new Exception("shutdown")))
-      killSwitch = None
-      Future.successful(Done)
-    }
-
-  def runExploration(): Future[Done] = {
-    val (switch, result) = Source
+  def runExploration(): (UniqueKillSwitch, Future[Done]) = {
+    Source
       .single(primaryStorage.getRootPath())
       .via(getTenantsFlow)
       .via(getAccountsFlow)
@@ -38,9 +29,6 @@ class PrimaryDataExplorationService(
       .viaMat(KillSwitches.single)(Keep.right)
       .toMat(Sink.ignore)(Keep.both)
       .run()
-
-    killSwitch = Some(switch)
-    result
   }
 
   def getTenantsFlow: Graph[FlowShape[Path, PersistentTenant], NotUsed] = {
@@ -116,10 +104,11 @@ class PrimaryDataExplorationService(
       .collect { case Some(data) => data }
   }
 
-  def getAccountSnapshotsFlow: Graph[FlowShape[
+  protected def getAccountSnapshotsFlow: Flow[
     PersistentAccount,
-    Tuple2[PersistentAccount, PersistentAccountSnapshot]
-  ], NotUsed] = {
+    (PersistentAccount, PersistentAccountSnapshot),
+    NotUsed
+  ] = {
     Flow[PersistentAccount]
       .mapAsync(1) { account =>
         val path = primaryStorage
@@ -182,9 +171,7 @@ class PrimaryDataExplorationService(
         events
       }
       .fold(
-        Seq.empty[
-          Tuple3[PersistentAccount, PersistentAccountSnapshot, String]
-        ]
+        Seq.empty[(PersistentAccount, PersistentAccountSnapshot, String)]
       )(_ :+ _)
       .filterNot(_.isEmpty)
       .filterNot { data =>
@@ -212,23 +199,26 @@ class PrimaryDataExplorationService(
         events.sortWith(_._3.version < _._3.version)
       }
 
-  def getAccountEventsFlow: Graph[FlowShape[
-    Tuple2[PersistentAccount, PersistentAccountSnapshot],
-    Tuple3[PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent]
-  ], NotUsed] = {
+  def getAccountEventsFlow: Flow[
+    (PersistentAccount, PersistentAccountSnapshot),
+    (PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent),
+    NotUsed
+  ] = {
 
-    Flow[Tuple2[PersistentAccount, PersistentAccountSnapshot]]
+    Flow[(PersistentAccount, PersistentAccountSnapshot)]
       .mapAsync(1) { case (account, snapshot) =>
         getNewAccountEvents(account, snapshot)
       }
       .async
       .recover { case e: Exception =>
         logger.warn("Failed to get account events caused by", e)
-        IndexedSeq[Tuple3[
-          PersistentAccount,
-          PersistentAccountSnapshot,
-          PersistentAccountEvent
-        ]]()
+        IndexedSeq[
+          (
+              PersistentAccount,
+              PersistentAccountSnapshot,
+              PersistentAccountEvent
+          )
+        ]()
       }
       .flatMapConcat(Source.apply)
       .map { case (account, snapshot, event) =>
@@ -240,21 +230,26 @@ class PrimaryDataExplorationService(
       }
   }
 
-  def getTransfersFlow: Graph[FlowShape[Tuple3[
-    PersistentAccount,
-    PersistentAccountSnapshot,
-    PersistentAccountEvent
-  ], Tuple4[
-    PersistentAccount,
-    PersistentAccountSnapshot,
-    PersistentAccountEvent,
-    Seq[PersistentTransfer]
-  ]], NotUsed] = {
-    Flow[Tuple3[
-      PersistentAccount,
-      PersistentAccountSnapshot,
-      PersistentAccountEvent
-    ]]
+  def getTransfersFlow: Graph[FlowShape[
+    (
+        PersistentAccount,
+        PersistentAccountSnapshot,
+        PersistentAccountEvent
+    ),
+    (
+        PersistentAccount,
+        PersistentAccountSnapshot,
+        PersistentAccountEvent,
+        Seq[PersistentTransfer]
+    )
+  ], NotUsed] = {
+    Flow[
+      (
+          PersistentAccount,
+          PersistentAccountSnapshot,
+          PersistentAccountEvent
+      )
+    ]
       .flatMapConcat {
         case (account, snapshot, event) if event.status != 0 =>
           primaryStorage
@@ -309,6 +304,38 @@ class PrimaryDataExplorationService(
         }
       }
       .async
+  }
+
+}
+
+class PrimaryDataExplorationService(
+    primaryStorage: PrimaryPersistence,
+    secondaryStorage: SecondaryPersistence,
+    metrics: StatsDClient
+) extends StrictLogging {
+
+  @volatile private var killSwitch: Option[UniqueKillSwitch] = None
+
+  def killRunningWorkflow(): Future[Done] =
+    this.synchronized {
+      killSwitch.foreach(_.abort(new Exception("shutdown")))
+      killSwitch = None
+      Future.successful(Done)
+    }
+
+  def runExploration(ec: ExecutionContext, mat: Materializer): Future[Done] = {
+    val worker =
+      PrimaryDataExplorationWorker(primaryStorage, secondaryStorage, metrics)(
+        ec,
+        mat
+      )
+    val (switch, result) = worker.runExploration()
+    killSwitch = Some(switch)
+    result
+      .recoverWith { case e: Exception =>
+        logger.error("Primary exploration failed", e)
+        Future.successful(Done)
+      }(ec)
   }
 
 }

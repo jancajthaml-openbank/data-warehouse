@@ -10,19 +10,20 @@ import scala.concurrent.Future
 import com.openbank.dwh.actor.{Guardian, GuardianActor}
 
 trait TypedActorModule extends Lifecycle {
-  self: AkkaModule with ServiceModule with MetricsModule with StrictLogging =>
+  self: ServiceModule with MetricsModule with StrictLogging =>
 
-  private var typedSystem: ActorSystem[Guardian.Command] = null
+  lazy val typedSystem: ActorSystem[Guardian.Command] = ActorSystem(
+    GuardianActor(primaryDataExplorationService, metrics),
+    Guardian.name
+  )
 
   abstract override def setup(): Future[Done] = {
-    super.setup().flatMap { _ =>
-      logger.info("Starting Guardian Actor")
-      typedSystem = ActorSystem(
-        GuardianActor(primaryDataExplorationService, metrics),
-        Guardian.name
-      )
-      Future.successful(Done)
-    }
+    super
+      .setup()
+      .flatMap { _ =>
+        logger.info("Starting Guardian Actor")
+        Future.successful(Done)
+      }(typedSystem.executionContext)
   }
 
   abstract override def stop(): Future[Done] = {
@@ -39,17 +40,15 @@ trait TypedActorModule extends Lifecycle {
             .map { _ =>
               logger.info("Guardian Actor finished coordinated shutdown")
               Done
-            }
+            }(typedSystem.executionContext)
         case _ =>
           Future.successful(Done)
-      }
-      .flatMap(_ => super.stop())
+      }(typedSystem.executionContext)
+      .flatMap(_ => super.stop())(typedSystem.executionContext)
   }
 
   abstract override def start(): Future[Done] = {
-    if (typedSystem != null) {
-      typedSystem ! Guardian.StartActors
-    }
+    typedSystem ! Guardian.StartActors
     super.start()
   }
 

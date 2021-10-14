@@ -5,6 +5,8 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.openbank.dwh.service.GraphQLService
 
+import scala.concurrent.ExecutionContext
+
 class GraphQLRouter(service: GraphQLService) extends SprayJsonSupport {
 
   import spray.json._
@@ -24,13 +26,17 @@ class GraphQLRouter(service: GraphQLService) extends SprayJsonSupport {
             case _                   => JsObject.empty
           }
 
-          complete(service.execute(query, operation, vars))
+          complete(
+            service.execute(query, operation, vars)(ExecutionContext.global)
+          )
         }
       } ~
         get {
           parameters(Symbol("query"), Symbol("operation").?) {
             (query, operation) =>
-              complete(service.execute(query, operation))
+              complete(
+                service.execute(query, operation)(ExecutionContext.global)
+              )
           }
         }
     } ~

@@ -16,10 +16,10 @@ import akka.NotUsed
 
 object PrimaryPersistence {
 
-  def forConfig(config: Config, mat: Materializer): PrimaryPersistence = {
+  def forConfig(config: Config): PrimaryPersistence = {
     new PrimaryPersistence(
       config.getString("data-exploration.primary.directory")
-    )(mat)
+    )
   }
 
 }
@@ -27,6 +27,7 @@ object PrimaryPersistence {
 class DirectoryIterator(stream: DirectoryStream[Path])
     extends AbstractIterator[Path] {
   private lazy val it = stream.iterator()
+
   override def hasNext: Boolean =
     it.hasNext() match {
       case true => true
@@ -34,12 +35,11 @@ class DirectoryIterator(stream: DirectoryStream[Path])
         stream.close()
         false
     }
+
   override def next(): Path = it.next()
 }
 
-// FIXME split into interface and impl for better testing
-class PrimaryPersistence(val root: String)(implicit val mat: Materializer)
-    extends StrictLogging {
+class PrimaryPersistence(val root: String) extends StrictLogging {
 
   def listFiles(path: Path): Source[Path, NotUsed] = {
     Try {
@@ -129,7 +129,7 @@ class PrimaryPersistence(val root: String)(implicit val mat: Materializer)
       account: String,
       version: Int,
       event: String
-  ): Future[PersistentAccountEvent] = {
+  )(implicit mat: Materializer): Future[PersistentAccountEvent] = {
     Try {
       FileIO.fromPath(getAccountEventPath(tenant, account, version, event))
     } match {
@@ -165,7 +165,7 @@ class PrimaryPersistence(val root: String)(implicit val mat: Materializer)
   def getAccount(
       tenant: String,
       account: String
-  ): Future[PersistentAccount] = {
+  )(implicit mat: Materializer): Future[PersistentAccount] = {
     Try {
       FileIO.fromPath(getAccountSnapshotPath(tenant, account, 0))
     } match {
@@ -200,7 +200,7 @@ class PrimaryPersistence(val root: String)(implicit val mat: Materializer)
   def getTransfers(
       tenant: String,
       transaction: String
-  ): Source[PersistentTransfer, NotUsed] = {
+  )(implicit mat: Materializer): Source[PersistentTransfer, NotUsed] = {
     Try {
       FileIO.fromPath(getTransactionPath(tenant, transaction))
     } match {
@@ -256,7 +256,7 @@ class PrimaryPersistence(val root: String)(implicit val mat: Materializer)
         logger.warn(
           s"transaction ${tenant}/${transaction} does not exists in primary storage"
         )
-        return Source.empty
+        Source.empty
     }
   }
 

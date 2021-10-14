@@ -3,7 +3,6 @@ package com.openbank.dwh.persistence
 import com.typesafe.config.Config
 import akka.Done
 import com.typesafe.scalalogging.StrictLogging
-import akka.stream.Materializer
 import scala.concurrent.{ExecutionContext, Future}
 import com.openbank.dwh.model._
 import java.time.{ZonedDateTime, ZoneOffset}
@@ -12,29 +11,25 @@ import java.sql.Timestamp
 
 object SecondaryPersistence {
 
-  def forConfig(
-      config: Config,
-      ec: ExecutionContext,
-      mat: Materializer
-  ): SecondaryPersistence = {
+  def forConfig(config: Config): SecondaryPersistence = {
     new SecondaryPersistence(
       Postgres.forConfig(config, "data-exploration.postgresql")
-    )(ec, mat)
+    )
   }
 
 }
 
 // FIXME split into interface and impl for better testing
-class SecondaryPersistence(val persistence: Postgres)(
-    implicit ec: ExecutionContext,
-    implicit val mat: Materializer
-) extends StrictLogging {
+class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
 
   import persistence.profile.api._
 
-  def updateTenant(item: PersistentTenant): Future[Done] = {
+  def updateTenant(
+      item: PersistentTenant
+  )(implicit ec: ExecutionContext): Future[Done] = {
 
-    val query = sqlu"""
+    val query =
+      sqlu"""
       INSERT INTO
         tenant(name)
       VALUES
@@ -53,9 +48,12 @@ class SecondaryPersistence(val persistence: Postgres)(
       }
   }
 
-  def updateAccount(item: PersistentAccount): Future[Done] = {
+  def updateAccount(
+      item: PersistentAccount
+  )(implicit ec: ExecutionContext): Future[Done] = {
 
-    val query = sqlu"""
+    val query =
+      sqlu"""
       INSERT INTO
         account(tenant, name, format, currency, last_syn_snapshot, last_syn_event)
       VALUES
@@ -80,16 +78,19 @@ class SecondaryPersistence(val persistence: Postgres)(
       }
   }
 
-  def updateTransfer(item: PersistentTransfer): Future[Done] = {
+  def updateTransfer(
+      item: PersistentTransfer
+  )(implicit ec: ExecutionContext): Future[Done] = {
 
-    val query = sqlu"""
+    val query =
+      sqlu"""
       INSERT INTO
         transfer(tenant, transaction, transfer, status, credit_tenant, credit_name, debit_tenant, debit_name, amount, currency, value_date)
       VALUES
         (${item.tenant}, ${item.transaction}, ${item.transfer}, ${item.status}, ${item.creditTenant}, ${item.creditAccount}, ${item.debitTenant}, ${item.debitAccount}, ${item.amount}, ${item.currency}, ${Timestamp
-      .valueOf(
-        item.valueDate.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime
-      )})
+        .valueOf(
+          item.valueDate.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime
+        )})
       ON CONFLICT (tenant, transaction, transfer)
       DO NOTHING
       ;
@@ -108,7 +109,7 @@ class SecondaryPersistence(val persistence: Postgres)(
       tenant: String,
       transaction: String,
       transfer: String
-  ): Future[Option[PersistentTransfer]] = {
+  )(implicit ec: ExecutionContext): Future[Option[PersistentTransfer]] = {
 
     val query = sql"""
       SELECT
@@ -126,9 +127,9 @@ class SecondaryPersistence(val persistence: Postgres)(
       FROM
         transfer
       WHERE
-        tenant = ${tenant} AND
-        transaction = ${transaction} AND
-        transfer = ${transfer}
+        tenant = $tenant AND
+        transaction = $transaction AND
+        transfer = $transfer
       ;
     """.as[PersistentTransfer]
 
@@ -147,7 +148,7 @@ class SecondaryPersistence(val persistence: Postgres)(
   def getAccount(
       tenant: String,
       name: String
-  ): Future[Option[PersistentAccount]] = {
+  )(implicit ec: ExecutionContext): Future[Option[PersistentAccount]] = {
 
     val query = sql"""
       SELECT
@@ -160,8 +161,8 @@ class SecondaryPersistence(val persistence: Postgres)(
       FROM
         account
       WHERE
-        tenant = ${tenant} AND
-        name = ${name}
+        tenant = $tenant AND
+        name = $name
       ;
     """.as[PersistentAccount]
 
@@ -177,14 +178,16 @@ class SecondaryPersistence(val persistence: Postgres)(
       .map(_.headOption)
   }
 
-  def getTenant(name: String): Future[Option[PersistentTenant]] = {
+  def getTenant(
+      name: String
+  )(implicit ec: ExecutionContext): Future[Option[PersistentTenant]] = {
     val query = sql"""
       SELECT
         name
       FROM
         tenant
       WHERE
-        name = ${name}
+        name = $name
       ;
     """.as[PersistentTenant]
 

@@ -8,26 +8,32 @@ import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.Future
 import scala.util.Success
 
-trait RouterModule extends Lifecycle {
+trait RouterModule {
+
+  def routes: Route
+
+}
+
+trait ProductionRouterModule extends RouterModule with Lifecycle {
   self: AkkaModule with ConfigModule with ServiceModule with StrictLogging =>
 
   private lazy val healthCheck = new HealthCheckRouter(healthCheckService).route
   private lazy val graphQL = new GraphQLRouter(graphQLService).route
 
   private lazy val bindToLocation = config.getString("http.service.bind-to")
-  private lazy val bintToPort = config.getInt("http.service.port")
+  private lazy val bindToPort = config.getInt("http.service.port")
 
-  def routes: Route = new RootRouter(healthCheck, graphQL).route
+  lazy val routes: Route = new RootRouter(healthCheck, graphQL).route
 
   abstract override def setup(): Future[Done] = {
     super.setup().flatMap { _ =>
       logger.info("Starting Router Module")
 
       Http()
-        .newServerAt(bindToLocation, bintToPort)
+        .newServerAt(bindToLocation, bindToPort)
         .bind(routes)
         .andThen { case Success(binding) =>
-          logger.info(s"Listening on ${binding.localAddress}")
+          logger.info("REST Listening on tcp:/{}", binding.localAddress)
         }
         .map(_ => Done)
     }
