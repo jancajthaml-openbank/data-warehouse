@@ -29,20 +29,17 @@ trait TypedActorModule extends Lifecycle {
   abstract override def stop(): Future[Done] = {
     Future
       .successful(Done)
-      .flatMap {
-        case _ if typedSystem != null =>
-          logger.info("Stopping Guardian Actor")
-          typedSystem
-            .ask[Done](Guardian.Shutdown)(
-              Timeout(1.minutes),
-              typedSystem.scheduler
-            )
-            .map { _ =>
-              logger.info("Guardian Actor finished coordinated shutdown")
-              Done
-            }(typedSystem.executionContext)
-        case _ =>
-          Future.successful(Done)
+      .flatMap { _ =>
+        logger.info("Stopping Guardian Actor")
+        typedSystem
+          .ask[Done](Guardian.Shutdown)(
+            Timeout(5.seconds),
+            typedSystem.scheduler
+          )
+          .map { _ =>
+            logger.info("Guardian Actor finished coordinated shutdown")
+            Done
+          }(typedSystem.executionContext)
       }(typedSystem.executionContext)
       .flatMap(_ => super.stop())(typedSystem.executionContext)
   }

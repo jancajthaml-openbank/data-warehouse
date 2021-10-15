@@ -44,8 +44,8 @@ object StatsDClient {
     override def start(uri: URI): StatsDClient = {
       val client = new NonBlockingStatsDClientBuilder()
         .prefix("openbank.dwh")
-        .hostname(uri.getHost())
-        .port(uri.getPort())
+        .hostname(uri.getHost)
+        .port(uri.getPort)
         .enableTelemetry(false)
         .enableAggregation(true)
         .aggregationFlushInterval(1000)

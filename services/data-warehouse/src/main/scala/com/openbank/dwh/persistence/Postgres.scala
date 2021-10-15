@@ -54,7 +54,7 @@ class Postgres(val database: Database)
     with StrictLogging {
 
   override def close(): Unit = {
-    logger.debug(s"closing datasource ${database}")
+    logger.debug(s"closing datasource $database")
     database.close()
   }
 

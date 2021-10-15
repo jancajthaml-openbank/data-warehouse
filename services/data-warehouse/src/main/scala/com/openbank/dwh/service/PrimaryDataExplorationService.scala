@@ -78,22 +78,20 @@ case class PrimaryDataExplorationWorker(
           .filterNot(_.isEmpty)
           .map { file => (tenant, file) }
       }
-      .mapAsync(1) {
-        case (tenant, name) => {
-          (
-            primaryStorage.getAccount(tenant.name, name)
-              zip
-                secondaryStorage.getAccount(tenant.name, name)
-          ).flatMap {
-            case (_, Some(b)) =>
-              Future.successful(Some(b))
-            case (a, None) =>
-              logger.info(s"Discovered new Account ${a.tenant}/${a.name}")
-              metrics.count("discovery.account", 1)
-              secondaryStorage
-                .updateAccount(a)
-                .map { _ => Some(a) }
-          }
+      .mapAsync(1) { case (tenant, name) =>
+        (
+          primaryStorage.getAccount(tenant.name, name)
+            zip
+              secondaryStorage.getAccount(tenant.name, name)
+        ).flatMap {
+          case (_, Some(b)) =>
+            Future.successful(Some(b))
+          case (a, None) =>
+            logger.info(s"Discovered new Account ${a.tenant}/${a.name}")
+            metrics.count("discovery.account", 1)
+            secondaryStorage
+              .updateAccount(a)
+              .map { _ => Some(a) }
         }
       }
       .async
@@ -133,12 +131,10 @@ case class PrimaryDataExplorationWorker(
       }
       .async
       .flatMapConcat(Source.apply)
-      .mapAsync(1) {
-        case (account, version) => {
-          primaryStorage
-            .getAccountSnapshot(account.tenant, account.name, version)
-            .map { snapshot => Some((account, snapshot)) }
-        }
+      .mapAsync(1) { case (account, version) =>
+        primaryStorage
+          .getAccountSnapshot(account.tenant, account.name, version)
+          .map { snapshot => Some((account, snapshot)) }
       }
       .async
       .recover { case e: Exception =>
@@ -296,12 +292,10 @@ case class PrimaryDataExplorationWorker(
           Source
             .single((account, snapshot, event, Seq.empty[PersistentTransfer]))
       }
-      .mapAsync(1) {
-        case (account, snapshot, event, transfers) => {
-          secondaryStorage
-            .updateAccount(account)
-            .map { _ => (account, snapshot, event, transfers) }
-        }
+      .mapAsync(1) { case (account, snapshot, event, transfers) =>
+        secondaryStorage
+          .updateAccount(account)
+          .map { _ => (account, snapshot, event, transfers) }
       }
       .async
   }

@@ -5,11 +5,9 @@ import akka.util.Timeout
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
-
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import com.typesafe.scalalogging.StrictLogging
 import com.openbank.dwh.service._
-
 import scala.concurrent.duration._
 import com.openbank.dwh.metrics.StatsDClient
 

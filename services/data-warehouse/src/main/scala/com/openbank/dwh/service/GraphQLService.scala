@@ -58,11 +58,13 @@ class GraphQLService(graphStorage: GraphQLPersistence) extends StrictLogging {
       (account.tenant, account.name)
     }
 
-  val tenants = Fetcher((ctx: GraphQLPersistence, names: Seq[String]) =>
-    ctx.tenantsByNames(names)
-  )
+  val tenants: Fetcher[GraphQLPersistence, Tenant, Tenant, String] =
+    Fetcher((ctx: GraphQLPersistence, names: Seq[String]) =>
+      ctx.tenantsByNames(names)
+    )
 
-  val accounts =
+  val accounts
+      : Fetcher[GraphQLPersistence, Account, Account, (String, String)] =
     Fetcher((ctx: GraphQLPersistence, ids: Seq[(String, String)]) => {
       Future.reduceLeft {
         ids
@@ -283,7 +285,7 @@ class GraphQLService(graphStorage: GraphQLPersistence) extends StrictLogging {
     schema = GraphSchema,
     exceptionHandler = exceptionHandler,
     deferredResolver = GraphResolver
-  )(ExecutionContext.global)
+  )(graphStorage.persistence.database.executor.executionContext)
 
   private lazy val exceptionHandler = ExceptionHandler { case (m, e) =>
     logger.error(s"exception occurred when executing query $m $e")

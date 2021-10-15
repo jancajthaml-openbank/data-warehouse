@@ -24,9 +24,12 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
 
   import persistence.profile.api._
 
+  implicit val ec: ExecutionContext =
+    persistence.database.executor.executionContext
+
   def updateTenant(
       item: PersistentTenant
-  )(implicit ec: ExecutionContext): Future[Done] = {
+  ): Future[Done] = {
 
     val query =
       sqlu"""
@@ -43,14 +46,14 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
       .run(query)
       .map { _ => Done }
       .recoverWith { case e: Exception =>
-        logger.error(s"failed to update tenant", e)
+        logger.error("failed to update tenant", e)
         Future.failed(e)
       }
   }
 
   def updateAccount(
       item: PersistentAccount
-  )(implicit ec: ExecutionContext): Future[Done] = {
+  ): Future[Done] = {
 
     val query =
       sqlu"""
@@ -73,14 +76,14 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
       .run(query)
       .map { _ => Done }
       .recoverWith { case e: Exception =>
-        logger.error(s"failed to update account", e)
+        logger.error("failed to update account", e)
         Future.failed(e)
       }
   }
 
   def updateTransfer(
       item: PersistentTransfer
-  )(implicit ec: ExecutionContext): Future[Done] = {
+  ): Future[Done] = {
 
     val query =
       sqlu"""
@@ -100,7 +103,7 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
       .run(query)
       .map { _ => Done }
       .recoverWith { case e: Exception =>
-        logger.error(s"failed to update transfer", e)
+        logger.error("failed to update transfer", e)
         Future.failed(e)
       }
   }
@@ -109,7 +112,7 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
       tenant: String,
       transaction: String,
       transfer: String
-  )(implicit ec: ExecutionContext): Future[Option[PersistentTransfer]] = {
+  ): Future[Option[PersistentTransfer]] = {
 
     val query = sql"""
       SELECT
@@ -148,7 +151,7 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
   def getAccount(
       tenant: String,
       name: String
-  )(implicit ec: ExecutionContext): Future[Option[PersistentAccount]] = {
+  ): Future[Option[PersistentAccount]] = {
 
     val query = sql"""
       SELECT
@@ -180,7 +183,7 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
 
   def getTenant(
       name: String
-  )(implicit ec: ExecutionContext): Future[Option[PersistentTenant]] = {
+  ): Future[Option[PersistentTenant]] = {
     val query = sql"""
       SELECT
         name
@@ -229,7 +232,7 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
         amount = r.nextBigDecimal(),
         currency = r.nextString(),
         valueDate =
-          ZonedDateTime.ofInstant(r.nextTimestamp().toInstant(), ZoneOffset.UTC)
+          ZonedDateTime.ofInstant(r.nextTimestamp().toInstant, ZoneOffset.UTC)
       )
     )
 

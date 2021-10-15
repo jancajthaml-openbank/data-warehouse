@@ -27,7 +27,6 @@ object Main extends App {
       Program.shutdown().onComplete { _ =>
         SDNotify.sendStopping()
       }
-      ()
     }
     SDNotify.sendNotify()
     Program.start()

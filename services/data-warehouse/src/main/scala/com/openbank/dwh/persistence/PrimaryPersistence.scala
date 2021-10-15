@@ -29,11 +29,11 @@ class DirectoryIterator(stream: DirectoryStream[Path])
   private lazy val it = stream.iterator()
 
   override def hasNext: Boolean =
-    it.hasNext() match {
-      case true => true
-      case false =>
-        stream.close()
-        false
+    if (it.hasNext) {
+      true
+    } else {
+      stream.close()
+      false
     }
 
   override def next(): Path = it.next()
@@ -56,16 +56,16 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
     Paths.get(root)
 
   def getTenantPath(tenant: String): Path =
-    Paths.get(s"${root}/t_${tenant}")
+    Paths.get(s"$root/t_$tenant")
 
   def getAccountsPath(tenant: String): Path =
-    Paths.get(s"${root}/t_${tenant}/account")
+    Paths.get(s"$root/t_$tenant/account")
 
   def getTransactionsPath(tenant: String): Path =
-    Paths.get(s"${root}/t_${tenant}/transaction")
+    Paths.get(s"$root/t_$tenant/transaction")
 
   def getAccountSnapshotsPath(tenant: String, account: String): Path =
-    Paths.get(f"${root}/t_${tenant}/account/${account}/snapshot")
+    Paths.get(f"$root/t_$tenant/account/$account/snapshot")
 
   def getAccountSnapshotPath(
       tenant: String,
@@ -73,7 +73,7 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
       version: Int
   ): Path =
     Paths.get(
-      f"${root}/t_${tenant}/account/${account}/snapshot/${version}%010d"
+      f"$root/t_$tenant/account/$account/snapshot/$version%010d"
     )
 
   def getAccountEventsPath(
@@ -81,7 +81,7 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
       account: String,
       version: Int
   ): Path =
-    Paths.get(f"${root}/t_${tenant}/account/${account}/events/${version}%010d")
+    Paths.get(f"$root/t_$tenant/account/$account/events/$version%010d")
 
   def getAccountEventPath(
       tenant: String,
@@ -90,20 +90,19 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
       event: String
   ): Path =
     Paths.get(
-      f"${root}/t_${tenant}/account/${account}/events/${version}%010d/${event}"
+      f"$root/t_$tenant/account/$account/events/$version%010d/$event"
     )
 
   def getTransactionPath(tenant: String, transaction: String): Path =
-    Paths.get(f"${root}/t_${tenant}/transaction/${transaction}")
+    Paths.get(f"$root/t_$tenant/transaction/$transaction")
 
   def getTenant(tenant: String): Future[PersistentTenant] = {
-    Files.exists(getTenantPath(tenant)) match {
-      case false =>
-        Future.failed(
-          new Exception(s"tenant ${tenant} does not exists in primary storage")
-        )
-      case true =>
-        Future.successful(PersistentTenant(name = tenant))
+    if (Files.exists(getTenantPath(tenant))) {
+      Future.successful(PersistentTenant(name = tenant))
+    } else {
+      Future.failed(
+        new Exception(s"tenant $tenant does not exists in primary storage")
+      )
     }
   }
 
@@ -112,15 +111,14 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
       account: String,
       version: Int
   ): Future[PersistentAccountSnapshot] = {
-    Files.exists(getAccountSnapshotPath(tenant, account, version)) match {
-      case false =>
-        Future.failed(
-          new Exception(
-            s"account snapshot ${tenant}/${account}/${version} does not exists in primary storage"
-          )
+    if (Files.exists(getAccountSnapshotPath(tenant, account, version))) {
+      Future.successful(PersistentAccountSnapshot(tenant, account, version))
+    } else {
+      Future.failed(
+        new Exception(
+          s"account snapshot $tenant/$account/$version does not exists in primary storage"
         )
-      case true =>
-        Future.successful(PersistentAccountSnapshot(tenant, account, version))
+      )
     }
   }
 
@@ -137,7 +135,11 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
         stream
           .via(
             Framing
-              .delimiter(ByteString(System.lineSeparator()), 256, true)
+              .delimiter(
+                ByteString(System.lineSeparator()),
+                256,
+                allowTruncation = true
+              )
               .map(_.utf8String)
           )
           .take(1)
@@ -156,7 +158,7 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
       case Failure(_) =>
         Future.failed(
           new Exception(
-            s"account event ${tenant}/${account}/${version}/${event} does not exists in primary storage"
+            s"account event $tenant/$account/$version/$event does not exists in primary storage"
           )
         )
     }
@@ -173,7 +175,11 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
         stream
           .via(
             Framing
-              .delimiter(ByteString(System.lineSeparator()), 256, true)
+              .delimiter(
+                ByteString(System.lineSeparator()),
+                256,
+                allowTruncation = true
+              )
               .map(_.utf8String)
           )
           .take(1)
@@ -182,7 +188,7 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
               tenant = tenant,
               name = account,
               currency = line.substring(0, 3),
-              format = line.substring(4, line.size - 2),
+              format = line.substring(4, line.length - 2),
               lastSynchronizedSnapshot = 0,
               lastSynchronizedEvent = 0
             )
@@ -191,7 +197,7 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
       case Failure(_) =>
         Future.failed(
           new Exception(
-            s"account ${tenant}/${account} does not exists in primary storage"
+            s"account $tenant/$account does not exists in primary storage"
           )
         )
     }
@@ -209,7 +215,11 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
           stream
             .via(
               Framing
-                .delimiter(ByteString(System.lineSeparator()), 256, true)
+                .delimiter(
+                  ByteString(System.lineSeparator()),
+                  256,
+                  allowTruncation = true
+                )
                 .map(_.utf8String)
             )
             .statefulMapConcat { () =>
@@ -223,7 +233,10 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
                     case "rollbacked" => 2
                     case _ =>
                       logger.warn(
-                        s"unknown transaction ${tenant}/${transaction} status ${line}, falling back to promised"
+                        "unknown transaction {}/{} status {}, falling back to promised",
+                        tenant,
+                        transaction,
+                        line
                       )
                       0
                   }
@@ -254,7 +267,9 @@ class PrimaryPersistence(val root: String) extends StrictLogging {
         }
       case Failure(_) =>
         logger.warn(
-          s"transaction ${tenant}/${transaction} does not exists in primary storage"
+          "transaction {}/{} does not exists in primary storage",
+          tenant,
+          transaction
         )
         Source.empty
     }
