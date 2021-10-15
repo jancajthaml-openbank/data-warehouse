@@ -8,8 +8,8 @@ trait ConfigModule {
 
 }
 
-trait GlobalConfigModule extends ConfigModule {
+trait ProductionConfigModule extends ConfigModule {
 
-  override lazy val config: Config = ConfigFactory.load()
+  lazy val config: Config = ConfigFactory.load()
 
 }

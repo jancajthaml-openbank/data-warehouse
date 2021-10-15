@@ -23,7 +23,7 @@ object MemoryMonitorActor extends StrictLogging {
 
   private lazy val delay = 1.seconds
 
-  def apply(metrics: StatsDClient) = {
+  def apply(metrics: StatsDClient): Behavior[Guardian.Command] = {
     val props = BehaviorProps(metrics)
 
     Behaviors
@@ -48,7 +48,7 @@ object MemoryMonitorActor extends StrictLogging {
 
         props.metrics.gauge(
           "memory.bytes",
-          (runtime.totalMemory - runtime.freeMemory)
+          runtime.totalMemory - runtime.freeMemory
         )
 
         Behaviors.same
@@ -60,7 +60,7 @@ object MemoryMonitorActor extends StrictLogging {
         }
 
       case (_, msg) =>
-        logger.debug(s"active(${msg})")
+        logger.debug("active({})", msg)
         Behaviors.unhandled
 
     }

@@ -7,8 +7,17 @@ import scala.util.Try
 import com.openbank.dwh.persistence._
 import scala.util.control.NonFatal
 
-trait PersistenceModule extends Lifecycle {
-  self: AkkaModule with TypedActorModule with ConfigModule with StrictLogging =>
+trait PersistenceModule {
+
+  def graphStorage: GraphQLPersistence
+
+  def primaryStorage: PrimaryPersistence
+
+  def secondaryStorage: SecondaryPersistence
+}
+
+trait ProductionPersistenceModule extends PersistenceModule with Lifecycle {
+  self: AkkaModule with ConfigModule with StrictLogging =>
 
   abstract override def stop(): Future[Done] = {
     super.stop().flatMap { _ =>
@@ -32,16 +41,9 @@ trait PersistenceModule extends Lifecycle {
     GraphQLPersistence.forConfig(config)
 
   lazy val primaryStorage: PrimaryPersistence =
-    PrimaryPersistence.forConfig(
-      config,
-      materializer
-    )
+    PrimaryPersistence.forConfig(config)
 
   lazy val secondaryStorage: SecondaryPersistence =
-    SecondaryPersistence.forConfig(
-      config,
-      dataExplorationExecutionContext,
-      materializer
-    )
+    SecondaryPersistence.forConfig(config)
 
 }

@@ -43,7 +43,6 @@ object Postgres {
 
   def forConfig(config: Config, namespace: String): Postgres = {
     val db = Database.forConfig(namespace, config)
-
     new Postgres(db)
   }
 
@@ -54,7 +53,7 @@ class Postgres(val database: Database)
     with StrictLogging {
 
   override def close(): Unit = {
-    logger.debug(s"closing datasource ${database}")
+    logger.debug("closing datasource {}", database)
     database.close()
   }
 

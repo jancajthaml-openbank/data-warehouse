@@ -5,7 +5,7 @@ import akka.util.Timeout
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContextExecutor, Future}
 import com.typesafe.scalalogging.StrictLogging
 import com.openbank.dwh.service._
 import scala.concurrent.duration._
@@ -16,7 +16,9 @@ object Guardian {
   val name = "guardian"
 
   trait Command
+
   case object StartActors extends Command
+
   case class Shutdown(replyTo: ActorRef[Done]) extends Command
 
 }
@@ -34,7 +36,7 @@ object GuardianActor extends StrictLogging {
   def apply(
       primaryDataExplorationService: PrimaryDataExplorationService,
       metrics: StatsDClient
-  )(implicit ec: ExecutionContext): Behavior[Command] = {
+  ): Behavior[Command] = {
     Behaviors
       .supervise {
         Behaviors.setup { (ctx: ActorContext[Command]) =>
@@ -47,7 +49,7 @@ object GuardianActor extends StrictLogging {
 
   def behaviour(
       props: BehaviorProps
-  )(implicit ec: ExecutionContext): Behavior[Command] =
+  ): Behavior[Command] =
     Behaviors.receiveMessagePartial {
 
       case StartActors =>
@@ -75,12 +77,14 @@ object GuardianActor extends StrictLogging {
         Behaviors.same
 
       case Shutdown(replyTo) =>
+        implicit val ec: ExecutionContextExecutor = props.ctx.executionContext
+
         Future
           .sequence {
             props.ctx.children.toSeq.map {
 
               case ref: ActorRef[Nothing] =>
-                logger.warn(s"Stopping ${ref.path}")
+                logger.warn("Stopping {}", ref.path)
                 ref
                   .asInstanceOf[ActorRef[Command]]
                   .ask[Done](Shutdown)(
@@ -90,17 +94,17 @@ object GuardianActor extends StrictLogging {
                   .recoverWith { case _: Exception =>
                     props.ctx.stop(ref)
                     Future.successful(Done)
-                  }
+                  }(props.ctx.executionContext)
 
               case node =>
-                logger.warn(s"Unknown child ${node}")
+                logger.warn("Unknown child {}", node)
                 Future.successful(Done)
 
             }
           }
           .map(_ => Done)
           .recoverWith { case e: Exception =>
-            logger.warn(s"Exception occured during shutdown ${e}")
+            logger.warn("Exception occurred during shutdown", e)
             Future.successful(Done)
           }
           .onComplete { _ => replyTo ! Done }

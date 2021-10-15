@@ -2,8 +2,8 @@
 
   <appender class="ch.qos.logback.core.ConsoleAppender" name="STDOUT_SYNC">
     <encoder>
-      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
-    </encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-4level - %msg%n</pattern>
+		</encoder>
   </appender>
 
   <appender class="ch.qos.logback.classic.AsyncAppender" name="STDOUT">
@@ -17,7 +17,7 @@
   <logger name="com.openbank.dwh.persistence.Postgres" level="WARN" />
 
   <root level="${DATA_WAREHOUSE_LOG_LEVEL:-INFO}">
-    <appender-ref ref="STDOUT_SYNC"/>
+    <appender-ref ref="STDOUT"/>
   </root>
 
 </configuration>

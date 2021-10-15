@@ -14,7 +14,7 @@ trait Lifecycle {
 
 }
 
-class ProgramLifecycle extends Lifecycle {
+trait ProgramLifecycle extends Lifecycle {
   self: StrictLogging =>
 
   override def setup(): Future[Done] = {

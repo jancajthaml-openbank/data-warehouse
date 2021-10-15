@@ -1,27 +1,67 @@
 package com.openbank.dwh.boot
 
-import akka.actor.{ActorSystem, Scheduler}
-import akka.stream.{Materializer, SystemMaterializer}
-import scala.concurrent.ExecutionContext
+import akka.Done
+import akka.actor.CoordinatedShutdown.Reason
+import akka.actor.{Scheduler, ActorSystem, CoordinatedShutdown}
+import ch.qos.logback.classic.LoggerContext
+import com.typesafe.scalalogging.StrictLogging
+import org.slf4j.LoggerFactory
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 trait AkkaModule {
-  self: ConfigModule =>
 
-  implicit lazy val system: ActorSystem = ActorSystem.create("dwh", config)
+  implicit def system: ActorSystem
 
-  implicit lazy val materializer: Materializer = SystemMaterializer(
-    system
-  ).materializer
+  implicit def scheduler: Scheduler
+
+  implicit def executionContext: ExecutionContext
+
+}
+
+trait ProductionAkkaModule extends AkkaModule with Lifecycle {
+  self: ConfigModule with TypedActorModule with StrictLogging =>
+
+  implicit def system: ActorSystem = typedSystem.classicSystem
 
   implicit lazy val scheduler: Scheduler = system.scheduler
 
-  implicit lazy val defaultExecutionContext: ExecutionContext =
-    system.dispatcher
+  implicit def executionContext: ExecutionContext =
+    typedSystem.executionContext
 
-  lazy val dataExplorationExecutionContext: ExecutionContext =
-    system.dispatchers.lookup("data-exploration.dispatcher")
+  abstract override def setup(): Future[Done] = {
+    super
+      .setup()
+      .map { _ =>
+        CoordinatedShutdown(typedSystem)
+          .addTask(
+            CoordinatedShutdown.PhaseBeforeActorSystemTerminate,
+            "graceful-stop"
+          ) { () =>
+            stop()
+          }
+        Done
+      }(typedSystem.executionContext)
+  }
 
-  lazy val graphQLExecutionContext: ExecutionContext =
-    system.dispatchers.lookup("graphql.dispatcher")
+  abstract override def stop(): Future[Done] = {
+    Future
+      .fromTry(Try {
+        LoggerFactory.getILoggerFactory match {
+          case c: LoggerContext => c.stop()
+          case _                => ()
+        }
+      })
+      .flatMap(_ => super.stop())(typedSystem.executionContext)
+  }
 
+  def kill(): Future[Done] =
+    CoordinatedShutdown(typedSystem).run(StartupFailedReason)
+
+  def shutdown(): Future[Done] =
+    CoordinatedShutdown(typedSystem).run(ShutDownReason)
+
+  private object StartupFailedReason extends Reason
+
+  private object ShutDownReason extends Reason
 }
