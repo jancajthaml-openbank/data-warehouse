@@ -1,7 +1,7 @@
 package com.openbank.dwh
 
-import info.faljse.SDNotify.SDNotify
 import com.openbank.dwh.boot._
+import com.openbank.dwh.support.Health
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor}
 import scala.concurrent.duration._
@@ -25,10 +25,10 @@ object Main extends App {
     sys.addShutdownHook {
       implicit val ec: ExecutionContextExecutor = ExecutionContext.global
       Program.shutdown().onComplete { _ =>
-        SDNotify.sendStopping()
+        Health.serviceStopping()
       }
     }
-    SDNotify.sendNotify()
+    Health.serviceReady()
     Program.start()
   } catch {
     case NonFatal(e) =>
