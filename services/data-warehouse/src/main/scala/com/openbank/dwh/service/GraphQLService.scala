@@ -9,287 +9,324 @@ import sangria.schema._
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
 import sangria.execution.deferred._
-import sangria.ast.StringValue
+import sangria.ast.{BigIntValue, IntValue, StringValue}
 
-class GraphQLService(graphStorage: GraphQLPersistence) extends StrictLogging {
+trait Types {
 
-  import sangria.marshalling.sprayJson._
-  import spray.json._
+	protected implicit val NaturalNumberType: ScalarType[Long] = ScalarType[Long](
+		"NaturalNumber",
+		coerceUserInput = {
+			case s: Int if s >= 0 => Right(s.toLong)
+			case s: Long if s >= 0 => Right(s)
+			case _ => Left(NaturalNumberCoerceViolation)
+		},
+		coerceOutput = (s, _) => s,
+		coerceInput = {
+			case IntValue(s, _, _) if s >= 0 =>
+				Right(s.toLong)
+			case BigIntValue(s, _, _) if s >= 0 =>
+				Right(s.toLong)
+			case _ =>
+				Left(NaturalNumberCoerceViolation)
+		}
+	)
 
-  def execute(
-      query: String,
-      operation: Option[String],
-      variables: JsObject = JsObject.empty
-  )(implicit ec: ExecutionContext): Future[JsValue] = {
-    Future
-      .fromTry {
-        QueryParser.parse(query)
-      }
-      .flatMap { queryAst =>
-        executor
-          .execute(queryAst, graphStorage, (), operation, variables)
-      }
-  }
+	protected implicit val StatusType: ScalarType[Int] = ScalarType[Int](
+		"Status",
+		coerceOutput = {
+			case (0, _) => "queued"
+			case (1, _) => "committed"
+			case (2, _) => "rollbacked"
+			case _ => ""
+		},
+		coerceInput = {
+			case StringValue("queued", _, _, _, _) => Right(0)
+			case StringValue("committed", _, _, _, _) => Right(1)
+			case StringValue("rollbacked", _, _, _, _) => Right(2)
+			case _ => Left(StatusCoerceViolation)
+		},
+		coerceUserInput = {
+			case "queued" => Right(0)
+			case "committed" => Right(1)
+			case "rollbacked" => Right(2)
+			case _ => Left(StatusCoerceViolation)
+		}
+	)
 
-  // on topic of deferred resolution
-  // https://medium.com/@toxicafunk/graphql-subqueries-with-sangria-735b13b0cfff
-  // https://sangria-graphql.org/learn/
+	protected implicit val DateTimeType: ScalarType[DateTime] =
+		ScalarType[DateTime](
+			"DateTime",
+			coerceOutput = (s, _) => s.toString,
+			coerceInput = {
+				case StringValue(s, _, _, _, _) =>
+					DateTime.fromIsoDateTimeString(s).toRight(DateTimeCoerceViolation)
+				case _ => Left(DateTimeCoerceViolation)
+			},
+			coerceUserInput = {
+				case s: String =>
+					DateTime.fromIsoDateTimeString(s).toRight(DateTimeCoerceViolation)
+				case _ => Left(DateTimeCoerceViolation)
+			}
+		)
 
-  implicit val DateTimeType: ScalarType[DateTime] = ScalarType[DateTime](
-    "DateTime",
-    coerceOutput = (dt, _) => dt.toString,
-    coerceInput = {
-      case StringValue(dt, _, _, _, _) =>
-        DateTime.fromIsoDateTimeString(dt).toRight(DateTimeCoerceViolation)
-      case _ => Left(DateTimeCoerceViolation)
-    },
-    coerceUserInput = {
-      case s: String =>
-        DateTime.fromIsoDateTimeString(s).toRight(DateTimeCoerceViolation)
-      case _ => Left(DateTimeCoerceViolation)
-    }
-  )
+}
 
-  implicit val tenantHash: HasId[Tenant, String] = HasId[Tenant, String] {
-    tenant => tenant.name
-  }
-  implicit val accountHash: HasId[Account, (String, String)] =
-    HasId[Account, (String, String)] { account =>
-      (account.tenant, account.name)
-    }
+trait Filters {
+	self: Types =>
 
-  val tenants: Fetcher[GraphQLPersistence, Tenant, Tenant, String] =
-    Fetcher((ctx: GraphQLPersistence, names: Seq[String]) =>
-      ctx.tenantsByNames(names)
-    )
+	protected val FilterTenant = Argument("tenant", StringType)
+	protected val FilterName = Argument("name", StringType)
+	protected val FilterCurrency =
+		Argument("currency", OptionInputType(StringType))
+	protected val FilterStatus = Argument("status", OptionInputType(StatusType))
+	protected val FilterFormat = Argument("format", OptionInputType(StringType))
+	protected val FilterTransaction = Argument("transaction", StringType)
+	protected val FilterTransfer = Argument("transfer", StringType)
+	protected val FilterValueDateLt =
+		Argument("valueDate_lt", OptionInputType(DateTimeType))
+	protected val FilterValueDateLte =
+		Argument("valueDate_lte", OptionInputType(DateTimeType))
+	protected val FilterValueDateGt =
+		Argument("valueDate_gt", OptionInputType(DateTimeType))
+	protected val FilterValueDateGte =
+		Argument("valueDate_gte", OptionInputType(DateTimeType))
+	protected val FilterAmountLt =
+		Argument("amount_lt", OptionInputType(BigDecimalType))
+	protected val FilterAmountLte =
+		Argument("amount_lte", OptionInputType(BigDecimalType))
+	protected val FilterAmountGt =
+		Argument("amount_gt", OptionInputType(BigDecimalType))
+	protected val FilterAmountGte =
+		Argument("amount_gte", OptionInputType(BigDecimalType))
+	protected val Limit = Argument("limit", NaturalNumberType)
+	protected val Offset = Argument("offset", NaturalNumberType)
 
-  val accounts
-      : Fetcher[GraphQLPersistence, Account, Account, (String, String)] =
-    Fetcher((ctx: GraphQLPersistence, ids: Seq[(String, String)]) => {
-      Future.reduceLeft {
-        ids
-          .groupBy(_._1)
-          .map { case (tenant, group) =>
-            (tenant, group.map(_._2))
-          }
-          .map { case (tenant, names) =>
-            ctx.accountsByNames(tenant, names)
-          }
-      }(_ ++ _)(ExecutionContext.global)
-    })
+}
 
-  lazy val GraphResolver: DeferredResolver[GraphQLPersistence] =
-    DeferredResolver.fetchers(accounts, tenants)
+class GraphQLService(graphStorage: GraphQLPersistence)
+	extends Types
+		with Filters
+		with StrictLogging {
 
-  lazy val TenantType: ObjectType[Unit, Tenant] = ObjectType(
-    "tenant",
-    "A Tenant",
-    fields[Unit, Tenant](
-      Field("name", StringType, resolve = ctx => ctx.value.name)
-    )
-  )
+	import sangria.marshalling.sprayJson._
+	import spray.json._
 
-  lazy val AccountType: ObjectType[GraphQLPersistence, Account] = ObjectType(
-    "account",
-    "Virtual Account",
-    fields[GraphQLPersistence, Account](
-      Field(
-        "tenant",
-        OptionType(TenantType),
-        resolve = ctx => tenants.deferOpt(ctx.value.tenant)
-      ),
-      Field("name", StringType, resolve = ctx => ctx.value.name),
-      Field("format", StringType, resolve = ctx => ctx.value.format),
-      Field("currency", StringType, resolve = ctx => ctx.value.currency),
-      Field(
-        "balance",
-        BigDecimalType,
-        resolve = ctx =>
-          ctx.ctx
-            .accountBalance(ctx.value.tenant, ctx.value.name)
-            .map(_.getOrElse(0: BigDecimal))(ExecutionContext.global)
-      )
-    )
-  )
+	def execute(
+							 query: String,
+							 operation: Option[String],
+							 variables: JsObject = JsObject.empty
+						 )(implicit ec: ExecutionContext): Future[JsValue] = {
+		Future
+			.fromTry(QueryParser.parse(query))
+			.flatMap { queryAst =>
+				executor
+					.execute(queryAst, graphStorage, (), operation, variables)
+			}
+	}
 
-  lazy val TransferType: ObjectType[Unit, Transfer] = ObjectType(
-    "transfer",
-    "Single transfer from Virtual Account to Virtual Account",
-    fields[Unit, Transfer](
-      Field(
-        "tenant",
-        OptionType(TenantType),
-        resolve = ctx => tenants.deferOpt(ctx.value.tenant)
-      ),
-      Field(
-        "transaction",
-        StringType,
-        resolve = ctx => ctx.value.transaction
-      ),
-      Field("transfer", StringType, resolve = ctx => ctx.value.transfer),
-      Field(
-        "status",
-        StringType,
-        resolve = ctx =>
-          ctx.value.status match {
-            case 0 => "queued"
-            case 1 => "committed"
-            case 2 => "rollbacked"
-          }
-      ),
-      Field(
-        "credit",
-        OptionType(AccountType),
-        resolve = ctx =>
-          accounts.deferOpt((ctx.value.creditTenant, ctx.value.creditAccount))
-      ),
-      Field(
-        "debit",
-        OptionType(AccountType),
-        resolve = ctx =>
-          accounts.deferOpt((ctx.value.debitTenant, ctx.value.debitAccount))
-      ),
-      Field("currency", StringType, resolve = ctx => ctx.value.currency),
-      Field("amount", BigDecimalType, resolve = ctx => ctx.value.amount),
-      Field("valueDate", DateTimeType, resolve = ctx => ctx.value.valueDate)
-    )
-  )
+	// on topic of deferred resolution
+	// https://medium.com/@toxicafunk/graphql-subqueries-with-sangria-735b13b0cfff
+	// https://sangria-graphql.org/learn/
 
-  val FilterTenant: Argument[String] = Argument("tenant", StringType)
+	implicit val tenantHash: HasId[Tenant, String] =
+		HasId[Tenant, String] { tenant =>
+			tenant.name
+		}
 
-  val FilterName: Argument[String] = Argument("name", StringType)
+	implicit val accountHash: HasId[Account, (String, String)] =
+		HasId[Account, (String, String)] { account =>
+			(account.tenant, account.name)
+		}
 
-  val FilterCurrency: Argument[Option[String]] =
-    Argument("currency", OptionInputType(StringType))
+	private val TenantType: ObjectType[Unit, Tenant] = ObjectType(
+		"tenant",
+		"A Tenant",
+		fields[Unit, Tenant](
+			Field("name", StringType, resolve = ctx => ctx.value.name)
+		)
+	)
 
-  // FIXME String
-  val FilterStatus: Argument[Option[Int]] =
-    Argument("status", OptionInputType(IntType))
+	val tenants: Fetcher[GraphQLPersistence, Tenant, Tenant, String] =
+		Fetcher((ctx: GraphQLPersistence, names: Seq[String]) =>
+			ctx.tenantsByNames(names)
+		)
 
-  val FilterFormat: Argument[Option[String]] =
-    Argument("format", OptionInputType(StringType))
+	val accounts
+	: Fetcher[GraphQLPersistence, Account, Account, (String, String)] =
+		Fetcher((ctx: GraphQLPersistence, ids: Seq[(String, String)]) => {
+			Future.reduceLeft {
+				ids
+					.groupBy(_._1)
+					.map { case (tenant, group) =>
+						(tenant, group.map(_._2))
+					}
+					.map { case (tenant, names) =>
+						ctx.accountsByNames(tenant, names)
+					}
+			}(_ ++ _)(ExecutionContext.global)
+		})
 
-  val FilterTransaction: Argument[String] = Argument("transaction", StringType)
+	private lazy val AccountType: ObjectType[GraphQLPersistence, Account] =
+		ObjectType(
+			"account",
+			"Virtual Account",
+			fields[GraphQLPersistence, Account](
+				Field(
+					"tenant",
+					OptionType(TenantType),
+					resolve = ctx => tenants.deferOpt(ctx.value.tenant)
+				),
+				Field("name", StringType, resolve = ctx => ctx.value.name),
+				Field("format", StringType, resolve = ctx => ctx.value.format),
+				Field("currency", StringType, resolve = ctx => ctx.value.currency),
+				Field(
+					"balance",
+					BigDecimalType,
+					resolve = ctx =>
+						ctx.ctx
+							.accountBalance(ctx.value.tenant, ctx.value.name)
+							.map(_.getOrElse(0: BigDecimal))(ExecutionContext.global)
+				)
+			)
+		)
 
-  val FilterTransfer: Argument[String] = Argument("transfer", StringType)
+	private lazy val TransferType: ObjectType[GraphQLPersistence, Transfer] =
+		ObjectType(
+			"transfer",
+			"Single transfer from Virtual Account to Virtual Account",
+			fields[GraphQLPersistence, Transfer](
+				Field(
+					"tenant",
+					OptionType(TenantType),
+					resolve = ctx => tenants.deferOpt(ctx.value.tenant)
+				),
+				Field(
+					"transaction",
+					StringType,
+					resolve = ctx => ctx.value.transaction
+				),
+				Field("transfer", StringType, resolve = ctx => ctx.value.transfer),
+				Field("status", StatusType, resolve = ctx => ctx.value.status),
+				Field(
+					"credit",
+					OptionType(AccountType),
+					resolve = ctx =>
+						accounts.deferOpt((ctx.value.creditTenant, ctx.value.creditAccount))
+				),
+				Field(
+					"debit",
+					OptionType(AccountType),
+					resolve = ctx =>
+						accounts.deferOpt((ctx.value.debitTenant, ctx.value.debitAccount))
+				),
+				Field("currency", StringType, resolve = ctx => ctx.value.currency),
+				Field("amount", BigDecimalType, resolve = ctx => ctx.value.amount),
+				Field("valueDate", DateTimeType, resolve = ctx => ctx.value.valueDate)
+			)
+		)
 
-  val FilterValueDateFrom: Argument[Option[DateTime]] =
-    Argument("valueDateLte", OptionInputType(DateTimeType))
+	private lazy val QueryType: ObjectType[GraphQLPersistence, Unit] = ObjectType(
+		"Query",
+		"top level query for searching over entities.",
+		fields[GraphQLPersistence, Unit](
+			Field(
+				"tenant",
+				OptionType(TenantType),
+				arguments = FilterTenant :: Nil,
+				resolve = query => tenants.deferOpt(query.arg(FilterTenant))
+			),
+			Field(
+				"tenants",
+				ListType(TenantType),
+				arguments = Limit :: Offset :: Nil,
+				resolve = query =>
+					query.ctx.allTenants(
+						query.arg(Limit),
+						query.arg(Offset)
+					)
+			),
+			Field(
+				"account",
+				OptionType(AccountType),
+				arguments = FilterTenant :: FilterName :: Nil,
+				resolve = query =>
+					accounts.deferOpt(
+						(
+							query.arg(FilterTenant),
+							query.arg(FilterName)
+						)
+					)
+			),
+			Field(
+				"accounts",
+				ListType(AccountType),
+				arguments = FilterTenant ::
+					FilterCurrency ::
+					FilterFormat ::
+					Limit ::
+					Offset ::
+					Nil,
+				resolve = query =>
+					query.ctx.allAccounts(
+						query.arg(FilterTenant),
+						query.arg(FilterCurrency),
+						query.arg(FilterFormat),
+						query.arg(Limit),
+						query.arg(Offset)
+					)
+			),
+			Field(
+				"transfers",
+				ListType(TransferType),
+				arguments = FilterTenant ::
+					FilterCurrency ::
+					FilterStatus ::
+					FilterAmountLt ::
+					FilterAmountLte ::
+					FilterAmountGt ::
+					FilterAmountGte ::
+					FilterValueDateLt ::
+					FilterValueDateLte ::
+					FilterValueDateGt ::
+					FilterValueDateGte ::
+					Limit ::
+					Offset ::
+					Nil,
+				resolve = query =>
+					query.ctx.allTransfers(
+						query.arg(FilterTenant),
+						query.arg(FilterCurrency),
+						query.arg(FilterStatus),
+						query.arg(FilterAmountLt),
+						query.arg(FilterAmountLte),
+						query.arg(FilterAmountGt),
+						query.arg(FilterAmountGte),
+						query.arg(FilterValueDateLt),
+						query.arg(FilterValueDateLte),
+						query.arg(FilterValueDateGt),
+						query.arg(FilterValueDateGte),
+						query.arg(Limit),
+						query.arg(Offset)
+					)
+			)
+		)
+	)
 
-  val FilterValueDateTo: Argument[Option[DateTime]] =
-    Argument("valueDateGte", OptionInputType(DateTimeType))
+	private lazy val GraphResolver: DeferredResolver[GraphQLPersistence] =
+		DeferredResolver.fetchers(accounts, tenants)
 
-  val FilterAmountFrom: Argument[Option[BigDecimal]] =
-    Argument("amountLte", OptionInputType(BigDecimalType))
+	lazy val GraphSchema: Schema[GraphQLPersistence, Unit] =
+		Schema(QueryType, None, None)
 
-  val FilterAmountTo: Argument[Option[BigDecimal]] =
-    Argument("amountGte", OptionInputType(BigDecimalType))
+	private val executor = Executor(
+		schema = GraphSchema,
+		exceptionHandler = exceptionHandler,
+		deferredResolver = GraphResolver
+	)(graphStorage.persistence.database.executor.executionContext)
 
-  // FIXME should be positive number -> NaturalLongType scalar
-  val Limit: Argument[Int] = Argument("limit", IntType)
-
-  // FIXME should be positive number -> NaturalLongType scalar
-  val Offset: Argument[Int] = Argument("offset", IntType)
-
-  lazy val QueryType: ObjectType[GraphQLPersistence, Unit] = ObjectType(
-    "Query",
-    "top level query for searching over entities.",
-    fields[GraphQLPersistence, Unit](
-      Field(
-        "tenant",
-        OptionType(TenantType),
-        arguments = FilterTenant ::
-          Nil,
-        resolve = query =>
-          tenants.deferOpt(
-            query.arg(FilterTenant)
-          )
-      ),
-      Field(
-        "tenants",
-        ListType(TenantType),
-        arguments = Limit ::
-          Offset ::
-          Nil,
-        resolve = query =>
-          query.ctx.allTenants(
-            query.arg(Limit),
-            query.arg(Offset)
-          )
-      ),
-      Field(
-        "account",
-        OptionType(AccountType),
-        arguments = FilterTenant ::
-          FilterName ::
-          Nil,
-        resolve = query =>
-          accounts.deferOpt(
-            (
-              query.arg(FilterTenant),
-              query.arg(FilterName)
-            )
-          )
-      ),
-      Field(
-        "accounts",
-        ListType(AccountType),
-        arguments = FilterTenant ::
-          FilterCurrency ::
-          FilterFormat ::
-          Limit ::
-          Offset ::
-          Nil,
-        resolve = query =>
-          query.ctx.allAccounts(
-            query.arg(FilterTenant),
-            query.arg(FilterCurrency),
-            query.arg(FilterFormat),
-            query.arg(Limit),
-            query.arg(Offset)
-          )
-      ),
-      Field(
-        "transfers",
-        ListType(TransferType),
-        arguments = FilterTenant ::
-          FilterCurrency ::
-          FilterStatus ::
-          FilterAmountFrom ::
-          FilterAmountTo ::
-          FilterValueDateFrom ::
-          FilterValueDateTo ::
-          Limit ::
-          Offset ::
-          Nil,
-        resolve = query =>
-          query.ctx.allTransfers(
-            query.arg(FilterTenant),
-            query.arg(FilterCurrency),
-            query.arg(FilterStatus),
-            query.arg(FilterAmountFrom),
-            query.arg(FilterAmountTo),
-            query.arg(FilterValueDateFrom),
-            query.arg(FilterValueDateTo),
-            query.arg(Limit),
-            query.arg(Offset)
-          )
-      )
-    )
-  )
-
-  lazy val GraphSchema: Schema[GraphQLPersistence, Unit] =
-    Schema(QueryType, None, None)
-
-  private val executor = Executor(
-    schema = GraphSchema,
-    exceptionHandler = exceptionHandler,
-    deferredResolver = GraphResolver
-  )(graphStorage.persistence.database.executor.executionContext)
-
-  private lazy val exceptionHandler = ExceptionHandler { case (m, e) =>
-    logger.error(s"exception occurred when executing query $m $e")
-    HandledException("Internal server error")
-  }
+	private lazy val exceptionHandler = ExceptionHandler { case (m, e) =>
+		logger.error(s"exception occurred when executing query $m", e)
+		HandledException("Internal server error")
+	}
 
 }
