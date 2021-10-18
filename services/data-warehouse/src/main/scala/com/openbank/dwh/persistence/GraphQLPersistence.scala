@@ -3,14 +3,12 @@ package com.openbank.dwh.persistence
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.StrictLogging
 import com.openbank.dwh.model._
-
 import scala.math.BigDecimal
 import java.sql.Timestamp
 import akka.http.scaladsl.model.DateTime
 import slick.ast.BaseTypedType
 import slick.jdbc.JdbcType
 import slick.lifted.ProvenShape
-
 import scala.concurrent.Future
 
 object GraphQLPersistence {
@@ -41,8 +39,6 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
     def pk = primaryKey("tenant_pkey", name)
   }
 
-  val Tenants = TableQuery[TenantTable]
-
   class AccountTable(tag: Tag) extends Table[Account](tag, "account") {
     def tenant: Rep[String] = column[String]("tenant")
 
@@ -66,8 +62,6 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
     def tenant_fk = foreignKey("account_tenant_fkey", tenant, Tenants)(_.name)
   }
 
-  val Accounts = TableQuery[AccountTable]
-
   class AccountBalanceChangeTable(tag: Tag)
       extends Table[AccountBalance](tag, "account_balance_change") {
     def tenant: Rep[String] = column[String]("tenant")
@@ -86,8 +80,6 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
         amount
       ) <> ((AccountBalance.apply _).tupled, AccountBalance.unapply)
   }
-
-  val AccountsBalanceChange = TableQuery[AccountBalanceChangeTable]
 
   class TransferTable(tag: Tag) extends Table[Transfer](tag, "transfer") {
     def tenant: Rep[String] = column[String]("tenant")
@@ -146,9 +138,12 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
       ) { account => (account.tenant, account.name) }
   }
 
-  val Transfers = TableQuery[TransferTable]
+  private val Tenants = TableQuery[TenantTable]
+  private val Accounts = TableQuery[AccountTable]
+  private val AccountsBalanceChange = TableQuery[AccountBalanceChangeTable]
+  private val Transfers = TableQuery[TransferTable]
 
-  lazy val allTenants: (Int, Int) => Future[Seq[Tenant]] = {
+  val allTenants: (Long, Long) => Future[Seq[Tenant]] = {
     val query = Compiled {
       (limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
         Tenants
@@ -157,13 +152,13 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
           .take(limit)
     }
 
-    (limit: Int, offset: Int) =>
+    (limit: Long, offset: Long) =>
       persistence.database.run {
-        query(limit.toLong, offset.toLong).result
+        query(limit, offset).result
       }
   }
 
-  lazy val tenantsByNames: Iterable[String] => Future[Seq[Tenant]] = {
+  val tenantsByNames: Iterable[String] => Future[Seq[Tenant]] = {
     val query = Compiled { (names: Rep[List[String]]) =>
       Tenants
         .filter { row => row.name === names.any }
@@ -176,8 +171,8 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
       }
   }
 
-  lazy val allAccounts
-      : (String, Option[String], Option[String], Int, Int) => Future[
+  val allAccounts
+      : (String, Option[String], Option[String], Long, Long) => Future[
         Seq[Account]
       ] = {
     val query = Compiled {
@@ -207,16 +202,15 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
         tenant: String,
         currency: Option[String],
         format: Option[String],
-        limit: Int,
-        offset: Int
+        limit: Long,
+        offset: Long
     ) =>
       persistence.database.run {
-        query(tenant, currency, format, limit.toLong, offset.toLong).result
+        query(tenant, currency, format, limit, offset).result
       }
   }
 
-  lazy val accountsByNames
-      : (String, Iterable[String]) => Future[Seq[Account]] = {
+  val accountsByNames: (String, Iterable[String]) => Future[Seq[Account]] = {
     val query = Compiled { (tenant: Rep[String], names: Rep[List[String]]) =>
       Accounts
         .filter { row => row.tenant === tenant }
@@ -230,26 +224,34 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
       }
   }
 
-  lazy val allTransfers: (
+  val allTransfers: (
       String,
       Option[String],
       Option[Int],
       Option[BigDecimal],
       Option[BigDecimal],
+      Option[BigDecimal],
+      Option[BigDecimal],
       Option[DateTime],
       Option[DateTime],
-      Int,
-      Int
+      Option[DateTime],
+      Option[DateTime],
+      Long,
+      Long
   ) => Future[Seq[Transfer]] = {
     val query = Compiled {
       (
           tenant: Rep[String],
           currency: Rep[Option[String]],
           status: Rep[Option[Int]],
-          amountGte: Rep[Option[BigDecimal]],
+          amountLt: Rep[Option[BigDecimal]],
           amountLte: Rep[Option[BigDecimal]],
-          valueDateGte: Rep[Option[DateTime]],
+          amountGt: Rep[Option[BigDecimal]],
+          amountGte: Rep[Option[BigDecimal]],
+          valueDateLt: Rep[Option[DateTime]],
           valueDateLte: Rep[Option[DateTime]],
+          valueDateGt: Rep[Option[DateTime]],
+          valueDateGte: Rep[Option[DateTime]],
           limit: ConstColumn[Long],
           offset: ConstColumn[Long]
       ) =>
@@ -261,9 +263,19 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
               .isEmpty || row.amount <= amountGte
           }
           .filter { row =>
+            amountGt
+              .asColumnOf[Option[BigDecimal]]
+              .isEmpty || row.amount < amountGt
+          }
+          .filter { row =>
             amountLte
               .asColumnOf[Option[BigDecimal]]
               .isEmpty || row.amount >= amountLte
+          }
+          .filter { row =>
+            amountLt
+              .asColumnOf[Option[BigDecimal]]
+              .isEmpty || row.amount > amountLt
           }
           .filter { row =>
             valueDateGte
@@ -271,14 +283,24 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
               .isEmpty || row.valueDate <= valueDateGte
           }
           .filter { row =>
+            valueDateGt
+              .asColumnOf[Option[DateTime]]
+              .isEmpty || row.valueDate <= valueDateGt
+          }
+          .filter { row =>
             valueDateLte
               .asColumnOf[Option[DateTime]]
               .isEmpty || row.valueDate >= valueDateLte
           }
           .filter { row =>
+            valueDateLt
+              .asColumnOf[Option[DateTime]]
+              .isEmpty || row.valueDate >= valueDateLt
+          }
+          .filter { row =>
             currency
               .asColumnOf[Option[String]]
-              .isEmpty || row.currency >= currency
+              .isEmpty || row.currency === currency
           }
           .filter { row =>
             status
@@ -294,29 +316,37 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
         tenant: String,
         currency: Option[String],
         status: Option[Int],
-        amountGte: Option[BigDecimal],
+        amountLt: Option[BigDecimal],
         amountLte: Option[BigDecimal],
-        valueDateGte: Option[DateTime],
+        amountGt: Option[BigDecimal],
+        amountGte: Option[BigDecimal],
+        valueDateLt: Option[DateTime],
         valueDateLte: Option[DateTime],
-        limit: Int,
-        offset: Int
+        valueDateGt: Option[DateTime],
+        valueDateGte: Option[DateTime],
+        limit: Long,
+        offset: Long
     ) =>
       persistence.database.run {
         query(
           tenant,
           currency,
           status,
-          amountGte,
+          amountLt,
           amountLte,
-          valueDateGte,
+          amountGt,
+          amountGte,
+          valueDateLt,
           valueDateLte,
-          limit.toLong,
-          offset.toLong
+          valueDateGt,
+          valueDateGte,
+          limit,
+          offset
         ).result
       }
   }
 
-  lazy val accountBalance: (String, String) => Future[Option[BigDecimal]] = {
+  val accountBalance: (String, String) => Future[Option[BigDecimal]] = {
     val query = Compiled { (tenant: Rep[String], name: Rep[String]) =>
       AccountsBalanceChange
         .filter { row => row.tenant === tenant }

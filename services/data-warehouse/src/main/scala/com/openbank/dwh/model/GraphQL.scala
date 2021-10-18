@@ -8,6 +8,14 @@ case object DateTimeCoerceViolation extends Violation {
   override def errorMessage: String = "Error during parsing DateTime"
 }
 
+case object StatusCoerceViolation extends Violation {
+  override def errorMessage: String = "Error during parsing Status"
+}
+
+case object NaturalNumberCoerceViolation extends Violation {
+  override def errorMessage: String = "Error during parsing Natural Number"
+}
+
 case class Tenant(
     name: String
 )
