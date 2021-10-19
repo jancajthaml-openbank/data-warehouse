@@ -2,19 +2,14 @@ package com.openbank.dwh.model
 
 import scala.math.BigDecimal
 import akka.http.scaladsl.model.DateTime
-import sangria.validation.Violation
+import sangria.validation.ValueCoercionViolation
 
-case object DateTimeCoerceViolation extends Violation {
-  override def errorMessage: String = "Error during parsing DateTime"
-}
-
-case object StatusCoerceViolation extends Violation {
-  override def errorMessage: String = "Error during parsing Status"
-}
-
-case object NaturalNumberCoerceViolation extends Violation {
-  override def errorMessage: String = "Error during parsing Natural Number"
-}
+case object DateTimeCoerceViolation
+    extends ValueCoercionViolation("DateTime value expected")
+case object StatusCoerceViolation
+    extends ValueCoercionViolation("Status value expected")
+case object NaturalNumberCoerceViolation
+    extends ValueCoercionViolation("NaturalNumber value expected")
 
 case class Tenant(
     name: String
