@@ -3,12 +3,14 @@ package com.openbank.dwh.persistence
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.StrictLogging
 import com.openbank.dwh.model._
+
 import scala.math.BigDecimal
 import java.sql.Timestamp
 import akka.http.scaladsl.model.DateTime
 import slick.ast.BaseTypedType
 import slick.jdbc.JdbcType
-import slick.lifted.ProvenShape
+import slick.lifted.{CompiledFunction, ProvenShape}
+
 import scala.concurrent.Future
 
 object GraphQLPersistence {
@@ -171,10 +173,9 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
       }
   }
 
-  val allAccounts
-      : (String, Option[String], Option[String], Long, Long) => Future[
-        Seq[Account]
-      ] = {
+  val accounts: (String, Option[String], Option[String], Long, Long) => Future[
+    Seq[Account]
+  ] = {
     val query = Compiled {
       (
           tenant: Rep[String],
@@ -224,7 +225,7 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
       }
   }
 
-  val allTransfers: (
+  val transfers: (
       String,
       Option[String],
       Option[Int],
@@ -346,8 +347,20 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
       }
   }
 
-  val accountBalance: (String, String) => Future[Option[BigDecimal]] = {
-    val query = Compiled { (tenant: Rep[String], name: Rep[String]) =>
+  val accountBalance: (String, String) => Future[BigDecimal] = {
+    val query: CompiledFunction[
+      (
+          persistence.profile.api.Rep[String],
+          persistence.profile.api.Rep[String]
+      ) => Rep[Option[BigDecimal]],
+      (
+          persistence.profile.api.Rep[String],
+          persistence.profile.api.Rep[String]
+      ),
+      (String, String),
+      Rep[Option[BigDecimal]],
+      Option[BigDecimal]
+    ] = Compiled { (tenant: Rep[String], name: Rep[String]) =>
       AccountsBalanceChange
         .filter { row => row.tenant === tenant }
         .filter { row => row.name === name }
@@ -356,9 +369,13 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
     }
 
     (tenant: String, name: String) =>
-      persistence.database.run {
-        query(tenant, name).result
-      }
+      persistence.database
+        .run {
+          query(tenant, name).result
+        }
+        .map(_.getOrElse(0: BigDecimal))(
+          persistence.database.executor.executionContext
+        )
   }
 
 }
