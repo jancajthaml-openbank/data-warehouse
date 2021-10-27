@@ -3,10 +3,12 @@ package com.openbank.dwh.boot
 import akka.Done
 import akka.actor.typed.ActorSystem
 import akka.util.Timeout
+
 import scala.concurrent.duration._
 import akka.actor.typed.scaladsl.AskPattern._
 import com.typesafe.scalalogging.StrictLogging
-import scala.concurrent.Future
+
+import scala.concurrent.{ExecutionContext, Future}
 import com.openbank.dwh.actor.{Guardian, GuardianActor}
 
 trait TypedActorModule extends Lifecycle {
@@ -17,34 +19,18 @@ trait TypedActorModule extends Lifecycle {
     Guardian.name
   )
 
-  abstract override def setup(): Future[Done] = {
-    super
-      .setup()
-      .flatMap { _ =>
-        logger.info("Starting Guardian Actor")
-        Future.successful(Done)
-      }(typedSystem.executionContext)
-  }
-
   abstract override def stop(): Future[Done] = {
-    Future
-      .successful(Done)
-      .flatMap { _ =>
-        logger.info("Stopping Guardian Actor")
-        typedSystem
-          .ask[Done](Guardian.Shutdown)(
-            Timeout(5.seconds),
-            typedSystem.scheduler
-          )
-          .map { _ =>
-            logger.info("Guardian Actor finished coordinated shutdown")
-            Done
-          }(typedSystem.executionContext)
-      }(typedSystem.executionContext)
-      .flatMap(_ => super.stop())(typedSystem.executionContext)
+		implicit val ec: ExecutionContext = typedSystem.executionContext
+
+		logger.info("Stopping akka://{}", Guardian.name)
+
+		typedSystem
+			.ask[Done](Guardian.Shutdown)(Timeout(5.seconds), typedSystem.scheduler)
+      .flatMap(_ => super.stop())
   }
 
   abstract override def start(): Future[Done] = {
+		logger.info("Starting akka://{}", Guardian.name)
     typedSystem ! Guardian.StartActors
     super.start()
   }

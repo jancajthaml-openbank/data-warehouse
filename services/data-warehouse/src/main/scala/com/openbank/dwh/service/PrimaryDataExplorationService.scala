@@ -42,19 +42,16 @@ case class PrimaryDataExplorationWorker(
           .map(_.stripPrefix("t_"))
       }
       .mapAsync(1) { name =>
-        (
-          primaryStorage.getTenant(name)
-            zip
-              secondaryStorage.getTenant(name)
-        ).flatMap {
-          case (_, Some(b)) =>
-            Future.successful(Some(b))
-          case (a, None) =>
-            logger.info(s"Discovered new Tenant ${a.name}")
+				secondaryStorage.getTenant(name).flatMap {
+          case Some(tenant) =>
+            Future.successful(Some(tenant))
+          case None =>
+						val tenant = PersistentTenant(name)
+            logger.info("Discovered new Tenant {}", tenant.name)
             metrics.count("discovery.tenant", 1)
             secondaryStorage
-              .updateTenant(a)
-              .map { _ => Some(a) }
+              .updateTenant(tenant)
+              .map { _ => Some(tenant) }
         }
       }
       .async
@@ -79,20 +76,22 @@ case class PrimaryDataExplorationWorker(
           .map { file => (tenant, file) }
       }
       .mapAsync(1) { case (tenant, name) =>
-        (
-          primaryStorage.getAccount(tenant.name, name)
-            zip
-              secondaryStorage.getAccount(tenant.name, name)
-        ).flatMap {
-          case (_, Some(b)) =>
-            Future.successful(Some(b))
-          case (a, None) =>
-            logger.info(s"Discovered new Account ${a.tenant}/${a.name}")
-            metrics.count("discovery.account", 1)
-            secondaryStorage
-              .updateAccount(a)
-              .map { _ => Some(a) }
-        }
+				secondaryStorage
+					.getAccount(tenant.name, name)
+        	.flatMap {
+						case Some(account) =>
+							Future.successful(Some(account))
+						case None =>
+							primaryStorage
+								.getAccount(tenant.name, name)
+								.flatMap { account =>
+									logger.info(s"Discovered new Account {}/{}", account.tenant, account.name)
+									metrics.count("discovery.account", 1)
+									secondaryStorage
+										.updateAccount(account)
+										.map { _ => Some(account) }
+								}
+					}
       }
       .async
       .recover { case e: Exception =>
@@ -274,9 +273,7 @@ case class PrimaryDataExplorationWorker(
                   case Some(b) =>
                     Future.successful(b)
                   case None =>
-                    logger.info(
-                      s"Discovered new Transfer ${transfer.transaction}/${transfer.transfer}"
-                    )
+                    logger.info("Discovered new Transfer {}/{}", transfer.transaction, transfer.transfer)
                     metrics.count("discovery.transfer", 1)
 
                     secondaryStorage
@@ -308,10 +305,11 @@ class PrimaryDataExplorationService(
     metrics: StatsDClient
 ) extends StrictLogging {
 
+	private val mutex = new Object()
   @volatile private var killSwitch: Option[UniqueKillSwitch] = None
 
   def killRunningWorkflow(): Future[Done] =
-    this.synchronized {
+		mutex.synchronized {
       killSwitch.foreach(_.abort(new Exception("shutdown")))
       killSwitch = None
       Future.successful(Done)

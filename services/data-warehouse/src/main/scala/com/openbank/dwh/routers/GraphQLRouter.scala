@@ -5,12 +5,11 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes.BadRequest
 import com.openbank.dwh.service.GraphQLService
+import spray.json.{JsArray, JsObject, JsString, JsValue}
 import scala.concurrent.ExecutionContext
 import scala.util.{Success, Try}
 
 class GraphQLRouter(service: GraphQLService) extends SprayJsonSupport {
-
-  import spray.json._
 
   val route: Route =
     path("graphql") {

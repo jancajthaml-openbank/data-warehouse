@@ -55,7 +55,7 @@ object GuardianActor extends StrictLogging {
       case StartActors =>
         getRunningActor(props.ctx, PrimaryDataExplorer.name) match {
           case None =>
-            logger.info("Starting PrimaryDataExplorerActor")
+						logger.info("Starting {}/{}", props.ctx.self.path, PrimaryDataExplorer.name)
             props.ctx.spawn(
               PrimaryDataExplorerActor(props.primaryDataExplorationService),
               PrimaryDataExplorer.name
@@ -66,7 +66,7 @@ object GuardianActor extends StrictLogging {
 
         getRunningActor(props.ctx, MemoryMonitor.name) match {
           case None =>
-            logger.info("Starting MemoryMonitorActor")
+            logger.info("Starting {}/{}", props.ctx.self.path, MemoryMonitor.name)
             props.ctx.spawn(
               MemoryMonitorActor(props.metrics),
               MemoryMonitor.name
@@ -81,6 +81,7 @@ object GuardianActor extends StrictLogging {
 
         Future
           .sequence {
+
             props.ctx.children.toSeq.map {
 
               case ref: ActorRef[Nothing] =>
