@@ -2,7 +2,6 @@ package com.openbank.dwh.boot
 
 import akka.Done
 import scala.concurrent.Future
-import com.typesafe.scalalogging.StrictLogging
 
 trait Lifecycle {
 
@@ -15,20 +14,14 @@ trait Lifecycle {
 }
 
 trait ProgramLifecycle extends Lifecycle {
-  self: StrictLogging =>
 
-  override def setup(): Future[Done] = {
-    logger.info("Program Starting")
+  override def setup(): Future[Done] =
     Future.successful(Done)
-  }
 
-  override def start(): Future[Done] = {
+  override def start(): Future[Done] =
     Future.successful(Done)
-  }
 
-  override def stop(): Future[Done] = {
-    logger.info("Program Stopping")
+  override def stop(): Future[Done] =
     Future.successful(Done)
-  }
 
 }

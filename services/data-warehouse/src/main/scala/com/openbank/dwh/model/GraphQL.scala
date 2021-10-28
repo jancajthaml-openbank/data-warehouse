@@ -4,10 +4,8 @@ import scala.math.BigDecimal
 import akka.http.scaladsl.model.DateTime
 import sangria.validation.ValueCoercionViolation
 
-case object DateTimeCoerceViolation
-    extends ValueCoercionViolation("DateTime value expected")
-case object StatusCoerceViolation
-    extends ValueCoercionViolation("Status value expected")
+case object DateTimeCoerceViolation extends ValueCoercionViolation("DateTime value expected")
+case object StatusCoerceViolation extends ValueCoercionViolation("Status value expected")
 case object NaturalNumberCoerceViolation
     extends ValueCoercionViolation("NaturalNumber value expected")
 

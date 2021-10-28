@@ -26,8 +26,7 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
 
   import persistence.profile.api._
 
-  implicit val dateTimeColumnType
-      : JdbcType[DateTime] with BaseTypedType[DateTime] =
+  implicit val dateTimeColumnType: JdbcType[DateTime] with BaseTypedType[DateTime] =
     MappedColumnType.base[DateTime, Timestamp](
       dt => new Timestamp(dt.clicks),
       ts => DateTime(ts.getTime)
@@ -146,12 +145,11 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
   private val Transfers = TableQuery[TransferTable]
 
   val allTenants: (Long, Long) => Future[Seq[Tenant]] = {
-    val query = Compiled {
-      (limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
-        Tenants
-          .sortBy(_.name)
-          .drop(offset)
-          .take(limit)
+    val query = Compiled { (limit: ConstColumn[Long], offset: ConstColumn[Long]) =>
+      Tenants
+        .sortBy(_.name)
+        .drop(offset)
+        .take(limit)
     }
 
     (limit: Long, offset: Long) =>

@@ -129,12 +129,9 @@ object SchemaDefinition extends Types with Filters {
   )
 
   val tenants: Fetcher[GraphQLPersistence, Tenant, Tenant, String] =
-    Fetcher((ctx: GraphQLPersistence, names: Seq[String]) =>
-      ctx.tenantsByNames(names)
-    )
+    Fetcher((ctx: GraphQLPersistence, names: Seq[String]) => ctx.tenantsByNames(names))
 
-  val accounts
-      : Fetcher[GraphQLPersistence, Account, Account, (String, String)] =
+  val accounts: Fetcher[GraphQLPersistence, Account, Account, (String, String)] =
     Fetcher((ctx: GraphQLPersistence, ids: Seq[(String, String)]) => {
       Future.reduceLeft {
         ids
@@ -164,8 +161,7 @@ object SchemaDefinition extends Types with Filters {
         Field(
           "balance",
           BigDecimalType,
-          resolve =
-            ctx => ctx.ctx.accountBalance(ctx.value.tenant, ctx.value.name)
+          resolve = ctx => ctx.ctx.accountBalance(ctx.value.tenant, ctx.value.name)
         )
       )
     )
@@ -190,14 +186,12 @@ object SchemaDefinition extends Types with Filters {
         Field(
           "credit",
           OptionType(AccountType),
-          resolve = ctx =>
-            accounts.deferOpt((ctx.value.creditTenant, ctx.value.creditAccount))
+          resolve = ctx => accounts.deferOpt((ctx.value.creditTenant, ctx.value.creditAccount))
         ),
         Field(
           "debit",
           OptionType(AccountType),
-          resolve = ctx =>
-            accounts.deferOpt((ctx.value.debitTenant, ctx.value.debitAccount))
+          resolve = ctx => accounts.deferOpt((ctx.value.debitTenant, ctx.value.debitAccount))
         ),
         Field("currency", StringType, resolve = ctx => ctx.value.currency),
         Field("amount", BigDecimalType, resolve = ctx => ctx.value.amount),

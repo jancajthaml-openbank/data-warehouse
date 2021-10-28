@@ -25,8 +25,8 @@ trait ProductionRouterModule extends RouterModule with Lifecycle {
 
   lazy val routes: Route = new RootRouter(healthCheck, graphQL).route
 
-  abstract override def setup(): Future[Done] = {
-    super.setup().flatMap { _ =>
+  abstract override def start(): Future[Done] = {
+    super.start().flatMap { _ =>
       logger.info("Starting Router Module")
 
       Http()
@@ -37,6 +37,11 @@ trait ProductionRouterModule extends RouterModule with Lifecycle {
         }
         .map(_ => Done)
     }
+  }
+
+  abstract override def stop(): Future[Done] = {
+    logger.info("Stopping Router Module")
+    super.stop()
   }
 
 }

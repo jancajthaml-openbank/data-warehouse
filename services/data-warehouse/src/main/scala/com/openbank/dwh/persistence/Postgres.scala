@@ -48,9 +48,7 @@ object Postgres {
 
 }
 
-class Postgres(val database: Database)
-    extends AutoCloseable
-    with StrictLogging {
+class Postgres(val database: Database) extends AutoCloseable with StrictLogging {
 
   override def close(): Unit = {
     logger.debug("closing datasource {}", database)

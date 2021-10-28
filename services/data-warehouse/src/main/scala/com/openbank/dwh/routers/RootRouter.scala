@@ -7,11 +7,10 @@ import sangria.execution.{ErrorWithResolver, QueryAnalysisError}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.{ExceptionHandler, Route}
 import akka.stream.Attributes.LogLevels
+import spray.json.{JsArray, JsNumber, JsObject, JsString}
+import sangria.marshalling.sprayJson._
 
 class RootRouter(routes: Route*) extends SprayJsonSupport {
-
-  import spray.json._
-  import sangria.marshalling.sprayJson._
 
   def route: Route =
     logRequestResult(("access", LogLevels.Debug)) {

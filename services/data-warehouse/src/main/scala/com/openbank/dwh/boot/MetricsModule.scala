@@ -1,8 +1,11 @@
 package com.openbank.dwh.boot
 
 import com.openbank.dwh.metrics.{StatsDClient, StatsDClientImpl}
+
 import scala.concurrent.Future
 import akka.Done
+import com.typesafe.scalalogging.StrictLogging
+
 import scala.util.Try
 
 trait MetricsModule {
@@ -12,12 +15,13 @@ trait MetricsModule {
 }
 
 trait ProductionMetricsModule extends MetricsModule with Lifecycle {
-  self: AkkaModule with ConfigModule =>
+  self: AkkaModule with ConfigModule with StrictLogging =>
 
   lazy val metrics = new StatsDClientImpl()
 
   abstract override def start(): Future[Done] = {
     super.start().flatMap { _ =>
+      logger.info("Starting Metrics Module")
       Future
         .fromTry(Try {
           val uri =
@@ -29,13 +33,9 @@ trait ProductionMetricsModule extends MetricsModule with Lifecycle {
   }
 
   abstract override def stop(): Future[Done] = {
-    Future
-      .successful(Done)
-      .map { _ =>
-        metrics.stop()
-        Done
-      }
-      .flatMap(_ => super.stop())
+    logger.info("Stopping Metrics Module")
+    metrics.stop()
+    super.stop()
   }
 
 }

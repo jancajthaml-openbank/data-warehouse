@@ -1,13 +1,11 @@
 package com.openbank.dwh.boot
 
 import akka.Done
-import akka.actor.CoordinatedShutdown.Reason
-import akka.actor.{Scheduler, ActorSystem, CoordinatedShutdown}
-import ch.qos.logback.classic.LoggerContext
+import akka.actor.CoordinatedShutdown.{JvmExitReason, Reason}
+import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import com.typesafe.scalalogging.StrictLogging
-import org.slf4j.LoggerFactory
+
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
 
 trait AkkaModule {
 
@@ -26,9 +24,14 @@ trait ProductionAkkaModule extends AkkaModule with Lifecycle {
 
   implicit lazy val scheduler: Scheduler = system.scheduler
 
-  implicit def executionContext: ExecutionContext =
-    typedSystem.executionContext
+  implicit lazy val executionContext: ExecutionContext = typedSystem.executionContext
 
+  abstract override def start(): Future[Done] = {
+    super.start().map { _ =>
+      logger.info("Starting Akka Module")
+      Done
+    }
+  }
   abstract override def setup(): Future[Done] = {
     super
       .setup()
@@ -37,31 +40,17 @@ trait ProductionAkkaModule extends AkkaModule with Lifecycle {
           .addTask(
             CoordinatedShutdown.PhaseBeforeActorSystemTerminate,
             "graceful-stop"
-          ) { () =>
-            stop()
-          }
+          )(stop)
         Done
-      }(typedSystem.executionContext)
+      }(executionContext)
   }
 
   abstract override def stop(): Future[Done] = {
-    Future
-      .fromTry(Try {
-        LoggerFactory.getILoggerFactory match {
-          case c: LoggerContext => c.stop()
-          case _                => ()
-        }
-      })
-      .flatMap(_ => super.stop())(typedSystem.executionContext)
+    logger.info("Stopping Akka Module")
+    super.stop()
   }
 
-  def kill(): Future[Done] =
-    CoordinatedShutdown(typedSystem).run(StartupFailedReason)
-
   def shutdown(): Future[Done] =
-    CoordinatedShutdown(typedSystem).run(ShutDownReason)
+    CoordinatedShutdown(typedSystem).run(JvmExitReason)
 
-  private object StartupFailedReason extends Reason
-
-  private object ShutDownReason extends Reason
 }

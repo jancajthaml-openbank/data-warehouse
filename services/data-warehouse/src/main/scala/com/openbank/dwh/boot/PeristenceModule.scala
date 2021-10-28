@@ -19,22 +19,29 @@ trait PersistenceModule {
 trait ProductionPersistenceModule extends PersistenceModule with Lifecycle {
   self: AkkaModule with ConfigModule with StrictLogging =>
 
-  abstract override def stop(): Future[Done] = {
-    super.stop().flatMap { _ =>
-      Future
-        .successful(Done)
-        .flatMap(_ => Future.fromTry(Try(graphStorage.persistence.close())))
-        .recover { case NonFatal(e) =>
-          logger.error("Error closing graphql storage", e)
-          Done
-        }
-        .flatMap(_ => Future.fromTry(Try(secondaryStorage.persistence.close())))
-        .recover { case NonFatal(e) =>
-          logger.error("Error closing secondary storage", e)
-          Done
-        }
-        .map(_ => Done)
+  abstract override def start(): Future[Done] = {
+    super.start().map { _ =>
+      logger.info("Starting Persistence Module")
+      Done
     }
+  }
+
+  abstract override def stop(): Future[Done] = {
+    logger.info("Stopping Persistence Module")
+
+    Future
+      .successful(Done)
+      .flatMap(_ => Future.fromTry(Try(graphStorage.persistence.close())))
+      .recover { case NonFatal(e) =>
+        logger.error("Error closing graphql storage", e)
+        Done
+      }
+      .flatMap(_ => Future.fromTry(Try(secondaryStorage.persistence.close())))
+      .recover { case NonFatal(e) =>
+        logger.error("Error closing secondary storage", e)
+        Done
+      }
+      .flatMap { _ => super.stop() }
   }
 
   lazy val graphStorage: GraphQLPersistence =

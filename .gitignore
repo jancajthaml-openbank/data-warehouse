@@ -10,3 +10,4 @@ reports
 *.ivy
 *.coursier
 .updates.lock
+*.iml
