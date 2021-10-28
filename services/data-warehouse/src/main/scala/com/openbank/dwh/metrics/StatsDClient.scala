@@ -1,9 +1,6 @@
 package com.openbank.dwh.metrics
 
-import com.timgroup.statsd.{
-  NonBlockingStatsDClientBuilder,
-  StatsDClient => JavaStatsDClient
-}
+import com.timgroup.statsd.{NonBlockingStatsDClientBuilder, StatsDClient => JavaStatsDClient}
 import com.typesafe.scalalogging.StrictLogging
 import java.net.URI
 import scala.util.control.NonFatal

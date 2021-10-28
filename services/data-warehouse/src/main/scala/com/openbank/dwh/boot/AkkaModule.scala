@@ -1,9 +1,10 @@
 package com.openbank.dwh.boot
 
 import akka.Done
-import akka.actor.CoordinatedShutdown.Reason
+import akka.actor.CoordinatedShutdown.{JvmExitReason, Reason}
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import com.typesafe.scalalogging.StrictLogging
+
 import scala.concurrent.{ExecutionContext, Future}
 
 trait AkkaModule {
@@ -25,12 +26,12 @@ trait ProductionAkkaModule extends AkkaModule with Lifecycle {
 
   implicit lazy val executionContext: ExecutionContext = typedSystem.executionContext
 
-	abstract override def start(): Future[Done] = {
-		super.start().map { _ =>
-			logger.info("Starting Akka Module")
-			Done
-		}
-	}
+  abstract override def start(): Future[Done] = {
+    super.start().map { _ =>
+      logger.info("Starting Akka Module")
+      Done
+    }
+  }
   abstract override def setup(): Future[Done] = {
     super
       .setup()
@@ -46,11 +47,10 @@ trait ProductionAkkaModule extends AkkaModule with Lifecycle {
 
   abstract override def stop(): Future[Done] = {
     logger.info("Stopping Akka Module")
-		super.stop()
+    super.stop()
   }
 
   def shutdown(): Future[Done] =
-    CoordinatedShutdown(typedSystem).run(ShutDownReason)
+    CoordinatedShutdown(typedSystem).run(JvmExitReason)
 
-  private object ShutDownReason extends Reason
 }

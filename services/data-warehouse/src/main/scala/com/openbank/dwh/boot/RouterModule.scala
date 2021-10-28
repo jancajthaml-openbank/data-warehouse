@@ -39,9 +39,9 @@ trait ProductionRouterModule extends RouterModule with Lifecycle {
     }
   }
 
-	abstract override def stop(): Future[Done] = {
-		logger.info("Stopping Router Module")
-		super.stop()
-	}
+  abstract override def stop(): Future[Done] = {
+    logger.info("Stopping Router Module")
+    super.stop()
+  }
 
 }

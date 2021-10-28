@@ -12,14 +12,13 @@ class HealthCheckRouter(service: HealthCheckService) extends SprayJsonSupport {
   def route: Route =
     path("health") {
       get {
-        onSuccess(service.isGraphQLHealthy()(ExecutionContext.global)) {
-          isGraphQlHealthy =>
-            complete(
-              JsObject(
-                "healthy" -> JsBoolean(isGraphQlHealthy),
-                "graphql" -> JsBoolean(isGraphQlHealthy)
-              )
+        onSuccess(service.isGraphQLHealthy()(ExecutionContext.global)) { isGraphQlHealthy =>
+          complete(
+            JsObject(
+              "healthy" -> JsBoolean(isGraphQlHealthy),
+              "graphql" -> JsBoolean(isGraphQlHealthy)
             )
+          )
         }
       }
     }

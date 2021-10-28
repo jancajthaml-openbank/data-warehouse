@@ -24,8 +24,7 @@ object PrimaryPersistence {
 
 }
 
-class DirectoryIterator(stream: DirectoryStream[Path])
-    extends AbstractIterator[Path] {
+class DirectoryIterator(stream: DirectoryStream[Path]) extends AbstractIterator[Path] {
   private lazy val it = stream.iterator()
 
   override def hasNext: Boolean =

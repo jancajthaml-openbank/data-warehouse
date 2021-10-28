@@ -21,7 +21,7 @@ trait ProductionMetricsModule extends MetricsModule with Lifecycle {
 
   abstract override def start(): Future[Done] = {
     super.start().flatMap { _ =>
-			logger.info("Starting Metrics Module")
+      logger.info("Starting Metrics Module")
       Future
         .fromTry(Try {
           val uri =
@@ -33,9 +33,9 @@ trait ProductionMetricsModule extends MetricsModule with Lifecycle {
   }
 
   abstract override def stop(): Future[Done] = {
-		logger.info("Stopping Metrics Module")
-		metrics.stop()
-		super.stop()
+    logger.info("Stopping Metrics Module")
+    metrics.stop()
+    super.stop()
   }
 
 }

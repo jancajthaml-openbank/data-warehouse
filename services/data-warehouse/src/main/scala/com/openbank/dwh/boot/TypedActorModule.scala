@@ -20,17 +20,17 @@ trait TypedActorModule extends Lifecycle {
   )
 
   abstract override def stop(): Future[Done] = {
-		implicit val ec: ExecutionContext = typedSystem.executionContext
+    implicit val ec: ExecutionContext = typedSystem.executionContext
 
-		logger.info("Stopping akka://{}", Guardian.name)
+    logger.info("Stopping akka://{}", Guardian.name)
 
-		typedSystem
-			.ask[Done](Guardian.Shutdown)(Timeout(5.seconds), typedSystem.scheduler)
+    typedSystem
+      .ask[Done](Guardian.Shutdown)(Timeout(5.seconds), typedSystem.scheduler)
       .flatMap(_ => super.stop())
   }
 
   abstract override def start(): Future[Done] = {
-		logger.info("Starting akka://{}", Guardian.name)
+    logger.info("Starting akka://{}", Guardian.name)
     typedSystem ! Guardian.StartActors
     super.start()
   }

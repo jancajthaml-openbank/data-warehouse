@@ -24,27 +24,27 @@ object Main extends App {
       with ProductionRouterModule
       with TypedActorModule
 
-	val logger = LoggerFactory.getLogger(Program.getClass.getName)
-	implicit val ec: ExecutionContextExecutor = ExecutionContext.global
+  val logger = LoggerFactory.getLogger(Program.getClass.getName)
+  implicit val ec: ExecutionContextExecutor = ExecutionContext.global
 
   try {
     Await.result(Program.setup(), 10.minutes)
     sys.addShutdownHook {
-				logger.info("Program Stopping")
-				Program.shutdown().onComplete { _ =>
-					logger.info("Program Stopped")
-					LoggerFactory.getILoggerFactory match {
-						case c: LoggerContext => c.stop()
-						case _ => ()
-					}
-					Health.serviceStopping()
-				}
+      logger.info("Program Stopping")
+      Program.shutdown().onComplete { _ =>
+        logger.info("Program Stopped")
+        LoggerFactory.getILoggerFactory match {
+          case c: LoggerContext => c.stop()
+          case _                => ()
+        }
+        Health.serviceStopping()
+      }
     }
-		logger.info("Program Starting")
-		Program.start().onComplete { _ =>
-			logger.info("Program Started")
-			Health.serviceReady()
-		}
+    logger.info("Program Starting")
+    Program.start().onComplete { _ =>
+      logger.info("Program Started")
+      Health.serviceReady()
+    }
   } catch {
     case NonFatal(e) =>
       e.printStackTrace()

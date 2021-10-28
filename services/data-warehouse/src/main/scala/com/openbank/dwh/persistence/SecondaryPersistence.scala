@@ -231,8 +231,7 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
         debitAccount = r.nextString(),
         amount = r.nextBigDecimal(),
         currency = r.nextString(),
-        valueDate =
-          ZonedDateTime.ofInstant(r.nextTimestamp().toInstant, ZoneOffset.UTC)
+        valueDate = ZonedDateTime.ofInstant(r.nextTimestamp().toInstant, ZoneOffset.UTC)
       )
     )
 

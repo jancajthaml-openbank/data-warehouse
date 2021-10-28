@@ -56,11 +56,10 @@ class GraphQLRouter(service: GraphQLService) extends SprayJsonSupport {
         }
       } ~
         get {
-          parameters(Symbol("query"), Symbol("operation").?) {
-            (query, operation) =>
-              complete(
-                service.execute(query, operation)(ExecutionContext.global)
-              )
+          parameters(Symbol("query"), Symbol("operation").?) { (query, operation) =>
+            complete(
+              service.execute(query, operation)(ExecutionContext.global)
+            )
           }
         }
     } ~
