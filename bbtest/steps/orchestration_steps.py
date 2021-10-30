@@ -13,14 +13,14 @@ import urllib.request
 def step_impl(context, package, operation):
   if operation == 'installed':
     (code, result, error) = execute(["apt-get", "install", "-f", "-qq", "-o=Dpkg::Use-Pty=0", "-o=Dpkg::Options::=--force-confold", context.unit.binary])
-    assert code == 0, "unable to install with code {} and {} {}".format(code, result, error)
+    assert code == 'OK', "unable to install with code {} and {} {}".format(code, result, error)
     assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is True
     execute(['systemctl', 'start', package])
   elif operation == 'uninstalled':
     (code, result, error) = execute(["apt-get", "-y", "remove", package])
-    assert code == 0, "unable to uninstall with code {} and {} {}".format(code, result, error)
+    assert code == 'OK', "unable to uninstall with code {} and {} {}".format(code, result, error)
     (code, result, error) = execute(["apt-get", "-y", "purge", package])
-    assert code == 0, "unable to purge with code {} and {} {}".format(code, result, error)
+    assert code == 'OK', "unable to purge with code {} and {} {}".format(code, result, error)
     assert os.path.isfile('/etc/data-warehouse/conf.d/init.conf') is False, 'config file still exists'
   else:
     assert False, 'unknown operation {}'.format(operation)
@@ -30,7 +30,7 @@ def step_impl(context, package, operation):
 @then('systemctl contains following active units')
 def step_impl(context):
   (code, result, error) = execute(["systemctl", "list-units", "--all", "--no-legend"])
-  assert code == 0
+  assert code == 'OK', str(result) + ' ' + str(error)
 
   items = []
   for row in context.table:
@@ -46,7 +46,7 @@ def step_impl(context):
 @then('systemctl does not contain following active units')
 def step_impl(context):
   (code, result, error) = execute(["systemctl", "list-units", "--all", "--no-legend"])
-  assert code == 0
+  assert code == 'OK', str(result) + ' ' + str(error)
 
   items = []
   for row in context.table:
@@ -64,7 +64,7 @@ def unit_running(context, unit):
   @eventually(30)
   def wait_for_unit_state_change():
     (code, result, error) = execute(["systemctl", "show", "-p", "SubState", unit])
-    assert code == 0, code
+    assert code == 'OK', str(result) + ' ' + str(error)
     assert 'SubState=running' in result, '{} {}'.format(unit, result)
 
   @eventually(10)
@@ -85,7 +85,7 @@ def unit_not_running(context, unit):
   @eventually(30)
   def wait_for_unit_state_change():
     (code, result, error) = execute(["systemctl", "show", "-p", "SubState", unit])
-    assert code == 0, str(result) + ' ' + str(error)
+    assert code == 'OK', str(result) + ' ' + str(error)
     assert 'SubState=dead' in result, str(result) + ' ' + str(error)
 
   wait_for_unit_state_change()
@@ -95,7 +95,7 @@ def unit_not_running(context, unit):
 @when('{operation} unit "{unit}"')
 def operation_unit(context, operation, unit):
   (code, result, error) = execute(["systemctl", operation, unit])
-  assert code == 0, str(result) + ' ' + str(error)
+  assert code == 'OK', str(result) + ' ' + str(error)
 
 
 @given('data-warehouse is configured with')
