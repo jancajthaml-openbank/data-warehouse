@@ -55,7 +55,13 @@ def execute(command, timeout=60) -> None:
 
     result = result.decode('utf-8').strip() if result else ''
     error = error.decode('utf-8').strip() if error else ''
-    code = p.returncode
+    
+    if p.returncode == 0:
+      code = 'OK'
+    elif p.returncode < 0:
+      code = signal.Signals(-p.returncode).name
+    else:
+      code = signal.Signals(p.returncode).name
 
     del p
 
@@ -63,4 +69,4 @@ def execute(command, timeout=60) -> None:
 
     return (code, result, error)
   except subprocess.CalledProcessError:
-    return (-1, None, None)
+    return ('SIGQUIT', None, None)
