@@ -1,3 +1,5 @@
+import scala.xml.Utility.Escapes.pairs
+
 organization := "com.openbank"
 name := "data-warehouse"
 version := "1.0.0"
@@ -77,10 +79,6 @@ packGenerateWindowsBatFile := false
 
 packMain := Map(
   name.value -> "com.openbank.dwh.Main"
-)
-
-packJvmOpts := Map(
-  name.value -> Seq("-XX:+HeapDumpOnOutOfMemoryError", "-XX:+UseGCOverheadLimit")
 )
 
 scalafmtConfig := file(".scalafmt.conf")

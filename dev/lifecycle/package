@@ -59,6 +59,8 @@ lifecycle::scala::pack() {
   cp -R ${source}/target/pack/bin ${output}
   cp -R ${source}/target/pack/lib ${output}
 
+  cp ${source}/scripts/entrypoint.sh ${output}/bin/$(basename ${source})
+
   echo "[info] ${output} packed"
 }
 
