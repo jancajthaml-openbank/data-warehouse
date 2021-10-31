@@ -79,10 +79,6 @@ packMain := Map(
   name.value -> "com.openbank.dwh.Main"
 )
 
-packJvmOpts := Map(
-  name.value -> Seq("-XX:+HeapDumpOnOutOfMemoryError", "-XX:+UseGCOverheadLimit")
-)
-
 scalafmtConfig := file(".scalafmt.conf")
 
 scalafmtOnCompile := true
