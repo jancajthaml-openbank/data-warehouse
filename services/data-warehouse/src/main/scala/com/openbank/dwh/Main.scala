@@ -1,6 +1,5 @@
 package com.openbank.dwh
 
-import akka.Done
 import ch.qos.logback.classic.LoggerContext
 import com.openbank.dwh.boot._
 import com.openbank.dwh.support.Health

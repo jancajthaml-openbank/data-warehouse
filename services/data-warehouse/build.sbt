@@ -7,7 +7,7 @@ scalaVersion := "2.13.4"
 val akkaVersion = "2.6.14"
 val akkaHttpVersion = "10.2.4"
 
-val reaciverStreams = ExclusionRule("org.reactivestreams")
+val reactiveStreams = ExclusionRule("org.reactivestreams")
 val slick = ExclusionRule("com.typesafe.slick")
 val jna = ExclusionRule("net.java.dev.jna", "jna")
 val log4j = ExclusionRule("org.slf4j")
@@ -28,9 +28,9 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
   "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.4" excludeAll(log4j),
-  "com.typesafe.slick" %% "slick" % "3.3.3" excludeAll(log4j, reaciverStreams, typesafeConfig),
-  "com.typesafe.slick" %% "slick-hikaricp" % "3.3.3" excludeAll(log4j, reaciverStreams, typesafeConfig, slick),
-  "com.github.tminglei" %% "slick-pg" % "0.19.7" excludeAll(log4j, reaciverStreams, typesafeConfig, slick),
+  "com.typesafe.slick" %% "slick" % "3.3.3" excludeAll(log4j, reactiveStreams, typesafeConfig),
+  "com.typesafe.slick" %% "slick-hikaricp" % "3.3.3" excludeAll(log4j, reactiveStreams, typesafeConfig, slick),
+  "com.github.tminglei" %% "slick-pg" % "0.19.7" excludeAll(log4j, reactiveStreams, typesafeConfig, slick),
   "ch.qos.logback" % "logback-classic" % "1.2.6" excludeAll(log4j),
   "org.slf4j" % "jcl-over-slf4j" % "1.7.30",
 	"net.java.dev.jna" % "jna" % "5.9.0",
