@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from behave import *
-import ssl
-import urllib.request
 import json
 import time
 from helpers.eventually import eventually
+from helpers.http import Request
 
 
 @when('I request HTTP {uri}')
@@ -16,7 +15,7 @@ def perform_http_request(context, uri):
     for row in context.table:
       options[row['key']] = row['value']
 
-  context.http_request = urllib.request.Request(method=options['method'], url=uri)
+  context.http_request = Request(method=options['method'], url=uri)
   context.http_request.add_header('Accept', 'application/json')
   if context.text:
 
@@ -49,7 +48,7 @@ def check_http_response(context):
     elif type(b) == dict:
       assert type(b) == dict, 'types differ at {} expected: {} actual: {}'.format(path, dict, type(b))
       for k, v in a.items():
-        assert k in b
+        assert k in b, '{} was not found in {}'.format(k, b)
         diff('{}.{}'.format(path, k), v, b[k])
     else:
       assert type(a) == type(b), 'types differ at {} expected: {} actual: {}'.format(path, type(a), type(b))
@@ -59,16 +58,9 @@ def check_http_response(context):
   def wait_for_correct_response():
     http_response = dict()
 
-    try:
-      ctx = ssl.create_default_context()
-      ctx.check_hostname = False
-      ctx.verify_mode = ssl.CERT_NONE
-      response = urllib.request.urlopen(context.http_request, timeout=10, context=ctx)
-      http_response['status'] = str(response.status)
-      http_response['body'] = response.read().decode('utf-8')
-    except urllib.error.HTTPError as err:
-      http_response['status'] = str(err.code)
-      http_response['body'] = err.read().decode('utf-8')
+    response = context.http_request.do()
+    http_response['status'] = str(response.status)
+    http_response['body'] = response.read().decode('utf-8')
     
     if 'status' in options:
       assert http_response['status'] == options['status'], 'expected status {} actual {}'.format(options['status'], http_response)

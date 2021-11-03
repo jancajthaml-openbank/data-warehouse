@@ -16,7 +16,7 @@ sealed trait Types {
 
   protected implicit val NaturalNumberType: ScalarType[Long] = ScalarType[Long](
     "NaturalNumber",
-		Some("Positive integer including zero"),
+    Some("Positive integer including zero"),
     coerceUserInput = {
       case s: Int if s >= 0  => Right(s.toLong)
       case s: Long if s >= 0 => Right(s)
@@ -35,7 +35,7 @@ sealed trait Types {
 
   protected implicit val StatusType: ScalarType[Int] = ScalarType[Int](
     "Status",
-		Some("Transaction status one of queued, committed or rollbacked"),
+    Some("Transaction status one of queued, committed or rollbacked"),
     coerceOutput = {
       case (0, _) => "queued"
       case (1, _) => "committed"
@@ -59,7 +59,7 @@ sealed trait Types {
   protected implicit val DateTimeType: ScalarType[DateTime] =
     ScalarType[DateTime](
       "DateTime",
-			Some("Date and time in yyyy-mm-ddThh:mm:ss format"),
+      Some("Date and time in yyyy-mm-ddThh:mm:ss format"),
       coerceOutput = (s, _) => s.toString,
       coerceInput = {
         case StringValue(s, _, _, _, _) =>
