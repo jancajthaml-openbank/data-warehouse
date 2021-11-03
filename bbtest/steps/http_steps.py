@@ -48,7 +48,7 @@ def check_http_response(context):
     elif type(b) == dict:
       assert type(b) == dict, 'types differ at {} expected: {} actual: {}'.format(path, dict, type(b))
       for k, v in a.items():
-        assert k in b
+        assert k in b, '{} was not found in {}'.format(k, b)
         diff('{}.{}'.format(path, k), v, b[k])
     else:
       assert type(a) == type(b), 'types differ at {} expected: {} actual: {}'.format(path, type(a), type(b))
