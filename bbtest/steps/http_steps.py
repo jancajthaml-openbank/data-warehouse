@@ -29,7 +29,7 @@ def perform_http_request(context, uri):
       payload = context.text
 
     context.http_request.add_header('Content-Type', 'application/json')
-    context.http_request.data = payload.encode('utf-8')
+    context.http_request.data = payload
 
 
 @then('HTTP response is')
