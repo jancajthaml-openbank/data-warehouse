@@ -1,9 +1,10 @@
 [Unit]
 Description=openbank data warehouse configuration watcher
+After=data-warehouse.service
 
 [Path]
-PathChanged=/etc/data-warehouse/conf.d/init.conf
+PathChanged=/etc/data-warehouse/conf.d
 Unit=data-warehouse-watcher.service
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=paths.target
