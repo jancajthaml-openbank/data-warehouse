@@ -19,12 +19,12 @@ object MemoryMonitorActor extends StrictLogging {
 
   import MemoryMonitor._
 
-  case class BehaviorProps(metrics: StatsDClient)
+  case class ActorProperties(metrics: StatsDClient)
 
   private lazy val delay = 1.seconds
 
   def apply(metrics: StatsDClient): Behavior[Guardian.Command] = {
-    val props = BehaviorProps(metrics)
+    val props = ActorProperties(metrics)
 
     Behaviors
       .supervise {
@@ -38,7 +38,7 @@ object MemoryMonitorActor extends StrictLogging {
       )
   }
 
-  def active(props: BehaviorProps): Behavior[Guardian.Command] =
+  def active(props: ActorProperties): Behavior[Guardian.Command] =
     Behaviors.receive {
 
       case (_, ReportMemoryStats) =>

@@ -21,7 +21,7 @@ object Main extends App {
       with ProductionServiceModule
       with ProductionPersistenceModule
       with ProductionRouterModule
-      with TypedActorModule
+      with ProductionActorModule
 
   val logger = LoggerFactory.getLogger(Program.getClass.getName)
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global

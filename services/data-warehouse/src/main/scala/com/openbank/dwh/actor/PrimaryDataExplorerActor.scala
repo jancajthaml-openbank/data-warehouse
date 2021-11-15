@@ -2,8 +2,7 @@ package com.openbank.dwh.actor
 
 import akka.Done
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{Behavior, DispatcherSelector, SupervisorStrategy}
-import akka.stream.SystemMaterializer
+import akka.actor.typed.{Behavior, SupervisorStrategy}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
 import com.openbank.dwh.service._
@@ -24,7 +23,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
 
   import PrimaryDataExplorer._
 
-  case class BehaviorProps(
+  case class ActorProperties(
       primaryDataExplorationService: PrimaryDataExplorationService
   )
 
@@ -33,7 +32,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
   def apply(
       primaryDataExplorationService: PrimaryDataExplorationService
   ): Behavior[Guardian.Command] = {
-    val props = BehaviorProps(primaryDataExplorationService)
+    val props = ActorProperties(primaryDataExplorationService)
 
     Behaviors
       .supervise {
@@ -48,7 +47,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
   }
 
   def active(
-      props: BehaviorProps
+      props: ActorProperties
   ): Behavior[Guardian.Command] =
     Behaviors.receive {
 
@@ -79,7 +78,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
     }
 
   def idle(
-      props: BehaviorProps
+      props: ActorProperties
   ): Behavior[Guardian.Command] =
     Behaviors.receive {
 
@@ -97,12 +96,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
         ctx.self ! Lock
 
         props.primaryDataExplorationService
-          .runExploration(
-            ctx.system.dispatchers.lookup(
-              DispatcherSelector.fromConfig("data-exploration.dispatcher")
-            ),
-            SystemMaterializer(ctx.system).materializer
-          )
+          .runExploration()
           .onComplete { _ => ctx.self ! Free }(ctx.executionContext)
 
         Behaviors.same
@@ -118,5 +112,7 @@ object PrimaryDataExplorerActor extends StrictLogging {
         Behaviors.unhandled
 
     }
+
+  // TODO priority backlog
 
 }

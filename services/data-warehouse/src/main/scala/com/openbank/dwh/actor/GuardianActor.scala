@@ -7,9 +7,8 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import com.typesafe.scalalogging.StrictLogging
-import com.openbank.dwh.service._
 import scala.concurrent.duration._
-import com.openbank.dwh.metrics.StatsDClient
+import com.openbank.dwh.boot.{ServiceModule, MetricsModule}
 
 object Guardian {
 
@@ -17,7 +16,7 @@ object Guardian {
 
   trait Command
 
-  case object StartActors extends Command
+  case class StartActors(serviceModule: ServiceModule with MetricsModule) extends Command
 
   case class Shutdown(replyTo: ActorRef[Done]) extends Command
 
@@ -27,48 +26,36 @@ object GuardianActor extends StrictLogging {
 
   import Guardian._
 
-  case class BehaviorProps(
-      ctx: ActorContext[Command],
-      primaryDataExplorationService: PrimaryDataExplorationService,
-      metrics: StatsDClient
-  )
-
-  def apply(
-      primaryDataExplorationService: PrimaryDataExplorationService,
-      metrics: StatsDClient
-  ): Behavior[Command] = {
+  def apply(): Behavior[Command] = {
     Behaviors
       .supervise {
         Behaviors.setup { (ctx: ActorContext[Command]) =>
-          val props = BehaviorProps(ctx, primaryDataExplorationService, metrics)
-          behaviour(props)
+          behaviour(ctx)
         }
       }
       .onFailure(SupervisorStrategy.restart.withStopChildren(false))
   }
 
-  def behaviour(
-      props: BehaviorProps
-  ): Behavior[Command] =
+  def behaviour(ctx: ActorContext[Command]): Behavior[Command] =
     Behaviors.receiveMessagePartial {
 
-      case StartActors =>
-        getRunningActor(props.ctx, PrimaryDataExplorer.name) match {
+      case StartActors(serviceModule) =>
+        getRunningActor(ctx, PrimaryDataExplorer.name) match {
           case None =>
-            logger.info("Starting {}/{}", props.ctx.self.path, PrimaryDataExplorer.name)
-            props.ctx.spawn(
-              PrimaryDataExplorerActor(props.primaryDataExplorationService),
+            logger.info("Starting {}/{}", ctx.self.path, PrimaryDataExplorer.name)
+            ctx.spawn(
+              PrimaryDataExplorerActor(serviceModule.primaryDataExplorationService),
               PrimaryDataExplorer.name
             )
-            props.ctx.self ! PrimaryDataExplorer.RunExploration
+            ctx.self ! PrimaryDataExplorer.RunExploration
           case _ =>
         }
 
-        getRunningActor(props.ctx, MemoryMonitor.name) match {
+        getRunningActor(ctx, MemoryMonitor.name) match {
           case None =>
-            logger.info("Starting {}/{}", props.ctx.self.path, MemoryMonitor.name)
-            props.ctx.spawn(
-              MemoryMonitorActor(props.metrics),
+            logger.info("Starting {}/{}", ctx.self.path, MemoryMonitor.name)
+            ctx.spawn(
+              MemoryMonitorActor(serviceModule.metrics),
               MemoryMonitor.name
             )
           case _ =>
@@ -77,12 +64,12 @@ object GuardianActor extends StrictLogging {
         Behaviors.same
 
       case Shutdown(replyTo) =>
-        implicit val ec: ExecutionContextExecutor = props.ctx.executionContext
+        implicit val ec: ExecutionContextExecutor = ctx.executionContext
 
         Future
           .sequence {
 
-            props.ctx.children.toSeq.map {
+            ctx.children.toSeq.map {
 
               case ref: ActorRef[Nothing] =>
                 logger.warn("Stopping {}", ref.path)
@@ -90,12 +77,12 @@ object GuardianActor extends StrictLogging {
                   .asInstanceOf[ActorRef[Command]]
                   .ask[Done](Shutdown)(
                     Timeout(5.seconds),
-                    props.ctx.system.scheduler
+                    ctx.system.scheduler
                   )
                   .recoverWith { case _: Exception =>
-                    props.ctx.stop(ref)
+                    ctx.stop(ref)
                     Future.successful(Done)
-                  }(props.ctx.executionContext)
+                  }(ctx.executionContext)
 
               case node =>
                 logger.warn("Unknown child {}", node)
@@ -113,7 +100,7 @@ object GuardianActor extends StrictLogging {
         Behaviors.stopped
 
       case PrimaryDataExplorer.RunExploration =>
-        getRunningActor(props.ctx, PrimaryDataExplorer.name) match {
+        getRunningActor(ctx, PrimaryDataExplorer.name) match {
           case Some(ref) => ref ! PrimaryDataExplorer.RunExploration
           case _         => logger.info("Cannot run primary data exploration")
         }
