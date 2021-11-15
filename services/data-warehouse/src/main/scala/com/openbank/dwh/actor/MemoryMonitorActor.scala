@@ -11,7 +11,9 @@ object MemoryMonitor {
 
   val name = "memory-monitor"
 
-  case object ReportMemoryStats extends Guardian.Command
+  sealed trait Command extends Guardian.Command
+
+  case object ReportMemoryStats extends Command
 
 }
 

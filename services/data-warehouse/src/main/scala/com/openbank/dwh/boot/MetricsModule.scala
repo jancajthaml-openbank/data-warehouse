@@ -1,12 +1,9 @@
 package com.openbank.dwh.boot
 
 import com.openbank.dwh.metrics.{StatsDClient, StatsDClientImpl}
-
 import scala.concurrent.Future
 import akka.Done
 import com.typesafe.scalalogging.StrictLogging
-
-import scala.util.Try
 
 trait MetricsModule {
 

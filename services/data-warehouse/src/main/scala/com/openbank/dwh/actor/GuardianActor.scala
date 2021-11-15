@@ -16,7 +16,7 @@ object Guardian {
 
   trait Command
 
-  case class Bootstrap(replyTo: ActorRef[Done], serviceModule: ServiceModule with MetricsModule)
+  case class Bootstrap(replyTo: ActorRef[Done], service: ServiceModule with MetricsModule)
       extends Command
 
   case class Shutdown(replyTo: ActorRef[Done]) extends Command
@@ -40,12 +40,12 @@ object GuardianActor extends StrictLogging {
   def behaviour(ctx: ActorContext[Command]): Behavior[Command] =
     Behaviors.receiveMessagePartial {
 
-      case Bootstrap(replyTo, serviceModule) =>
+      case Bootstrap(replyTo, service) =>
         getRunningActor(ctx, PrimaryDataExplorer.name) match {
           case None =>
             logger.info("Starting {}/{}", ctx.self.path, PrimaryDataExplorer.name)
             ctx.spawn(
-              PrimaryDataExplorerActor(serviceModule.primaryDataExplorationService),
+              PrimaryDataExplorerActor(service.primaryDataExplorationService),
               PrimaryDataExplorer.name
             )
             ctx.self ! PrimaryDataExplorer.RunExploration
@@ -56,7 +56,7 @@ object GuardianActor extends StrictLogging {
           case None =>
             logger.info("Starting {}/{}", ctx.self.path, MemoryMonitor.name)
             ctx.spawn(
-              MemoryMonitorActor(serviceModule.metrics),
+              MemoryMonitorActor(service.metrics),
               MemoryMonitor.name
             )
           case _ =>
@@ -102,9 +102,9 @@ object GuardianActor extends StrictLogging {
 
         Behaviors.stopped
 
-      case PrimaryDataExplorer.RunExploration =>
+      case msg: PrimaryDataExplorer.Command =>
         getRunningActor(ctx, PrimaryDataExplorer.name) match {
-          case Some(ref) => ref ! PrimaryDataExplorer.RunExploration
+          case Some(ref) => ref ! msg
           case _         => logger.info("Cannot run primary data exploration")
         }
         Behaviors.same

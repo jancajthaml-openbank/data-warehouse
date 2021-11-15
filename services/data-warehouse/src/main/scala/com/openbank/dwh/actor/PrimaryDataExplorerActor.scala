@@ -11,11 +11,13 @@ object PrimaryDataExplorer {
 
   val name = "primary-data-explorer"
 
-  case object RunExploration extends Guardian.Command
+  sealed trait Command extends Guardian.Command
 
-  case object Lock extends Guardian.Command
+  case object RunExploration extends Command
 
-  case object Free extends Guardian.Command
+  case object Lock extends Command
+
+  case object Free extends Command
 
 }
 
