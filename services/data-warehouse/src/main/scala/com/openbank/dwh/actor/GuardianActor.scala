@@ -16,7 +16,8 @@ object Guardian {
 
   trait Command
 
-  case class StartActors(serviceModule: ServiceModule with MetricsModule) extends Command
+  case class Bootstrap(replyTo: ActorRef[Done], serviceModule: ServiceModule with MetricsModule)
+      extends Command
 
   case class Shutdown(replyTo: ActorRef[Done]) extends Command
 
@@ -39,7 +40,7 @@ object GuardianActor extends StrictLogging {
   def behaviour(ctx: ActorContext[Command]): Behavior[Command] =
     Behaviors.receiveMessagePartial {
 
-      case StartActors(serviceModule) =>
+      case Bootstrap(replyTo, serviceModule) =>
         getRunningActor(ctx, PrimaryDataExplorer.name) match {
           case None =>
             logger.info("Starting {}/{}", ctx.self.path, PrimaryDataExplorer.name)
@@ -60,6 +61,8 @@ object GuardianActor extends StrictLogging {
             )
           case _ =>
         }
+
+        replyTo ! Done
 
         Behaviors.same
 

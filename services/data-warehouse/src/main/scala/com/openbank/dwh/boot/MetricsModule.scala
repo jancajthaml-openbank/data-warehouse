@@ -20,15 +20,13 @@ trait ProductionMetricsModule extends MetricsModule with Lifecycle {
   lazy val metrics = new StatsDClientImpl()
 
   abstract override def start(): Future[Done] = {
-    super.start().flatMap { _ =>
+    super.start().map { _ =>
       logger.info("Starting Metrics Module")
-      Future
-        .fromTry(Try {
-          val uri =
-            new java.net.URI(s"udp://${config.getString("statsd.endpoint")}")
-          metrics.start(uri)
-        })
-        .map(_ => Done)
+
+      val uri = new java.net.URI(config.getString("statsd.url"))
+      metrics.start(uri)
+
+      Done
     }
   }
 

@@ -220,7 +220,7 @@ case class PrimaryDataExplorationWorker(
               case transfer =>
                 transfer
             }
-            .async  // FIXME backtrack check if both credit and debit accounts exists
+            .async // FIXME backtrack check if both credit and debit accounts exists
             .mapAsync(1) { transfer =>
               secondaryStorage
                 .getTransfer(

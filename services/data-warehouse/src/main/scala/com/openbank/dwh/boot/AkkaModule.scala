@@ -47,7 +47,7 @@ trait ProductionAkkaModule extends AkkaModule with Lifecycle {
             "graceful-stop"
           )(() => stop())
         Done
-      }(executionContext)
+      }
   }
 
   abstract override def stop(): Future[Done] = {
