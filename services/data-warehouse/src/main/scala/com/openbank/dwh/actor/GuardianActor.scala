@@ -4,11 +4,11 @@ import akka.Done
 import akka.util.Timeout
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
+import akka.actor.typed.{ActorRef, Behavior, MailboxSelector, SupervisorStrategy}
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
-import com.openbank.dwh.boot.{ServiceModule, MetricsModule}
+import com.openbank.dwh.boot.{MetricsModule, ServiceModule}
 
 object Guardian {
 
@@ -27,39 +27,40 @@ object GuardianActor extends StrictLogging {
 
   import Guardian._
 
+  private var nameToActor = Map.empty[String, ActorRef[Command]]
+
   def apply(): Behavior[Command] = {
-    Behaviors
-      .supervise {
-        Behaviors.setup { (ctx: ActorContext[Command]) =>
-          behaviour(ctx)
-        }
-      }
-      .onFailure(SupervisorStrategy.restart.withStopChildren(false))
+    Behaviors.setup { (ctx: ActorContext[Command]) =>
+      behaviour(ctx)
+    }
   }
 
   def behaviour(ctx: ActorContext[Command]): Behavior[Command] =
     Behaviors.receiveMessagePartial {
 
       case Bootstrap(replyTo, service) =>
-        getRunningActor(ctx, PrimaryDataExplorer.name) match {
+        nameToActor.get(PrimaryDataExplorer.name) match {
+          case Some(_) => {}
           case None =>
             logger.info("Starting {}/{}", ctx.self.path, PrimaryDataExplorer.name)
-            ctx.spawn(
+            val ref = ctx.spawn(
               PrimaryDataExplorerActor(service.primaryDataExplorationService),
-              PrimaryDataExplorer.name
+              PrimaryDataExplorer.name,
+              MailboxSelector.fromConfig(s"akka.actor.${PrimaryDataExplorer.name}-mailbox")
             )
-            ctx.self ! PrimaryDataExplorer.RunExploration
-          case _ =>
+            nameToActor += PrimaryDataExplorer.name -> ref
         }
 
-        getRunningActor(ctx, MemoryMonitor.name) match {
+        nameToActor.get(MemoryMonitor.name) match {
+          case Some(_) => {}
           case None =>
             logger.info("Starting {}/{}", ctx.self.path, MemoryMonitor.name)
-            ctx.spawn(
+            val ref = ctx.spawn(
               MemoryMonitorActor(service.metrics),
-              MemoryMonitor.name
+              MemoryMonitor.name,
+              MailboxSelector.fromConfig(s"akka.actor.${MemoryMonitor.name}-mailbox")
             )
-          case _ =>
+            nameToActor += MemoryMonitor.name -> ref
         }
 
         replyTo ! Done
@@ -72,24 +73,17 @@ object GuardianActor extends StrictLogging {
         Future
           .sequence {
 
-            ctx.children.toSeq.map {
-
-              case ref: ActorRef[Nothing] =>
-                logger.warn("Stopping {}", ref.path)
-                ref
-                  .asInstanceOf[ActorRef[Command]]
-                  .ask[Done](Shutdown)(
-                    Timeout(5.seconds),
-                    ctx.system.scheduler
-                  )
-                  .recoverWith { case _: Exception =>
-                    ctx.stop(ref)
-                    Future.successful(Done)
-                  }(ctx.executionContext)
-
-              case node =>
-                logger.warn("Unknown child {}", node)
-                Future.successful(Done)
+            nameToActor.values.map { case ref =>
+              logger.warn("Stopping {}", ref.path)
+              ref
+                .ask[Done](Shutdown)(
+                  Timeout(5.seconds),
+                  ctx.system.scheduler
+                )
+                .recoverWith { case _: Exception =>
+                  ctx.stop(ref)
+                  Future.successful(Done)
+                }(ctx.executionContext)
 
             }
           }
@@ -100,29 +94,17 @@ object GuardianActor extends StrictLogging {
           }
           .onComplete { _ => replyTo ! Done }
 
-        Behaviors.stopped
-
-      case msg: PrimaryDataExplorer.Command =>
-        getRunningActor(ctx, PrimaryDataExplorer.name) match {
-          case Some(ref) => ref ! msg
-          case _         => logger.info("Cannot run primary data exploration")
-        }
         Behaviors.same
 
-      case _ =>
-        Behaviors.unhandled
+      case msg: PrimaryDataExplorer.Command =>
+        nameToActor.get(PrimaryDataExplorer.name) match {
+          case Some(ref) => ref ! msg
+          case None =>
+            logger.info("Cannot run primary data exploration")
+        }
+
+        Behaviors.same
 
     }
-
-  private def getRunningActor(
-      ctx: ActorContext[Command],
-      name: String
-  ): Option[ActorRef[Command]] = {
-    ctx.child(name) match {
-      case actor: Some[ActorRef[Nothing]] =>
-        actor.map(_.asInstanceOf[ActorRef[Command]])
-      case _ => None
-    }
-  }
 
 }

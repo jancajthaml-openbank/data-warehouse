@@ -1,14 +1,18 @@
 package com.openbank.dwh.service
 
 import com.openbank.dwh.metrics.StatsDClient
+
 import java.nio.file.Path
 import akka.{Done, NotUsed}
 import com.typesafe.scalalogging.StrictLogging
-import scala.concurrent.{ExecutionContext, Future}
+
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import akka.stream.scaladsl._
 import akka.stream._
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
+
+import java.util.concurrent.atomic.AtomicReference
 import collection.immutable.Seq
 
 case class PrimaryDataExplorationWorker(
@@ -270,26 +274,38 @@ class PrimaryDataExplorationService(
 )(implicit ec: ExecutionContext, mat: Materializer)
     extends StrictLogging {
 
-  private val mutex = new Object()
+  private val mutex = new AtomicReference[Thread](null)
 
-  @volatile private var killSwitch: Option[UniqueKillSwitch] = None
+  @volatile private var currentWork: Option[(UniqueKillSwitch, Future[Done])] = None
 
-  def killRunningWorkflow(): Future[Done] =
-    mutex.synchronized {
-      killSwitch.foreach(_.abort(new Exception("shutdown")))
-      killSwitch = None
-      Future.successful(Done)
+  def killRunningWorkflow(): Future[Done] = {
+    val promise = Promise[Done]()
+    val workToKill = mutex.synchronized {
+      val ref = currentWork
+      currentWork = None
+      ref
     }
+
+    workToKill match {
+      case Some((killSwitch, work)) =>
+        killSwitch.abort(new Exception("shutdown"))
+        promise.completeWith {
+          work
+            .map { _ => Done }
+            .recover { case _ => Done }
+        }
+
+      case None => promise.success(Done)
+    }
+
+    promise.future
+  }
 
   def runExploration(): Future[Done] = {
     val worker = PrimaryDataExplorationWorker(primaryStorage, secondaryStorage, metrics)
     val (switch, result) = worker.runExploration()
-    killSwitch = Some(switch)
+    currentWork = Some((switch, result))
     result
-      .recoverWith { case e: Exception =>
-        logger.error("Primary exploration failed", e)
-        Future.successful(Done)
-      }
   }
 
 }

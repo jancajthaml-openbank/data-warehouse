@@ -16,18 +16,17 @@ trait ProductionActorModule extends ActorModule with Lifecycle {
   abstract override def stop(): Future[Done] = {
     logger.info("Stopping akka://{}", Guardian.name)
     typedSystem
-      .ask[Done] { self =>
-        Guardian.Shutdown(self)
-      }(Timeout(5.seconds), typedSystem.scheduler)
+      .ask[Done] { self => Guardian.Shutdown(self) }(Timeout(5.seconds), typedSystem.scheduler)
       .flatMap(_ => super.stop())
   }
 
   abstract override def start(): Future[Done] = {
     logger.info("Starting akka://{}", Guardian.name)
     typedSystem
-      .ask[Done] { self =>
-        Guardian.Bootstrap(self, this)
-      }(Timeout(5.seconds), typedSystem.scheduler)
+      .ask[Done] { self => Guardian.Bootstrap(self, this) }(
+        Timeout(5.seconds),
+        typedSystem.scheduler
+      )
       .flatMap(_ => super.start())
   }
 
