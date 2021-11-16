@@ -6,7 +6,6 @@ import akka.http.scaladsl.server.Route
 import com.openbank.dwh.routers._
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.Future
-import scala.util.Success
 
 trait RouterModule {
 
@@ -26,16 +25,18 @@ trait ProductionRouterModule extends RouterModule with Lifecycle {
   lazy val routes: Route = new RootRouter(healthCheck, graphQL).route
 
   abstract override def start(): Future[Done] = {
+    implicit val system: akka.actor.ActorSystem = untypedSystem
+
     super.start().flatMap { _ =>
       logger.info("Starting Router Module")
 
       Http()
         .newServerAt(bindToLocation, bindToPort)
         .bind(routes)
-        .andThen { case Success(binding) =>
+        .map { binding =>
           logger.info("REST Listening on tcp:/{}", binding.localAddress)
+          Done
         }
-        .map(_ => Done)
     }
   }
 

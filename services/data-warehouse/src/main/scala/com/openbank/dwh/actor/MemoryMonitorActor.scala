@@ -1,36 +1,38 @@
 package com.openbank.dwh.actor
 
 import akka.Done
+import akka.actor.ActorSystem.Settings
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{Behavior, SupervisorStrategy}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
 import com.openbank.dwh.metrics.StatsDClient
+import akka.dispatch.{PriorityGenerator, UnboundedPriorityMailbox}
+import scala.annotation.unused
 
 object MemoryMonitor {
 
   val name = "memory-monitor"
 
-  case object ReportMemoryStats extends Guardian.Command
+  sealed trait Command extends Guardian.Command
+
+  case object ReportMemoryStats extends Command
 
 }
 
-object MemoryMonitorActor extends StrictLogging {
+object MemoryMonitorActor {
 
   import MemoryMonitor._
-
-  case class BehaviorProps(metrics: StatsDClient)
 
   private lazy val delay = 1.seconds
 
   def apply(metrics: StatsDClient): Behavior[Guardian.Command] = {
-    val props = BehaviorProps(metrics)
-
     Behaviors
       .supervise {
         Behaviors.withTimers[Guardian.Command] { timer =>
           timer.startTimerAtFixedRate(ReportMemoryStats, delay)
-          active(props)
+          val ref = new MemoryMonitorActor(metrics)
+          ref.default()
         }
       }
       .onFailure[Exception](
@@ -38,7 +40,13 @@ object MemoryMonitorActor extends StrictLogging {
       )
   }
 
-  def active(props: BehaviorProps): Behavior[Guardian.Command] =
+}
+
+class MemoryMonitorActor(metrics: StatsDClient) extends StrictLogging {
+
+  import MemoryMonitor._
+
+  def default(): Behavior[Guardian.Command] =
     Behaviors.receive {
 
       case (_, ReportMemoryStats) =>
@@ -46,7 +54,7 @@ object MemoryMonitorActor extends StrictLogging {
 
         val runtime = Runtime.getRuntime
 
-        props.metrics.gauge(
+        metrics.gauge(
           "memory.bytes",
           runtime.totalMemory - runtime.freeMemory
         )
@@ -64,5 +72,11 @@ object MemoryMonitorActor extends StrictLogging {
         Behaviors.unhandled
 
     }
-
 }
+
+class MemoryMonitorMailbox(@unused settings: Settings, @unused config: com.typesafe.config.Config)
+    extends UnboundedPriorityMailbox(
+      PriorityGenerator { case _ =>
+        0
+      }
+    )

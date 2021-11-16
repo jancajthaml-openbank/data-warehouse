@@ -15,3 +15,5 @@
 FROM scratch
 
 COPY packaging/bin/* /opt/artifacts/
+
+# fixme not runnable docker image

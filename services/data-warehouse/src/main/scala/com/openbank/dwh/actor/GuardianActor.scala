@@ -4,12 +4,11 @@ import akka.Done
 import akka.util.Timeout
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
+import akka.actor.typed.{ActorRef, Behavior, MailboxSelector, SupervisorStrategy}
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import com.typesafe.scalalogging.StrictLogging
-import com.openbank.dwh.service._
 import scala.concurrent.duration._
-import com.openbank.dwh.metrics.StatsDClient
+import com.openbank.dwh.boot.{MetricsModule, ServiceModule}
 
 object Guardian {
 
@@ -17,7 +16,8 @@ object Guardian {
 
   trait Command
 
-  case object StartActors extends Command
+  case class Bootstrap(replyTo: ActorRef[Done], service: ServiceModule with MetricsModule)
+      extends Command
 
   case class Shutdown(replyTo: ActorRef[Done]) extends Command
 
@@ -27,79 +27,63 @@ object GuardianActor extends StrictLogging {
 
   import Guardian._
 
-  case class BehaviorProps(
-      ctx: ActorContext[Command],
-      primaryDataExplorationService: PrimaryDataExplorationService,
-      metrics: StatsDClient
-  )
+  private var nameToActor = Map.empty[String, ActorRef[Command]]
 
-  def apply(
-      primaryDataExplorationService: PrimaryDataExplorationService,
-      metrics: StatsDClient
-  ): Behavior[Command] = {
-    Behaviors
-      .supervise {
-        Behaviors.setup { (ctx: ActorContext[Command]) =>
-          val props = BehaviorProps(ctx, primaryDataExplorationService, metrics)
-          behaviour(props)
-        }
-      }
-      .onFailure(SupervisorStrategy.restart.withStopChildren(false))
+  def apply(): Behavior[Command] = {
+    Behaviors.setup { (ctx: ActorContext[Command]) =>
+      behaviour(ctx)
+    }
   }
 
-  def behaviour(
-      props: BehaviorProps
-  ): Behavior[Command] =
+  def behaviour(ctx: ActorContext[Command]): Behavior[Command] =
     Behaviors.receiveMessagePartial {
 
-      case StartActors =>
-        getRunningActor(props.ctx, PrimaryDataExplorer.name) match {
+      case Bootstrap(replyTo, service) =>
+        nameToActor.get(PrimaryDataExplorer.name) match {
+          case Some(_) => {}
           case None =>
-            logger.info("Starting {}/{}", props.ctx.self.path, PrimaryDataExplorer.name)
-            props.ctx.spawn(
-              PrimaryDataExplorerActor(props.primaryDataExplorationService),
-              PrimaryDataExplorer.name
+            logger.info("Starting {}/{}", ctx.self.path, PrimaryDataExplorer.name)
+            val ref = ctx.spawn(
+              PrimaryDataExplorerActor(service.primaryDataExplorationService),
+              PrimaryDataExplorer.name,
+              MailboxSelector.fromConfig(s"akka.actor.${PrimaryDataExplorer.name}-mailbox")
             )
-            props.ctx.self ! PrimaryDataExplorer.RunExploration
-          case _ =>
+            nameToActor += PrimaryDataExplorer.name -> ref
         }
 
-        getRunningActor(props.ctx, MemoryMonitor.name) match {
+        nameToActor.get(MemoryMonitor.name) match {
+          case Some(_) => {}
           case None =>
-            logger.info("Starting {}/{}", props.ctx.self.path, MemoryMonitor.name)
-            props.ctx.spawn(
-              MemoryMonitorActor(props.metrics),
-              MemoryMonitor.name
+            logger.info("Starting {}/{}", ctx.self.path, MemoryMonitor.name)
+            val ref = ctx.spawn(
+              MemoryMonitorActor(service.metrics),
+              MemoryMonitor.name,
+              MailboxSelector.fromConfig(s"akka.actor.${MemoryMonitor.name}-mailbox")
             )
-          case _ =>
+            nameToActor += MemoryMonitor.name -> ref
         }
+
+        replyTo ! Done
 
         Behaviors.same
 
       case Shutdown(replyTo) =>
-        implicit val ec: ExecutionContextExecutor = props.ctx.executionContext
+        implicit val ec: ExecutionContextExecutor = ctx.executionContext
 
         Future
           .sequence {
 
-            props.ctx.children.toSeq.map {
-
-              case ref: ActorRef[Nothing] =>
-                logger.warn("Stopping {}", ref.path)
-                ref
-                  .asInstanceOf[ActorRef[Command]]
-                  .ask[Done](Shutdown)(
-                    Timeout(5.seconds),
-                    props.ctx.system.scheduler
-                  )
-                  .recoverWith { case _: Exception =>
-                    props.ctx.stop(ref)
-                    Future.successful(Done)
-                  }(props.ctx.executionContext)
-
-              case node =>
-                logger.warn("Unknown child {}", node)
-                Future.successful(Done)
+            nameToActor.values.map { case ref =>
+              logger.warn("Stopping {}", ref.path)
+              ref
+                .ask[Done](Shutdown)(
+                  Timeout(5.seconds),
+                  ctx.system.scheduler
+                )
+                .recoverWith { case _: Exception =>
+                  ctx.stop(ref)
+                  Future.successful(Done)
+                }(ctx.executionContext)
 
             }
           }
@@ -110,29 +94,17 @@ object GuardianActor extends StrictLogging {
           }
           .onComplete { _ => replyTo ! Done }
 
-        Behaviors.stopped
-
-      case PrimaryDataExplorer.RunExploration =>
-        getRunningActor(props.ctx, PrimaryDataExplorer.name) match {
-          case Some(ref) => ref ! PrimaryDataExplorer.RunExploration
-          case _         => logger.info("Cannot run primary data exploration")
-        }
         Behaviors.same
 
-      case _ =>
-        Behaviors.unhandled
+      case msg: PrimaryDataExplorer.Command =>
+        nameToActor.get(PrimaryDataExplorer.name) match {
+          case Some(ref) => ref ! msg
+          case None =>
+            logger.info("Cannot run primary data exploration")
+        }
+
+        Behaviors.same
 
     }
-
-  private def getRunningActor(
-      ctx: ActorContext[Command],
-      name: String
-  ): Option[ActorRef[Command]] = {
-    ctx.child(name) match {
-      case actor: Some[ActorRef[Nothing]] =>
-        actor.map(_.asInstanceOf[ActorRef[Command]])
-      case _ => None
-    }
-  }
 
 }

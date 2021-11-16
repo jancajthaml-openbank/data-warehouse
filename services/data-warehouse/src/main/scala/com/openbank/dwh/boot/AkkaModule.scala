@@ -1,30 +1,35 @@
 package com.openbank.dwh.boot
 
 import akka.Done
-import akka.actor.CoordinatedShutdown.{JvmExitReason, Reason}
-import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
+import akka.actor.CoordinatedShutdown
 import com.typesafe.scalalogging.StrictLogging
-
+import com.openbank.dwh.actor.{Guardian, GuardianActor}
 import scala.concurrent.{ExecutionContext, Future}
+import akka.stream.{Materializer, SystemMaterializer}
 
 trait AkkaModule {
 
-  implicit def system: ActorSystem
+  def untypedSystem: akka.actor.ActorSystem
 
-  implicit def scheduler: Scheduler
+  def typedSystem: akka.actor.typed.ActorSystem[Guardian.Command]
 
   implicit def executionContext: ExecutionContext
+
+  implicit def materializer: Materializer
 
 }
 
 trait ProductionAkkaModule extends AkkaModule with Lifecycle {
-  self: ConfigModule with TypedActorModule with StrictLogging =>
+  self: ConfigModule with StrictLogging =>
 
-  implicit def system: ActorSystem = typedSystem.classicSystem
+  lazy val typedSystem: akka.actor.typed.ActorSystem[Guardian.Command] =
+    akka.actor.typed.ActorSystem(GuardianActor(), Guardian.name)
 
-  implicit lazy val scheduler: Scheduler = system.scheduler
+  lazy val untypedSystem: akka.actor.ActorSystem = typedSystem.classicSystem
 
   implicit lazy val executionContext: ExecutionContext = typedSystem.executionContext
+
+  implicit lazy val materializer: Materializer = SystemMaterializer(untypedSystem).materializer
 
   abstract override def start(): Future[Done] = {
     super.start().map { _ =>
@@ -40,9 +45,9 @@ trait ProductionAkkaModule extends AkkaModule with Lifecycle {
           .addTask(
             CoordinatedShutdown.PhaseBeforeActorSystemTerminate,
             "graceful-stop"
-          )(stop)
+          )(() => stop())
         Done
-      }(executionContext)
+      }
   }
 
   abstract override def stop(): Future[Done] = {
@@ -51,6 +56,6 @@ trait ProductionAkkaModule extends AkkaModule with Lifecycle {
   }
 
   def shutdown(): Future[Done] =
-    CoordinatedShutdown(typedSystem).run(JvmExitReason)
+    CoordinatedShutdown(typedSystem).run(CoordinatedShutdown.JvmExitReason)
 
 }

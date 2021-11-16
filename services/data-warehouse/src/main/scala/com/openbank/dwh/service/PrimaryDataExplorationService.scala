@@ -1,14 +1,18 @@
 package com.openbank.dwh.service
 
 import com.openbank.dwh.metrics.StatsDClient
+
 import java.nio.file.Path
 import akka.{Done, NotUsed}
 import com.typesafe.scalalogging.StrictLogging
-import scala.concurrent.{ExecutionContext, Future}
+
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import akka.stream.scaladsl._
 import akka.stream._
 import com.openbank.dwh.model._
 import com.openbank.dwh.persistence._
+
+import java.util.concurrent.atomic.AtomicReference
 import collection.immutable.Seq
 
 case class PrimaryDataExplorationWorker(
@@ -44,22 +48,19 @@ case class PrimaryDataExplorationWorker(
       .mapAsync(1) { name =>
         secondaryStorage.getTenant(name).flatMap {
           case Some(tenant) =>
-            Future.successful(Some(tenant))
+            Future.successful(tenant)
           case None =>
             val tenant = PersistentTenant(name)
-            logger.info("Discovered new Tenant {}", tenant.name)
-            metrics.count("discovery.tenant", 1)
             secondaryStorage
               .updateTenant(tenant)
-              .map { _ => Some(tenant) }
+              .map { _ =>
+                logger.info("Discovered new Tenant {}", tenant.name)
+                metrics.count("discovery.tenant", 1)
+                tenant
+              }
         }
       }
       .async
-      .recover { case e: Exception =>
-        logger.warn("Failed to get tenant caused by", e)
-        None
-      }
-      .collect { case Some(tenant) => tenant }
   }
 
   def getAccountsFlow: Graph[FlowShape[PersistentTenant, PersistentAccount], NotUsed] = {
@@ -79,25 +80,22 @@ case class PrimaryDataExplorationWorker(
           .getAccount(tenant.name, name)
           .flatMap {
             case Some(account) =>
-              Future.successful(Some(account))
+              Future.successful(account)
             case None =>
               primaryStorage
                 .getAccount(tenant.name, name)
                 .flatMap { account =>
-                  logger.info(s"Discovered new Account {}/{}", account.tenant, account.name)
-                  metrics.count("discovery.account", 1)
                   secondaryStorage
                     .updateAccount(account)
-                    .map { _ => Some(account) }
+                    .map { _ =>
+                      logger.info(s"Discovered new Account {}/{}", account.tenant, account.name)
+                      metrics.count("discovery.account", 1)
+                      account
+                    }
                 }
           }
       }
       .async
-      .recover { case e: Exception =>
-        logger.warn("Failed to get account caused by", e)
-        None
-      }
-      .collect { case Some(data) => data }
   }
 
   protected def getAccountSnapshotsFlow: Flow[
@@ -110,7 +108,7 @@ case class PrimaryDataExplorationWorker(
         val path = primaryStorage
           .getAccountSnapshotsPath(account.tenant, account.name)
 
-        val snapshots = primaryStorage
+        primaryStorage
           .listFiles(path)
           .map(_.getFileName.toString)
           .filterNot(_.isEmpty)
@@ -124,30 +122,23 @@ case class PrimaryDataExplorationWorker(
               .map { version => (account, version) }
               .toIndexedSeq
           }
-
-        snapshots
       }
       .async
       .flatMapConcat(Source.apply)
       .mapAsync(1) { case (account, version) =>
         primaryStorage
           .getAccountSnapshot(account.tenant, account.name, version)
-          .map { snapshot => Some((account, snapshot)) }
+          .map { snapshot => (account, snapshot) }
       }
       .async
-      .recover { case e: Exception =>
-        logger.warn("Failed to get account snapshot caused by", e)
-        None
-      }
-      .collect { case Some(data) => data }
   }
 
-  private def getNewAccountEvents(
-      account: PersistentAccount,
-      snapshot: PersistentAccountSnapshot
-  ) =
-    Source
-      .single((account, snapshot))
+  def getAccountEventsFlow: Flow[
+    (PersistentAccount, PersistentAccountSnapshot),
+    (PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent),
+    NotUsed
+  ] = {
+    Flow[(PersistentAccount, PersistentAccountSnapshot)]
       .flatMapConcat { case (account, snapshot) =>
         val path = primaryStorage
           .getAccountEventsPath(
@@ -156,65 +147,38 @@ case class PrimaryDataExplorationWorker(
             snapshot.version
           )
 
-        val events = primaryStorage
+        primaryStorage
           .listFiles(path)
           .map(_.getFileName.toString)
           .filterNot(_.isEmpty)
-          .map { file => (account, snapshot, file) }
-
-        events
-      }
-      .fold(
-        Seq.empty[(PersistentAccount, PersistentAccountSnapshot, String)]
-      )(_ :+ _)
-      .filterNot(_.isEmpty)
-      .filterNot { data =>
-        data.last._1.lastSynchronizedSnapshot == data.last._2.version &&
-        data.last._1.lastSynchronizedEvent >= data.size
-      }
-      .flatMapConcat(Source.apply)
-      .mapAsync(1) { case (account, snapshot, event) =>
-        primaryStorage
-          .getAccountEvent(
-            account.tenant,
-            account.name,
-            snapshot.version,
-            event
-          )
+          .fold(Seq.empty[String])(_ :+ _)
+          .filterNot { data =>
+            data.isEmpty || (
+              account.lastSynchronizedSnapshot == snapshot.version &&
+                account.lastSynchronizedEvent >= data.size
+            )
+          }
+          .flatMapConcat(Source.apply)
+          .mapAsync(1) { event =>
+            primaryStorage
+              .getAccountEvent(
+                account.tenant,
+                account.name,
+                snapshot.version,
+                event
+              )
+          }
+          .async
+          .filterNot { event =>
+            account.lastSynchronizedSnapshot == snapshot.version &&
+            account.lastSynchronizedEvent > event.version
+          }
+          .fold(Seq.empty[PersistentAccountEvent])(_ :+ _)
+          .map(_.sortBy(_.version))
+          .flatMapConcat(Source.apply)
           .map { event => (account, snapshot, event) }
       }
       .async
-      .filterNot { event =>
-        event._1.lastSynchronizedSnapshot == event._2.version &&
-        event._1.lastSynchronizedEvent > event._3.version
-      }
-      .runWith(Sink.seq)
-      .map { events =>
-        events.sortWith(_._3.version < _._3.version)
-      }
-
-  def getAccountEventsFlow: Flow[
-    (PersistentAccount, PersistentAccountSnapshot),
-    (PersistentAccount, PersistentAccountSnapshot, PersistentAccountEvent),
-    NotUsed
-  ] = {
-
-    Flow[(PersistentAccount, PersistentAccountSnapshot)]
-      .mapAsync(1) { case (account, snapshot) =>
-        getNewAccountEvents(account, snapshot)
-      }
-      .async
-      .recover { case e: Exception =>
-        logger.warn("Failed to get account events caused by", e)
-        IndexedSeq[
-          (
-              PersistentAccount,
-              PersistentAccountSnapshot,
-              PersistentAccountEvent
-          )
-        ]()
-      }
-      .flatMapConcat(Source.apply)
       .map { case (account, snapshot, event) =>
         val nextAccount = account.copy(
           lastSynchronizedSnapshot = snapshot.version,
@@ -260,7 +224,7 @@ case class PrimaryDataExplorationWorker(
               case transfer =>
                 transfer
             }
-            .async
+            .async // FIXME backtrack check if both credit and debit accounts exists
             .mapAsync(1) { transfer =>
               secondaryStorage
                 .getTransfer(
@@ -269,19 +233,20 @@ case class PrimaryDataExplorationWorker(
                   transfer.transfer
                 )
                 .flatMap {
-                  case Some(b) =>
-                    Future.successful(b)
+                  case Some(transfer) =>
+                    Future.successful(transfer)
                   case None =>
-                    logger.info(
-                      "Discovered new Transfer {}/{}",
-                      transfer.transaction,
-                      transfer.transfer
-                    )
-                    metrics.count("discovery.transfer", 1)
-
                     secondaryStorage
                       .updateTransfer(transfer)
-                      .map { _ => transfer }
+                      .map { _ =>
+                        logger.info(
+                          "Discovered new Transfer {}/{}",
+                          transfer.transaction,
+                          transfer.transfer
+                        )
+                        metrics.count("discovery.transfer", 1)
+                        transfer
+                      }
                 }
             }
             .async
@@ -306,31 +271,41 @@ class PrimaryDataExplorationService(
     primaryStorage: PrimaryPersistence,
     secondaryStorage: SecondaryPersistence,
     metrics: StatsDClient
-) extends StrictLogging {
+)(implicit ec: ExecutionContext, mat: Materializer)
+    extends StrictLogging {
 
-  private val mutex = new Object()
-  @volatile private var killSwitch: Option[UniqueKillSwitch] = None
+  private val mutex = new AtomicReference[Thread](null)
 
-  def killRunningWorkflow(): Future[Done] =
-    mutex.synchronized {
-      killSwitch.foreach(_.abort(new Exception("shutdown")))
-      killSwitch = None
-      Future.successful(Done)
+  @volatile private var currentWork: Option[(UniqueKillSwitch, Future[Done])] = None
+
+  def killRunningWorkflow(): Future[Done] = {
+    val promise = Promise[Done]()
+    val workToKill = mutex.synchronized {
+      val ref = currentWork
+      currentWork = None
+      ref
     }
 
-  def runExploration(ec: ExecutionContext, mat: Materializer): Future[Done] = {
-    val worker =
-      PrimaryDataExplorationWorker(primaryStorage, secondaryStorage, metrics)(
-        ec,
-        mat
-      )
+    workToKill match {
+      case Some((killSwitch, work)) =>
+        killSwitch.abort(new Exception("shutdown"))
+        promise.completeWith {
+          work
+            .map { _ => Done }
+            .recover { case _ => Done }
+        }
+
+      case None => promise.success(Done)
+    }
+
+    promise.future
+  }
+
+  def runExploration(): Future[Done] = {
+    val worker = PrimaryDataExplorationWorker(primaryStorage, secondaryStorage, metrics)
     val (switch, result) = worker.runExploration()
-    killSwitch = Some(switch)
+    currentWork = Some((switch, result))
     result
-      .recoverWith { case e: Exception =>
-        logger.error("Primary exploration failed", e)
-        Future.successful(Done)
-      }(ec)
   }
 
 }
