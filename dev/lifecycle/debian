@@ -100,7 +100,6 @@ lifecycle::debian::package() {
   echo "[info] (${TARGET_PACKAGE}_${TARGET_ARCHITECTURE}) running dpkg-buildpackage"
   local CC=gcc
   case ${TARGET_ARCHITECTURE} in
-    armhf) CC=arm-linux-gnueabihf-gcc ;;
     arm64) CC=aarch64-linux-gnu-gcc   ;;
     *)     CC=gcc                     ;;
   esac
