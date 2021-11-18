@@ -2,9 +2,9 @@ organization := "com.openbank"
 name := "data-warehouse"
 version := "1.0.0"
 
-scalaVersion := "2.13.4"
+scalaVersion := "2.13.7"
 
-val akkaVersion = "2.6.14"
+val akkaVersion = "2.6.17"
 val akkaHttpVersion = "10.2.4"
 
 val reactiveStreams = ExclusionRule("org.reactivestreams")
@@ -32,13 +32,13 @@ libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick-hikaricp" % "3.3.3" excludeAll(log4j, reactiveStreams, typesafeConfig, slick),
   "com.github.tminglei" %% "slick-pg" % "0.19.7" excludeAll(log4j, reactiveStreams, typesafeConfig, slick),
   "ch.qos.logback" % "logback-classic" % "1.2.6" excludeAll(log4j),
-  "org.slf4j" % "jcl-over-slf4j" % "1.7.30",
+  "org.slf4j" % "jcl-over-slf4j" % "1.7.32",
 	"net.java.dev.jna" % "jna" % "5.9.0",
   "org.postgresql" %  "postgresql" % "42.2.19",
   "org.sangria-graphql" %% "sangria" % "2.0.1",
   "org.sangria-graphql" %% "sangria-spray-json" % "1.0.2" excludeAll(spray),
   "com.datadoghq" % "java-dogstatsd-client" % "2.13.0",
-  "org.scalatest" %% "scalatest" % "3.2.9" % Test,
+  "org.scalatest" %% "scalatest" % "3.2.10" % Test,
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test
 )
 

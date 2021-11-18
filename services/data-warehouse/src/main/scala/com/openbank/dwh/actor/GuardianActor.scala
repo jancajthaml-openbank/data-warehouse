@@ -4,7 +4,7 @@ import akka.Done
 import akka.util.Timeout
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior, MailboxSelector, SupervisorStrategy}
+import akka.actor.typed.{ActorRef, Behavior, MailboxSelector}
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration._
