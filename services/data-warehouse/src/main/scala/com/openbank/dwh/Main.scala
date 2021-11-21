@@ -5,7 +5,6 @@ import com.openbank.dwh.boot._
 import com.openbank.dwh.support.Health
 import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
-
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor}
 import scala.concurrent.duration._
 import scala.util.control.NonFatal

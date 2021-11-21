@@ -7,10 +7,10 @@ services:
   # -------------------------------------------------------------------------- #
 
   scala: &scala
-    image: jancajthaml/scala:amd64
+    image: jancajthaml/scala:${ARCH}
     tty: true
     volumes:
-      - .:/project
+      - .:/project:delegated
     working_dir: /project
 
   # -------------------------------------------------------------------------- #
@@ -19,7 +19,7 @@ services:
     image: jancajthaml/debian-packager
     tty: true
     volumes:
-      - .:/project
+      - .:/project:delegated
     working_dir: /project
 
   # -------------------------------------------------------------------------- #
@@ -80,14 +80,13 @@ services:
   # -------------------------------------------------------------------------- #
 
   bbtest:
-    image: jancajthaml/bbtest:amd64
+    image: jancajthaml/bbtest:${ARCH}
     depends_on:
       - postgres
     environment:
       POSTGRES_HOSTNAME: postgres
       IMAGE_VERSION: ${VERSION:-latest}-${META:-main}
       UNIT_VERSION: ${VERSION:-latest}
-      UNIT_ARCH: amd64
       CI: ${CI:-false}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
