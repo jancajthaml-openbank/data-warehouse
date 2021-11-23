@@ -88,7 +88,7 @@ workflows:
           requires:
             - checkout
       - compile:
-        requires:
+          requires:
             - checkout
           matrix:
             parameters:
