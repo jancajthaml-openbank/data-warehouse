@@ -210,7 +210,7 @@ jobs:
   # -------------------------------------------------------------------------- #
 
   unit-test:
-    executor: scala
+    executor: scala-amd64
     working_directory: /mnt/ramdisk
     steps:
       - restore_cache:
