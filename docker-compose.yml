@@ -75,7 +75,7 @@ services:
 
   postgres:
     hostname: postgres
-    image: openbank/postgres:v0.0.0-main
+    image: openbank/postgres:${ARCH}-v0.0.0.main
 
   # -------------------------------------------------------------------------- #
 
