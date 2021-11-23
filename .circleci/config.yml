@@ -438,7 +438,7 @@ jobs:
     working_directory: /home/circleci/project
     steps:
       - checkout
-      - run: docker pull docker.io/jancajthaml/bbtest:amd64
+      - run: docker pull docker.io/jancajthaml/bbtest:<< parameters.arch >>
       - run:
           name: Update VERSION + META
           command: |
