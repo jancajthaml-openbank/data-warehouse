@@ -166,13 +166,13 @@ executors:
     docker:
       - image: docker.io/jancajthaml/debian-packager:latest
 
-  arm64-testbed:
+  machine-arm64:
     machine:
       image: ubuntu-2004:202101-01
       docker_layer_caching: false
       resource_class: arm.medium
 
-  amd64-testbed:
+  machine-amd64:
     machine:
       image: ubuntu-2004:202101-01
       docker_layer_caching: false
@@ -434,7 +434,7 @@ jobs:
     parameters:
       arch:
         type: string
-    executor: << parameters.arch >>-testbed
+    executor: machine-<< parameters.arch >>
     working_directory: /home/circleci/project
     steps:
       - checkout
