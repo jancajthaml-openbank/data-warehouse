@@ -47,19 +47,13 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+(\.[0-9]+)*$/
-      - package-debian-amd64:
+      - package-debian:
           requires:
             - compile
             - versions
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+(\.[0-9]+)*$/
-      - package-debian-arm64:
-          requires:
-            - compile
-            - versions
+          matrix:
+            parameters:
+              arch: [amd64, arm64]
           filters:
             branches:
               ignore: /.*/
@@ -68,8 +62,7 @@ workflows:
       - package-docker:
           requires:
             - unit-test
-            - package-debian-amd64
-            - package-debian-arm64
+            - package-debian
           filters:
             branches:
               ignore: /.*/
@@ -111,19 +104,17 @@ workflows:
           matrix:
             parameters:
               arch: [amd64, arm64]
-      - package-debian-amd64:
-          requires:
-            - compile
-            - versions
-      - package-debian-arm64:
+      - package-debian:
+          matrix:
+            parameters:
+              arch: [amd64, arm64]
           requires:
             - compile
             - versions
       - package-docker:
           requires:
             - unit-test
-            - package-debian-amd64
-            - package-debian-arm64
+            - package-debian
       - blackbox-test:
           matrix:
             parameters:
@@ -292,14 +283,17 @@ jobs:
 
   # -------------------------------------------------------------------------- #
 
-  package-debian-amd64:
+  package-debian:
+    parameters:
+      arch:
+        type: string
     executor: debian
     working_directory: /mnt/ramdisk
     steps:
       - restore_cache:
           key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
-          key: binaries-amd64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          key: binaries-<< parameters.arch >>-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           key: versions-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
@@ -307,13 +301,13 @@ jobs:
           command: |
             VERSION=$(cat /mnt/ramdisk/VERSION)
             /mnt/ramdisk/dev/lifecycle/debian \
-              --arch amd64 \
+              --arch << parameters.arch >> \
               --pkg data-warehouse \
               --version ${VERSION} \
               --source /mnt/ramdisk/packaging
           no_output_timeout: 5m
       - save_cache:
-          key: debian-amd64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          key: debian-<< parameters.arch >>-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
           paths:
             - /mnt/ramdisk/packaging/bin
 
