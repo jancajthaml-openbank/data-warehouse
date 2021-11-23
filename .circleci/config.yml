@@ -144,7 +144,11 @@ executors:
     docker:
       - image: docker.io/alpine/git
 
-  scala:
+  scala-arm64:
+    docker:
+      - image: docker.io/jancajthaml/scala:arm64
+
+  scala-amd64:
     docker:
       - image: docker.io/jancajthaml/scala:amd64
 
@@ -152,13 +156,13 @@ executors:
     docker:
       - image: docker.io/jancajthaml/debian-packager:latest
 
-  arm64-testbed:
+  testbed-arm64:
     machine:
       image: ubuntu-2004:202101-01
       docker_layer_caching: false
       resource_class: arm.medium
 
-  amd64-testbed:
+  testbed-amd64:
     machine:
       image: ubuntu-2004:202101-01
       docker_layer_caching: false
@@ -261,7 +265,7 @@ jobs:
     parameters:
       arch:
         type: string
-    executor: scala
+    executor: scala-<< parameters.arch >>
     working_directory: /mnt/ramdisk
     steps:
       - restore_cache:
@@ -403,7 +407,7 @@ jobs:
     parameters:
       arch:
         type: string
-    executor: << parameters.arch >>-testbed
+    executor: testbed-<< parameters.arch >>
     working_directory: /home/circleci/project
     steps:
       - checkout
