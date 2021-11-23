@@ -20,17 +20,9 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+(\.[0-9]+)*$/
-      - deps:
-          requires:
-            - checkout
-          filters:
-            branches:
-              only: main
-            tags:
-              only: /^v[0-9]+(\.[0-9]+)*$/
       - unit-test:
           requires:
-            - deps
+            - checkout
           filters:
             branches:
               ignore: /.*/
@@ -38,7 +30,7 @@ workflows:
               only: /^v[0-9]+(\.[0-9]+)*$/
       - compile:
           requires:
-            - deps
+            - checkout
           matrix:
             parameters:
               arch: [amd64, arm64]
@@ -92,15 +84,12 @@ workflows:
     jobs:
       - checkout
       - versions
-      - deps:
-          requires:
-            - checkout
       - unit-test:
           requires:
-            - deps
+            - checkout
       - compile:
-          requires:
-            - deps
+        requires:
+            - checkout
           matrix:
             parameters:
               arch: [amd64, arm64]
@@ -220,35 +209,12 @@ jobs:
 
   # -------------------------------------------------------------------------- #
 
-  deps:
-    executor: scala
-    working_directory: /mnt/ramdisk
-    steps:
-      - restore_cache:
-          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Sync data-warehouse dependencies
-          command: |
-            /mnt/ramdisk/dev/lifecycle/sync \
-              --source /mnt/ramdisk/services/data-warehouse
-      - save_cache:
-          key: dependencies-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-          paths:
-            - /mnt/ramdisk/services/data-warehouse/.ivy
-            - /mnt/ramdisk/services/data-warehouse/target
-            - /mnt/ramdisk/services/data-warehouse/project/project
-            - /mnt/ramdisk/services/data-warehouse/project/target
-
-  # -------------------------------------------------------------------------- #
-
   unit-test:
     executor: scala
     working_directory: /mnt/ramdisk
     steps:
       - restore_cache:
           key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-      - restore_cache:
-          key: dependencies-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Unit test data-warehouse
           command: |
@@ -270,8 +236,6 @@ jobs:
     steps:
       - restore_cache:
           key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-      - restore_cache:
-          key: dependencies-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Compile data-warehouse binary
           command: |
