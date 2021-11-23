@@ -145,7 +145,10 @@ workflows:
               only:
                 - main
     jobs:
-      - blackbox-test
+      - blackbox-test:
+          matrix:
+            parameters:
+              arch: [amd64, arm64]
 
 # ---------------------------------------------------------------------------- #
 
