@@ -75,7 +75,7 @@ services:
 
   postgres:
     hostname: postgres
-    image: docker.pkg.github.com/jancajthaml-openbank/postgres:${ARCH}-0.0.0
+    image: docker.io/openbank/postgres:${ARCH}-v0.0.0.main
 
   # -------------------------------------------------------------------------- #
 
