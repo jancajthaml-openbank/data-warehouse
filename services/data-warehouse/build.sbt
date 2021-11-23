@@ -42,11 +42,11 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test
 )
 
-transitiveClassifiers in Global := Seq(Artifact.SourceClassifier)
-
 excludeDependencies ++= Seq(commonLogging)
 
-scalacOptions in Compile := Seq(
+Global / transitiveClassifiers := Seq(Artifact.SourceClassifier)
+
+Compile / scalacOptions := Seq(
   "-encoding",
   "utf-8",
   "-feature",
@@ -67,7 +67,7 @@ scalacOptions in Compile := Seq(
   "-Yrangepos"
 )
 
-scalacOptions in Test := Seq(
+Test / scalacOptions := Seq(
   "-Ywarn-unused"
 )
 
