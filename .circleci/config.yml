@@ -36,17 +36,12 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+(\.[0-9]+)*$/
-      - compile-amd64:
+      - compile:
           requires:
             - deps
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+(\.[0-9]+)*$/
-      - compile-arm64:
-          requires:
-            - deps
+          matrix:
+            parameters:
+              arch: [amd64, arm64]
           filters:
             branches:
               ignore: /.*/
@@ -54,7 +49,7 @@ workflows:
               only: /^v[0-9]+(\.[0-9]+)*$/
       - package-debian-amd64:
           requires:
-            - compile-amd64
+            - compile
             - versions
           filters:
             branches:
@@ -63,7 +58,7 @@ workflows:
               only: /^v[0-9]+(\.[0-9]+)*$/
       - package-debian-arm64:
           requires:
-            - compile-arm64
+            - compile
             - versions
           filters:
             branches:
@@ -110,19 +105,19 @@ workflows:
       - unit-test:
           requires:
             - deps
-      - compile-amd64:
+      - compile:
           requires:
             - deps
-      - compile-arm64:
-          requires:
-            - deps
+          matrix:
+            parameters:
+              arch: [amd64, arm64]
       - package-debian-amd64:
           requires:
-            - compile-amd64
+            - compile
             - versions
       - package-debian-arm64:
           requires:
-            - compile-arm64
+            - compile
             - versions
       - package-docker:
           requires:
@@ -271,7 +266,10 @@ jobs:
 
   # -------------------------------------------------------------------------- #
 
-  compile-amd64:
+  compile:
+    parameters:
+      arch:
+        type: string
     executor: scala
     working_directory: /mnt/ramdisk
     steps:
@@ -283,35 +281,12 @@ jobs:
           name: Compile data-warehouse binary
           command: |
             /mnt/ramdisk/dev/lifecycle/package \
-              --arch linux/amd64 \
+              --arch linux/<< parameters.arch >> \
               --source /mnt/ramdisk/services/data-warehouse \
               --output /mnt/ramdisk/packaging/bin
           no_output_timeout: 5m
       - save_cache:
-          key: binaries-amd64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-          paths:
-            - /mnt/ramdisk/packaging/bin
-
-  # -------------------------------------------------------------------------- #
-
-  compile-arm64:
-    executor: scala
-    working_directory: /home/circleci/project
-    steps:
-      - restore_cache:
-          key: code-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-      - restore_cache:
-          key: dependencies-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Compile data-warehouse binary
-          command: |
-            /mnt/ramdisk/dev/lifecycle/package \
-              --arch linux/arm64 \
-              --source /mnt/ramdisk/services/data-warehouse \
-              --output /mnt/ramdisk/packaging/bin
-          no_output_timeout: 5m
-      - save_cache:
-          key: binaries-arm64-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
+          key: binaries-<< parameters.arch >>-{{ .Environment.CIRCLE_TAG }}-{{ .Environment.CIRCLE_PROJECT_REPONAME }}-{{ .Environment.CIRCLE_SHA1 }}
           paths:
             - /mnt/ramdisk/packaging/bin
 
