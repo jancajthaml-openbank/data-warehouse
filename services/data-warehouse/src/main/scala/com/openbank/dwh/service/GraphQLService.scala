@@ -30,7 +30,7 @@ sealed trait Types {
         Right(s.toLong)
       case BigIntValue(s, _, _) if s >= 0 =>
         Right(s.toLong)
-      case s =>
+      case _ =>
         Left(NaturalNumberCoerceViolation)
     }
   )
