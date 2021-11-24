@@ -11,6 +11,7 @@ import com.openbank.dwh.persistence._
 import sangria.execution.deferred._
 import sangria.ast.{BigIntValue, IntValue, StringValue}
 import spray.json.{JsObject, JsValue}
+import scala.math.BigInt
 
 sealed trait Types {
 
@@ -18,9 +19,10 @@ sealed trait Types {
     "NaturalNumber",
     Some("Positive integer including zero"),
     coerceUserInput = {
-      case s: Int if s >= 0  => Right(s.toLong)
-      case s: Long if s >= 0 => Right(s)
-      case _                 => Left(NaturalNumberCoerceViolation)
+      case s: Int if s >= 0                            => Right(s.toLong)
+      case s: Long if s >= 0                           => Right(s)
+      case s: BigInt if s.signum >= 0 && s.isValidLong => Right(s.longValue)
+      case _                                           => Left(NaturalNumberCoerceViolation)
     },
     coerceOutput = (s, _) => s,
     coerceInput = {
