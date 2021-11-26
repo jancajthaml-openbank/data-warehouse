@@ -8,7 +8,7 @@ import scala.math.BigDecimal
 import java.sql.Timestamp
 import akka.http.scaladsl.model.DateTime
 import slick.ast.BaseTypedType
-import slick.jdbc.JdbcType
+import slick.jdbc.{JdbcType, ResultSetConcurrency, ResultSetType}
 import slick.lifted.{CompiledFunction, ProvenShape}
 
 import scala.concurrent.Future
@@ -35,7 +35,9 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
   class TenantTable(tag: Tag) extends Table[Tenant](tag, "tenant") {
     def name: Rep[String] = column[String]("name")
 
-    def * : ProvenShape[Tenant] = name <> (Tenant.apply, Tenant.unapply)
+    def * : ProvenShape[Tenant] = {
+      name <> (Tenant.apply, Tenant.unapply)
+    }
 
     def pk = primaryKey("tenant_pkey", name)
   }
@@ -154,7 +156,11 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
 
     (limit: Long, offset: Long) =>
       persistence.database.run {
-        query(limit, offset).result
+        query(limit, offset).result.withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 200
+        )
       }
   }
 
@@ -167,7 +173,11 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
 
     (names: Iterable[String]) =>
       persistence.database.run {
-        query(names.toList).result
+        query(names.toList).result.withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 10
+        )
       }
   }
 
@@ -205,7 +215,11 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
         offset: Long
     ) =>
       persistence.database.run {
-        query(tenant, currency, format, limit, offset).result
+        query(tenant, currency, format, limit, offset).result.withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 200
+        )
       }
   }
 
@@ -219,7 +233,11 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
 
     (tenant: String, names: Iterable[String]) =>
       persistence.database.run {
-        query(tenant, names.toList).result
+        query(tenant, names.toList).result.withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 10
+        )
       }
   }
 
@@ -341,7 +359,11 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
           valueDateGte,
           limit,
           offset
-        ).result
+        ).result.withStatementParameters(
+          rsType = ResultSetType.ForwardOnly,
+          rsConcurrency = ResultSetConcurrency.ReadOnly,
+          fetchSize = 10
+        )
       }
   }
 
@@ -369,7 +391,11 @@ class GraphQLPersistence(val persistence: Postgres) extends StrictLogging {
     (tenant: String, name: String) =>
       persistence.database
         .run {
-          query(tenant, name).result
+          query(tenant, name).result.withStatementParameters(
+            rsType = ResultSetType.ForwardOnly,
+            rsConcurrency = ResultSetConcurrency.ReadOnly,
+            fetchSize = 10
+          )
         }
         .map(_.getOrElse(0: BigDecimal))(
           persistence.database.executor.executionContext

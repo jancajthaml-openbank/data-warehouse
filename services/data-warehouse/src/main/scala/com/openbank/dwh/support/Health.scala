@@ -35,9 +35,8 @@ case object Health extends StrictLogging {
     } catch {
       case e: Exception =>
         logger.warn("System Notify failed", e)
-    } finally {
-      ()
     }
+    ()
   }
 
   def serviceReady(): Unit = {
