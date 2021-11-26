@@ -43,7 +43,13 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
     """
 
     persistence.database
-      .run(query)
+      .run {
+        query.withStatementParameters(
+          rsType = ResultSetType.Auto,
+          rsConcurrency = ResultSetConcurrency.Updatable,
+          fetchSize = 1
+        )
+      }
       .map { _ => Done }
       .recoverWith { case e: Exception =>
         logger.error("failed to update tenant", e)
@@ -73,7 +79,13 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
     """
 
     persistence.database
-      .run(query)
+      .run {
+        query.withStatementParameters(
+          rsType = ResultSetType.Auto,
+          rsConcurrency = ResultSetConcurrency.Updatable,
+          fetchSize = 1
+        )
+      }
       .map { _ => Done }
       .recoverWith { case e: Exception =>
         logger.error("failed to update account", e)
@@ -100,7 +112,13 @@ class SecondaryPersistence(val persistence: Postgres) extends StrictLogging {
     """
 
     persistence.database
-      .run(query)
+      .run {
+        query.withStatementParameters(
+          rsType = ResultSetType.Auto,
+          rsConcurrency = ResultSetConcurrency.Updatable,
+          fetchSize = 10
+        )
+      }
       .map { _ => Done }
       .recoverWith { case e: Exception =>
         logger.error("failed to update transfer", e)
