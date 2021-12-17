@@ -12,8 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM scratch
+FROM --platform=linux/arm64/v8 arm64v8/debian:sid-slim
 
 COPY packaging/bin/* /opt/artifacts/
 
-# fixme not runnable docker image
+USER root
+
+RUN apt-get update
+
+RUN find /opt/artifacts -name data-warehouse_*_arm64.deb | xargs -I{} -tx apt-get install -y -f {}
+
+RUN apt-get install -y openjdk-17-jre
+
+ENV PROG_HOME=/usr/share/openbank/data-warehouse
+
+ENTRYPOINT [ "data-warehouse" ]
