@@ -28,6 +28,9 @@ lifecycle::scala::sec() {
   if [ -z ${dir} -o ! -d ${dir} ] ; then
     return
   fi
+
+  dir=$(realpath ${dir})
+
   echo "nothing to sec at ${dir}"
 }
 
