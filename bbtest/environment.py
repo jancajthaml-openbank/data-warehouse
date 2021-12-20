@@ -25,6 +25,8 @@ def after_scenario(context, scenario):
 
 def before_all(context):
   context.log = logger()
+  context.log.info('')
+  context.log.info('  (START)')
   context.statsd = StatsdHelper()
   context.statsd.start()
   context.unit = UnitHelper(context)
@@ -33,5 +35,8 @@ def before_all(context):
 
 
 def after_all(context):
+  context.log.info('')
+  context.log.info('  (END)')
+  context.log.info('')
   context.unit.teardown()
   context.statsd.stop()
