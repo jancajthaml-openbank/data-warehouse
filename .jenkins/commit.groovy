@@ -211,8 +211,9 @@ pipeline {
                     docker.withRegistry("http://${env.ARTIFACTORY_DOCKER_REGISTRY}", 'jenkins-artifactory') {
                       docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").withRun("") { db ->
                         options = """
-                            |-e IMAGE_VERSION=${env.VERSION}
+                            |-e IMAGE_VERSION=amd64-${env.VERSION}
                             |-e UNIT_VERSION=${env.VERSION}
+                            |-e CI=true
                             |-e POSTGRES_HOSTNAME=db
                             |--volumes-from=${cid}
                             |--link ${db.id}:db
