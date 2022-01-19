@@ -5,7 +5,7 @@ from behave import *
 import json
 import time
 from helpers.eventually import eventually
-from helpers.http import Request
+from openbank_testkit import Request
 
 
 @when('I request HTTP {uri}')

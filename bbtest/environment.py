@@ -3,7 +3,7 @@
 
 import os
 from helpers.unit import UnitHelper
-from helpers.statsd import StatsdHelper
+from openbank_testkit import StatsdMock
 from helpers.logger import logger
 
 
@@ -27,7 +27,7 @@ def before_all(context):
   context.log = logger()
   context.log.info('')
   context.log.info('  (START)')
-  context.statsd = StatsdHelper()
+  context.statsd = StatsdMock()
   context.statsd.start()
   context.unit = UnitHelper(context)
   context.unit.configure()

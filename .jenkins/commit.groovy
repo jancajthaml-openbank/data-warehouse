@@ -211,8 +211,8 @@ pipeline {
                     docker.withRegistry("http://${env.ARTIFACTORY_DOCKER_REGISTRY}", 'jenkins-artifactory') {
                       docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").withRun("") { db ->
                         options = """
-                            |-e IMAGE_VERSION=amd64-${env.VERSION}
-                            |-e UNIT_VERSION=${env.VERSION}
+                            |-e VERSION=${env.VERSION}
+                            |-e META=jenkins
                             |-e CI=true
                             |-e POSTGRES_HOSTNAME=db
                             |--volumes-from=${cid}
@@ -235,7 +235,7 @@ pipeline {
         stage('Package Docker') {
             steps {
                 script {
-                    DOCKER_IMAGE = docker.build("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/data-warehouse:amd64-${env.VERSION}", dockerOptions())
+                    DOCKER_IMAGE = docker.build("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/data-warehouse:amd64-${env.VERSION}.jenkins", dockerOptions())
                 }
             }
         }
