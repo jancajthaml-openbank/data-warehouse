@@ -86,8 +86,8 @@ services:
       - postgres
     environment:
       POSTGRES_HOSTNAME: postgres
-      IMAGE_VERSION: ${ARCH}-${VERSION}.${META}
-      UNIT_VERSION: ${VERSION}
+      VERSION: ${VERSION}
+      META: ${META}
       CI: ${CI:-false}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
