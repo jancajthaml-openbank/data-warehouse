@@ -295,7 +295,7 @@ jobs:
           name: Compile data-warehouse binary
           command: |
             /home/circleci/project/dev/lifecycle/package \
-              --arch linux/<< parameters.arch >>
+              --arch linux/<< parameters.arch >> \
               --source /home/circleci/project/services/data-warehouse \
               --output /home/circleci/project/packaging/bin
           no_output_timeout: 5m
