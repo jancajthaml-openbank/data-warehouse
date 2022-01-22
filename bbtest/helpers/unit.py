@@ -30,7 +30,7 @@ class UnitHelper(object):
 
     cwd = os.path.realpath('{}/../..'.format(os.path.dirname(__file__)))
 
-    assert package.download(version, meta, '{}/packaging/bin'.format(cwd)), 'unable to download package data-warehouse'
+    assert package.download(version, 'main', '{}/packaging/bin'.format(cwd)), 'unable to download package postgres'
 
     binary = '{}/packaging/bin/postgres_{}_{}.deb'.format(cwd, version, Platform.arch)
 
