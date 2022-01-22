@@ -73,19 +73,10 @@ services:
 
   # -------------------------------------------------------------------------- #
 
-  postgres:
-    hostname: postgres
-    image: docker.io/openbank/postgres:${ARCH}-0.0.0.main
-
-  # -------------------------------------------------------------------------- #
-
   bbtest:
     image: jancajthaml/bbtest:${ARCH}
     tty: true
-    depends_on:
-      - postgres
     environment:
-      POSTGRES_HOSTNAME: postgres
       VERSION: ${VERSION}
       META: ${META}
       CI: ${CI:-false}

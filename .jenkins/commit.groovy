@@ -208,26 +208,19 @@ pipeline {
                         script: 'hostname',
                         returnStdout: true
                     ).trim()
-                    docker.withRegistry("http://${env.ARTIFACTORY_DOCKER_REGISTRY}", 'jenkins-artifactory') {
-                      docker.image("${env.ARTIFACTORY_DOCKER_REGISTRY}/docker-local/openbank/postgres:0.0.1").withRun("") { db ->
-                        options = """
-                            |-e VERSION=${env.VERSION}
-                            |-e META=jenkins
-                            |-e CI=true
-                            |-e POSTGRES_HOSTNAME=db
-                            |--volumes-from=${cid}
-                            |--link ${db.id}:db
-                            |-v /var/run/docker.sock:/var/run/docker.sock:rw
-                            |-v /var/lib/docker/containers:/var/lib/docker/containers:rw
-                            |-v /sys/fs/cgroup:/sys/fs/cgroup:ro
-                            |-u 0
-                        """.stripMargin().stripIndent().replaceAll("[\\t\\n\\r]+"," ").stripMargin().stripIndent()
-                        docker.image("jancajthaml/bbtest:${env.ARCH}").withRun(options) { c ->
-                            sh "docker exec -t ${c.id} python3 ${env.WORKSPACE}/bbtest/main.py"
-                        }
-                      }
+                    options = """
+                        |-e VERSION=${env.VERSION}
+                        |-e META=jenkins
+                        |-e CI=true
+                        |--volumes-from=${cid}
+                        |-v /var/run/docker.sock:/var/run/docker.sock:rw
+                        |-v /var/lib/docker/containers:/var/lib/docker/containers:rw
+                        |-v /sys/fs/cgroup:/sys/fs/cgroup:ro
+                        |-u 0
+                    """.stripMargin().stripIndent().replaceAll("[\\t\\n\\r]+"," ").stripMargin().stripIndent()
+                    docker.image("jancajthaml/bbtest:${env.ARCH}").withRun(options) { c ->
+                        sh "docker exec -t ${c.id} python3 ${env.WORKSPACE}/bbtest/main.py"
                     }
-
                 }
             }
         }

@@ -10,12 +10,11 @@ class UnitHelper(object):
 
   @staticmethod
   def default_config():
-    postgres_hostname = os.environ.get('POSTGRES_HOSTNAME', 'postgresql')
     return {
       "LOG_LEVEL": "DEBUG",
       "HTTP_PORT": "80",
       "PRIMARY_STORAGE_PATH": "/data",
-      "POSTGRES_URL": "jdbc:postgresql://{}:5432/openbank".format(postgres_hostname),
+      "POSTGRES_URL": "jdbc:postgresql://127.0.0.1:5432/openbank",
       "STATSD_URL": "udp://127.0.0.1:8125",
     }
 
@@ -23,6 +22,23 @@ class UnitHelper(object):
     self.store = dict()
     self.units = list()
     self.context = context
+    self.__bootstrap_postgres()
+
+  def __bootstrap_postgres(self):
+    package = Package('postgres')
+    version = package.latest_version
+
+    cwd = os.path.realpath('{}/../..'.format(os.path.dirname(__file__)))
+
+    assert package.download(version, 'main', '{}/packaging/bin'.format(cwd)), 'unable to download package postgres'
+
+    binary = '{}/packaging/bin/postgres_{}_{}.deb'.format(cwd, version, Platform.arch)
+
+    (code, result, error) = Shell.run([
+      "apt-get", "install", "-f", "-qq", "-o=Dpkg::Use-Pty=0", "-o=Dpkg::Options::=--force-confdef", "-o=Dpkg::Options::=--force-confnew", binary
+    ])
+    assert code == 'OK', str(code) + ' ' + result
+
 
   def download(self):
     version = os.environ.get('VERSION', '')
