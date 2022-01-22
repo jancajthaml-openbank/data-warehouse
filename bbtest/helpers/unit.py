@@ -10,12 +10,11 @@ class UnitHelper(object):
 
   @staticmethod
   def default_config():
-    postgres_hostname = os.environ.get('POSTGRES_HOSTNAME', 'postgresql')
     return {
       "LOG_LEVEL": "DEBUG",
       "HTTP_PORT": "80",
       "PRIMARY_STORAGE_PATH": "/data",
-      "POSTGRES_URL": "jdbc:postgresql://{}:5432/openbank".format(postgres_hostname),
+      "POSTGRES_URL": "jdbc:postgresql://127.0.0.1:5432/openbank",
       "STATSD_URL": "udp://127.0.0.1:8125",
     }
 
