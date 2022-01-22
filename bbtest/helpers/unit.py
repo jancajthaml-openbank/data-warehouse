@@ -22,6 +22,23 @@ class UnitHelper(object):
     self.store = dict()
     self.units = list()
     self.context = context
+    self.__bootstrap_postgres()
+
+  def __bootstrap_postgres(self):
+    package = Package('postgres')
+    version = package.latest_version
+
+    cwd = os.path.realpath('{}/../..'.format(os.path.dirname(__file__)))
+
+    assert package.download(version, meta, '{}/packaging/bin'.format(cwd)), 'unable to download package data-warehouse'
+
+    binary = '{}/packaging/bin/postgres_{}_{}.deb'.format(cwd, version, Platform.arch)
+
+    (code, result, error) = Shell.run([
+      "apt-get", "install", "-f", "-qq", "-o=Dpkg::Use-Pty=0", "-o=Dpkg::Options::=--force-confdef", "-o=Dpkg::Options::=--force-confnew", binary
+    ])
+    assert code == 'OK', str(code) + ' ' + result
+
 
   def download(self):
     version = os.environ.get('VERSION', '')
